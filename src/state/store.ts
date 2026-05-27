@@ -37,6 +37,11 @@ export interface GameState {
   activeModifiers: ActiveModifier[];
   combo: ComboState;
   worldVersion: number;
+  isRunning: boolean;
+  runStartId: number;
+  runMomentum: number;
+  totalRuns: number;
+  bestRunMomentum: number;
 
   addMomentum: (n: number) => void;
   registerHit: (points: number, now: number) => void;
@@ -47,6 +52,8 @@ export interface GameState {
   pushModifier: (defId: string, now: number) => void;
   expireModifiers: (now: number) => void;
   decayCombo: (now: number, decayMs: number) => void;
+  startRun: () => void;
+  endRun: () => void;
   reset: () => void;
 }
 
@@ -88,10 +95,16 @@ export const useGameStore = create<GameState>()(
       activeModifiers: [],
       combo: { count: 0, lastHitAt: 0 },
       worldVersion: 0,
+      isRunning: false,
+      runStartId: 0,
+      runMomentum: 0,
+      totalRuns: 0,
+      bestRunMomentum: 0,
 
       addMomentum: (n) =>
         set((s) => ({
           momentum: s.momentum + n,
+          runMomentum: s.isRunning ? s.runMomentum + n : s.runMomentum,
           stats: { ...s.stats, totalMomentum: s.stats.totalMomentum + n },
         })),
 
@@ -102,6 +115,7 @@ export const useGameStore = create<GameState>()(
           const bestCombo = Math.max(s.stats.bestCombo, newCount);
           return {
             momentum: s.momentum + points,
+            runMomentum: s.isRunning ? s.runMomentum + points : s.runMomentum,
             stats: {
               ...s.stats,
               totalMomentum: s.stats.totalMomentum + points,
@@ -191,6 +205,21 @@ export const useGameStore = create<GameState>()(
           return { combo: { count: 0, lastHitAt: s.combo.lastHitAt } };
         }),
 
+      startRun: () =>
+        set((s) => ({
+          isRunning: true,
+          runStartId: s.runStartId + 1,
+          runMomentum: 0,
+          combo: { count: 0, lastHitAt: 0 },
+        })),
+
+      endRun: () =>
+        set((s) => ({
+          isRunning: false,
+          totalRuns: s.totalRuns + 1,
+          bestRunMomentum: Math.max(s.bestRunMomentum, s.runMomentum),
+        })),
+
       reset: () =>
         set({
           momentum: 0,
@@ -200,16 +229,23 @@ export const useGameStore = create<GameState>()(
           activeModifiers: [],
           combo: { count: 0, lastHitAt: 0 },
           worldVersion: 0,
+          isRunning: false,
+          runStartId: 0,
+          runMomentum: 0,
+          totalRuns: 0,
+          bestRunMomentum: 0,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         momentum: state.momentum,
         stats: state.stats,
         owned: state.owned,
         equipped: state.equipped,
+        totalRuns: state.totalRuns,
+        bestRunMomentum: state.bestRunMomentum,
       }),
     }
   )

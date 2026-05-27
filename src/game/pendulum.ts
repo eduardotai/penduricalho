@@ -49,7 +49,7 @@ export function buildPendulum(
       {
         label: `bob-${i}`,
         density: 0.001 * baseMass * weightScale,
-        frictionAir: 0.01,
+        frictionAir: 0.005,
         restitution: 0.3,
       }
     );

@@ -14,6 +14,10 @@ export default function HUD() {
   const momentum = useGameStore((s) => s.momentum);
   const activeModifiers = useGameStore((s) => s.activeModifiers);
   const combo = useGameStore((s) => s.combo);
+  const isRunning = useGameStore((s) => s.isRunning);
+  const runMomentum = useGameStore((s) => s.runMomentum);
+  const bestRunMomentum = useGameStore((s) => s.bestRunMomentum);
+  const totalRuns = useGameStore((s) => s.totalRuns);
   const [now, setNow] = useState(() => performance.now());
 
   useEffect(() => {
@@ -30,20 +34,54 @@ export default function HUD() {
   const sinceHit = now - combo.lastHitAt;
   const comboActive = combo.count > 1 && sinceHit < comboWindow;
   const comboDecayPct = Math.max(0, Math.min(1, 1 - sinceHit / comboWindow));
+  const showRunCard = isRunning || runMomentum > 0;
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
       <div className="pointer-events-none flex items-start justify-between p-5">
-        <div className="rounded-2xl bg-slate-900/70 px-5 py-3 backdrop-blur">
-          <div className="text-xs uppercase tracking-widest text-slate-400">Momentum</div>
-          <div className="font-display text-3xl font-bold text-brand-300">
-            {formatNumber(momentum)}
+        <div className="flex flex-col gap-2">
+          <div className="rounded-2xl bg-slate-900/70 px-5 py-3 backdrop-blur">
+            <div className="text-xs uppercase tracking-widest text-slate-400">
+              Momentum
+            </div>
+            <div className="font-display text-3xl font-bold text-brand-300">
+              {formatNumber(momentum)}
+            </div>
           </div>
+
+          {showRunCard && (
+            <div
+              className={`rounded-xl border px-4 py-2 backdrop-blur ${
+                isRunning
+                  ? "border-amber-500/40 bg-amber-500/15"
+                  : "border-slate-700/60 bg-slate-900/70"
+              }`}
+            >
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400">
+                {isRunning ? (
+                  <>
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                    Run in progress
+                  </>
+                ) : (
+                  "Last run"
+                )}
+              </div>
+              <div className="font-display text-xl font-semibold text-amber-200">
+                +{formatNumber(runMomentum)}
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">
+                Best {formatNumber(bestRunMomentum)} · Runs {totalRuns}
+              </div>
+            </div>
+          )}
         </div>
 
         {comboActive && (
           <div className="rounded-2xl bg-amber-500/20 px-5 py-3 text-right backdrop-blur">
-            <div className="text-xs uppercase tracking-widest text-amber-200/80">Combo</div>
+            <div className="text-xs uppercase tracking-widest text-amber-200/80">
+              Combo
+            </div>
             <div className="font-display text-3xl font-bold text-amber-200">
               x{combo.count}
             </div>
@@ -58,7 +96,7 @@ export default function HUD() {
       </div>
 
       <div className="pointer-events-none flex flex-1 items-end justify-start p-5">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pb-32">
           {activeModifiers.map((m) => {
             const def = MODIFIER_MAP.get(m.defId);
             if (!def) return null;
@@ -96,11 +134,12 @@ export default function HUD() {
 }
 
 function Hint() {
-  const stats = useGameStore((s) => s.stats);
-  if (stats.totalSwings > 4) return null;
+  const totalRuns = useGameStore((s) => s.totalRuns);
+  const isRunning = useGameStore((s) => s.isRunning);
+  if (totalRuns > 0 || isRunning) return null;
   return (
-    <div className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-sm text-slate-300 backdrop-blur">
-      Drag the bob to twist it. Click for a tangential nudge. Land hits on the blue zones.
+    <div className="pointer-events-none absolute bottom-44 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-sm text-slate-300 backdrop-blur">
+      Press <span className="font-semibold text-brand-300">Start Run</span> to launch the pendulum. Land hits on the blue zones to earn momentum.
     </div>
   );
 }

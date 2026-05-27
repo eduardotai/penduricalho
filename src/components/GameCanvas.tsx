@@ -20,7 +20,6 @@ import {
   relocateZone,
   type HitZoneField,
 } from "../game/hitZones";
-import { createInputController } from "../game/input";
 import { aggregateEffects } from "../game/modifiers";
 import { createManeuverDetector } from "../game/maneuvers";
 import { rollRandomModifier } from "../data/modifiers";
@@ -38,20 +37,30 @@ import {
   emitManeuver,
   tickEffects,
 } from "../game/effects";
-import type { ActiveModifier } from "../types";
 
 const VIRTUAL_WIDTH = 1280;
 const VIRTUAL_HEIGHT = 800;
 const ANCHOR = { x: VIRTUAL_WIDTH / 2, y: 120 };
+const RUN_END_SPEED_THRESHOLD = 0.45;
+const RUN_END_IDLE_MS = 1500;
+const HIT_BOOST_BASE = 2.2;
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pendulumHandleRef = useRef<PendulumHandle | null>(null);
+  const launchPendingRef = useRef(false);
 
   const pendulum = useEquippedPendulum();
   const attachment = useEquippedAttachment();
   const site = useEquippedSite();
   const worldVersion = useGameStore((s) => s.worldVersion);
+  const runStartId = useGameStore((s) => s.runStartId);
+
+  useEffect(() => {
+    if (runStartId === 0) return;
+    launchPendingRef.current = true;
+  }, [runStartId]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -61,53 +70,27 @@ export default function GameCanvas() {
     const engineHandle = createEngine(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
     setGravity(engineHandle, site.gravity);
 
-    let pendulumHandle: PendulumHandle = buildPendulum(
+    const pendulumHandle: PendulumHandle = buildPendulum(
       engineHandle.world,
       pendulum,
       attachment,
       ANCHOR,
       1
     );
+    pendulumHandleRef.current = pendulumHandle;
 
-    let field: HitZoneField = generateHitZones(
+    const field: HitZoneField = generateHitZones(
       engineHandle.world,
       site,
       { x: 60, y: 80, w: VIRTUAL_WIDTH - 120, h: VIRTUAL_HEIGHT - 160 },
       ANCHOR,
-      attachment.length + (pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1))
+      attachment.length + pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1)
     );
 
     const effects = createEffectsState();
     const maneuvers = createManeuverDetector();
 
-    const input = createInputController(
-      canvas,
-      pendulumHandle,
-      {
-        twistPowerMult: 1,
-        twistPowerBonus: attachment.bonuses.twistPowerBonus ?? 0,
-        onTwist: (force) => {
-          useGameStore.getState().registerSwing();
-          const last = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
-          const event = maneuvers.reportTwist(
-            performance.now(),
-            last,
-            pendulumHandle.pivot.position,
-            force
-          );
-          if (event) {
-            useGameStore.getState().addMomentum(event.def.bonus);
-            emitManeuver(
-              effects,
-              last.position,
-              `${event.def.name} +${event.def.bonus}`,
-              performance.now()
-            );
-          }
-        },
-      }
-    );
-    input.attach();
+    let runIdleMs = 0;
 
     function handleCollision(evt: Matter.IEventCollision<Matter.Engine>) {
       const now = performance.now();
@@ -116,10 +99,16 @@ export default function GameCanvas() {
       for (const pair of evt.pairs) {
         const a = pair.bodyA;
         const b = pair.bodyB;
-        const zoneBody =
-          a.label.startsWith("zone:") ? a : b.label.startsWith("zone:") ? b : null;
-        const bobBody =
-          a.label.startsWith("bob-") ? a : b.label.startsWith("bob-") ? b : null;
+        const zoneBody = a.label.startsWith("zone:")
+          ? a
+          : b.label.startsWith("zone:")
+            ? b
+            : null;
+        const bobBody = a.label.startsWith("bob-")
+          ? a
+          : b.label.startsWith("bob-")
+            ? b
+            : null;
         if (!zoneBody || !bobBody) continue;
         const handle = findZoneByBody(field, zoneBody);
         if (!handle) continue;
@@ -142,6 +131,8 @@ export default function GameCanvas() {
           points: total,
           intensity: 1 + Math.min(2, comboStacks / 12),
         });
+
+        applyHitBoost(pendulumHandle, bobBody, z.multiplier, effects$);
 
         if (comboStacks > 1 && comboStacks % 5 === 0) {
           const bonus = 5 * comboStacks;
@@ -175,28 +166,55 @@ export default function GameCanvas() {
     const ctx = canvas.getContext("2d")!;
 
     function frame(now: number) {
-      const dt = now - lastT;
+      const dt = Math.min(64, now - lastT);
       lastT = now;
       const store = useGameStore.getState();
       store.expireModifiers(now);
       store.decayCombo(now, 1800);
 
       const effects$ = aggregateEffects(store.activeModifiers);
-      input.setContext({
-        twistPowerMult: effects$.twistPowerMult,
-        twistPowerBonus: attachment.bonuses.twistPowerBonus ?? 0,
-      });
       setPendulumWeightScale(pendulumHandle, effects$.weightMult);
       setGravity(engineHandle, site.gravity * effects$.accelerationMult);
-      if (site.ambient) {
+      if (site.ambient && store.isRunning) {
         applyAmbientForce(engineHandle, pendulumHandle.bobs, site.ambient);
       }
 
+      if (launchPendingRef.current) {
+        launchPendingRef.current = false;
+        launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+        store.registerSwing();
+        runIdleMs = 0;
+        maneuvers.reset();
+        emitManeuver(effects, pendulumHandle.bobs[0].position, "LAUNCH!", now);
+      }
+
       const last = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
-      const events = maneuvers.push(now, last, pendulumHandle.pivot.position);
-      for (const ev of events) {
-        useGameStore.getState().addMomentum(ev.def.bonus);
-        emitManeuver(effects, last.position, `${ev.def.name} +${ev.def.bonus}`, now);
+
+      if (store.isRunning) {
+        const events = maneuvers.push(now, last, pendulumHandle.pivot.position);
+        for (const ev of events) {
+          useGameStore.getState().addMomentum(ev.def.bonus);
+          emitManeuver(effects, last.position, `${ev.def.name} +${ev.def.bonus}`, now);
+        }
+
+        let maxSpeed = 0;
+        for (const bob of pendulumHandle.bobs) {
+          const s = Math.hypot(bob.velocity.x, bob.velocity.y);
+          if (s > maxSpeed) maxSpeed = s;
+        }
+        if (maxSpeed < RUN_END_SPEED_THRESHOLD) {
+          runIdleMs += dt;
+        } else {
+          runIdleMs = 0;
+        }
+        if (runIdleMs >= RUN_END_IDLE_MS) {
+          runIdleMs = 0;
+          useGameStore.getState().endRun();
+          emitManeuver(effects, last.position, "Run Complete", now);
+        }
+      } else {
+        maneuvers.reset();
+        runIdleMs = 0;
       }
 
       tickEffects(effects, dt, now);
@@ -218,10 +236,10 @@ export default function GameCanvas() {
     return () => {
       cancelAnimationFrame(raf);
       Matter.Events.off(engineHandle.engine, "collisionStart", handleCollision);
-      input.detach();
       destroyHitZones(engineHandle.world, field);
       destroyPendulum(engineHandle.world, pendulumHandle);
       destroyEngine(engineHandle);
+      pendulumHandleRef.current = null;
     };
     // Rebuild whenever equipped items change or worldVersion bumps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,12 +249,65 @@ export default function GameCanvas() {
     <div ref={containerRef} className="absolute inset-0">
       <canvas
         ref={canvasRef}
-        className="h-full w-full touch-none select-none"
-        style={{ cursor: "grab" }}
+        className="h-full w-full select-none"
+        style={{ touchAction: "none" }}
       />
     </div>
   );
 }
 
-// Force TS to treat ActiveModifier as used for any future refactor convenience.
-export type _Touch = ActiveModifier;
+function launchPendulum(
+  handle: PendulumHandle,
+  attachment: import("../types").AttachmentDef,
+  pendulum: import("../types").PendulumDef,
+  effects$: { twistPowerMult: number }
+) {
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const twistBonus = attachment.bonuses.twistPowerBonus ?? 0;
+  const velBonus = attachment.bonuses.velocityBonus ?? 0;
+  const baseSpeed = 20;
+  const speed =
+    baseSpeed *
+    (1 + twistBonus) *
+    (1 + velBonus) *
+    effects$.twistPowerMult *
+    (0.9 + Math.random() * 0.25);
+
+  for (let i = 0; i < handle.bobs.length; i++) {
+    const bob = handle.bobs[i];
+    const rx = bob.position.x - handle.pivot.position.x;
+    const ry = bob.position.y - handle.pivot.position.y;
+    const len = Math.hypot(rx, ry) || 1;
+    const tx = -ry / len;
+    const ty = rx / len;
+    const segmentBoost = 1 - i * 0.05;
+    Matter.Body.setVelocity(bob, {
+      x: tx * dir * speed * segmentBoost,
+      y: ty * dir * speed * segmentBoost,
+    });
+    Matter.Body.setAngularVelocity(bob, 0);
+  }
+  void pendulum;
+}
+
+function applyHitBoost(
+  handle: PendulumHandle,
+  bob: Matter.Body,
+  zoneMultiplier: number,
+  effects$: { twistPowerMult: number }
+) {
+  const rx = bob.position.x - handle.pivot.position.x;
+  const ry = bob.position.y - handle.pivot.position.y;
+  const len = Math.hypot(rx, ry) || 1;
+  const tx = -ry / len;
+  const ty = rx / len;
+  const sign = bob.angularVelocity >= 0 ? 1 : -1;
+  const speedNow = Math.hypot(bob.velocity.x, bob.velocity.y);
+  const boost = HIT_BOOST_BASE * zoneMultiplier * effects$.twistPowerMult;
+  const nextSpeed = speedNow + boost;
+  Matter.Body.setVelocity(bob, {
+    x: bob.velocity.x + tx * sign * boost,
+    y: bob.velocity.y + ty * sign * boost,
+  });
+  void nextSpeed;
+}
