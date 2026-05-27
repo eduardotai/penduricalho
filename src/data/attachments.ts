@@ -1,0 +1,78 @@
+import type { AttachmentDef } from "../types";
+
+export const ATTACHMENTS: AttachmentDef[] = [
+  {
+    id: "hemp-rope",
+    name: "Hemp Rope",
+    description: "Basic flexible rope. Easy to swing.",
+    type: "rope",
+    length: 220,
+    stiffness: 0.9,
+    damping: 0.02,
+    bonuses: { momentumMult: 1 },
+    cost: 0,
+  },
+  {
+    id: "steel-rope",
+    name: "Steel Cable",
+    description: "Taut steel cable. Faster recovery.",
+    type: "rope",
+    length: 240,
+    stiffness: 0.95,
+    damping: 0.015,
+    bonuses: { momentumMult: 1.15, velocityBonus: 0.1 },
+    cost: 200,
+  },
+  {
+    id: "iron-rod",
+    name: "Iron Rod",
+    description: "Rigid metal rod. Powerful, precise twists.",
+    type: "rod",
+    length: 200,
+    stiffness: 1,
+    damping: 0.005,
+    bonuses: { twistPowerBonus: 0.3, momentumMult: 1.25 },
+    cost: 1200,
+    unlock: { stat: "totalSwings", gte: 50 },
+  },
+  {
+    id: "heavy-chain",
+    name: "Heavy Chain",
+    description: "Massive chain. Adds inertia to every swing.",
+    type: "chain",
+    length: 280,
+    stiffness: 0.85,
+    damping: 0.03,
+    bonuses: { momentumMult: 1.5, twistPowerBonus: 0.15 },
+    cost: 5000,
+    unlock: { stat: "totalMomentum", gte: 8000 },
+  },
+  {
+    id: "elastic-cord",
+    name: "Elastic Cord",
+    description: "Stretchy cord. Storms of energy on release.",
+    type: "elastic",
+    length: 200,
+    stiffness: 0.6,
+    damping: 0.04,
+    bonuses: { momentumMult: 1.35, velocityBonus: 0.4, twistPowerBonus: 0.2 },
+    cost: 15000,
+    unlock: { stat: "totalHits", gte: 250 },
+  },
+  {
+    id: "magnetic-tether",
+    name: "Magnetic Tether",
+    description: "An invisible magnetic field. Phenomenal.",
+    type: "rope",
+    length: 320,
+    stiffness: 0.92,
+    damping: 0.01,
+    bonuses: { momentumMult: 2, twistPowerBonus: 0.5, velocityBonus: 0.25 },
+    cost: 80000,
+    unlock: { stat: "bestCombo", gte: 30 },
+  },
+];
+
+export const ATTACHMENT_MAP = new Map(ATTACHMENTS.map((a) => [a.id, a]));
+
+export const STARTER_ATTACHMENT_ID = "hemp-rope";
