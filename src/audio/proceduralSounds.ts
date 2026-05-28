@@ -196,6 +196,26 @@ export const SYNTH_PROFILES: Record<string, SynthProfile> = {
       osc.stop(t + 0.4);
     },
   },
+  "rope-snap": {
+    group: "sfx",
+    duration: 0.5,
+    play(ctx, dest, pitch, volume) {
+      const t = ctx.currentTime;
+      // Sharp fibrous crack, then a descending twang as the line whips free.
+      noiseBurst(ctx, dest, t, 0.14, volume * 0.5);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(420 * pitch, t);
+      osc.frequency.exponentialRampToValueAtTime(70 * pitch, t + 0.4);
+      gain.gain.setValueAtTime(volume * 0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      osc.connect(gain);
+      gain.connect(dest);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    },
+  },
   "run-stall": {
     group: "sfx",
     duration: 0.35,

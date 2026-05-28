@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useGameStore, MODIFIER_DURATION_CAP_MS } from "../state/store";
+import { useGameStore, modifierDurationCapMs } from "../state/store";
 import { MODIFIER_MAP } from "../data/modifiers";
 import {
   getRemainingMs,
@@ -73,7 +73,7 @@ export function HUDStats() {
                 ? "border-yellow-300/70 bg-yellow-400/15 shadow-[0_0_25px_-5px_rgba(250,204,21,0.7)]"
                 : "border-yellow-700/40 bg-slate-900/70"
           }`}
-          title="Golden Tokens go into your ready slot. Press Use Token (or G) mid-run to re-launch the pendulum and gain x3 points."
+          title="Golden Tokens go into your ready slot. Press Use Token (or G) mid-run to re-launch the Bob and gain x3 points."
         >
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-yellow-300/90">
             <span
@@ -198,7 +198,7 @@ function ActiveBuffsPanel() {
           key,
           defId: m.defId,
           expiresAt: m.expiresAt,
-          maxDurationMs: MODIFIER_DURATION_CAP_MS,
+          maxDurationMs: modifierDurationCapMs(m.defId),
           phase: "enter",
         });
         queueEnter(key);
@@ -207,15 +207,16 @@ function ActiveBuffsPanel() {
 
       for (const [defId, persistentRemainingMs] of persistentGrouped) {
         const key = persistentKey(defId);
+        const capMs = modifierDurationCapMs(defId);
         const existing = next.find((row) => row.key === key);
         if (existing) {
           if (
             (existing.persistentRemainingMs !== persistentRemainingMs ||
-              existing.maxDurationMs !== MODIFIER_DURATION_CAP_MS) &&
+              existing.maxDurationMs !== capMs) &&
             existing.phase !== "exit"
           ) {
             existing.persistentRemainingMs = persistentRemainingMs;
-            existing.maxDurationMs = MODIFIER_DURATION_CAP_MS;
+            existing.maxDurationMs = capMs;
             existing.phase = "active";
             changed = true;
           }
@@ -225,7 +226,7 @@ function ActiveBuffsPanel() {
           key,
           defId,
           persistentRemainingMs,
-          maxDurationMs: MODIFIER_DURATION_CAP_MS,
+          maxDurationMs: capMs,
           phase: "enter",
         });
         queueEnter(key);
@@ -384,7 +385,7 @@ function ActiveBuffsPanel() {
           row.expiresAt !== undefined
             ? getRemainingMs({ defId: row.defId, expiresAt: row.expiresAt }, now)
             : row.persistentRemainingMs ?? 0;
-        const maxDuration = row.maxDurationMs ?? MODIFIER_DURATION_CAP_MS;
+        const maxDuration = row.maxDurationMs ?? modifierDurationCapMs(row.defId);
         const pct = Math.max(0, Math.min(1, remaining / maxDuration));
         const isPersistent = row.persistentRemainingMs !== undefined;
 
@@ -399,7 +400,7 @@ function ActiveBuffsPanel() {
             }
             title={
               isPersistent
-                ? `${def.description} Stacks for ${(remaining / 1000).toFixed(1)}s (max ${(MODIFIER_DURATION_CAP_MS / 1000).toFixed(0)}s).`
+                ? `${def.description} Stacks for ${(remaining / 1000).toFixed(1)}s (max ${(modifierDurationCapMs(row.defId) / 1000).toFixed(0)}s).`
                 : def.description
             }
           >
@@ -489,7 +490,7 @@ function Hint() {
   if (totalRuns > 0 || isRunning) return null;
   return (
     <div className="pointer-events-none absolute bottom-44 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-sm text-slate-300 backdrop-blur">
-      Press <span className="font-semibold text-brand-300">Start Run</span> to launch the pendulum. Hit the glowing orbs to earn momentum.
+      Press <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
     </div>
   );
 }

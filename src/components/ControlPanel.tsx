@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "../state/store";
 import { useEquippedAttachment, useEquippedPendulum, useEquippedSite } from "../state/selectors";
 import { playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
+
+const AUTO_RUN_DELAY_MS = 1500;
 
 interface ControlPanelProps {
   onOpenCustomize: () => void;
@@ -18,6 +20,12 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
   const [hardEndConfirmOpen, setHardEndConfirmOpen] = useState(false);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
   const spendGoldenToken = useGameStore((s) => s.spendGoldenToken);
+  const autoRun = useGameStore((s) => s.autoRun);
+  const autoToken = useGameStore((s) => s.autoToken);
+  const toggleAutoRun = useGameStore((s) => s.toggleAutoRun);
+  const toggleAutoToken = useGameStore((s) => s.toggleAutoToken);
+  const [countdown, setCountdown] = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendulum = useEquippedPendulum();
   const attachment = useEquippedAttachment();
   const site = useEquippedSite();
@@ -53,6 +61,38 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
     return () => window.removeEventListener("keydown", onKey);
   }, [canSpendToken, spendGoldenToken]);
 
+  useEffect(() => {
+    if (!autoRun || !canLaunch) {
+      if (countdownRef.current !== null) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+      setCountdown(0);
+      return;
+    }
+    // Run Again is available with autoRun on — start countdown
+    setCountdown(AUTO_RUN_DELAY_MS);
+    const start = Date.now();
+    countdownRef.current = setInterval(() => {
+      const remaining = AUTO_RUN_DELAY_MS - (Date.now() - start);
+      if (remaining <= 0) {
+        setCountdown(0);
+        if (countdownRef.current !== null) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+        }
+      } else {
+        setCountdown(remaining);
+      }
+    }, 50);
+    return () => {
+      if (countdownRef.current !== null) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [autoRun, canLaunch]);
+
   return (
     <div className="pointer-events-auto w-full min-w-0">
       <div className="flex w-full flex-col items-stretch gap-2 rounded-2xl border border-slate-700/60 bg-slate-950/85 p-3 shadow-xl backdrop-blur">
@@ -83,7 +123,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
             }`}
             title={
               canSpendToken
-                ? "Re-launch the pendulum with x3 points (G)"
+                ? "Re-launch the Bob with x3 points (G)"
                 : "Use during a run to re-launch"
             }
           >
@@ -123,6 +163,51 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
           </span>
         </button>
 
+        {autoRun && canLaunch && countdown > 0 && (
+          <div className="text-center text-xs text-slate-400">
+            Next run in{" "}
+            <span className="font-semibold text-brand-400">
+              {(countdown / 1000).toFixed(1)}s
+            </span>
+            …
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              playUiClick();
+              toggleAutoRun();
+            }}
+            className={`rounded-xl border px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+              autoRun
+                ? "border-brand-500/60 bg-brand-900/40 text-brand-300 hover:bg-brand-900/60"
+                : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            Auto-Run{" "}
+            <span className={autoRun ? "text-brand-400" : "text-slate-600"}>
+              {autoRun ? "ON" : "OFF"}
+            </span>
+          </button>
+          <button
+            onClick={() => {
+              playUiClick();
+              toggleAutoToken();
+            }}
+            className={`rounded-xl border px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+              autoToken
+                ? "border-yellow-500/60 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50"
+                : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            Auto-Token{" "}
+            <span className={autoToken ? "text-yellow-400" : "text-slate-600"}>
+              {autoToken ? "ON" : "OFF"}
+            </span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => {
@@ -132,7 +217,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
             }}
             className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
           >
-            Customize
+            Shop
           </button>
           <button
             onClick={() => {

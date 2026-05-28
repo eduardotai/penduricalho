@@ -3,7 +3,7 @@ import type { ModifierEffects } from "../types";
 import { MODIFIER_MAP } from "../data/modifiers";
 import { PENDULUM_MAP } from "../data/pendulums";
 import { ATTACHMENT_MAP } from "../data/attachments";
-import { SITE_MAP } from "../data/sites";
+import { SITE_MAP, STARTER_SITE_ID } from "../data/sites";
 import { STARTER_SKIN_ID, SKIN_MAP, BOB_SKINS } from "../data/bobSkins";
 import { STARTER_SHAPE_ID, SHAPE_MAP, BOB_SHAPES } from "../data/bobShapes";
 
@@ -19,7 +19,9 @@ export function useEquippedAttachment() {
 
 export function useEquippedSite() {
   const id = useGameStore((s) => s.equipped.siteId);
-  return SITE_MAP.get(id)!;
+  // Saves from before the site cull may still hold a removed site id — fall
+  // back to the Workshop so the canvas never resolves to undefined.
+  return SITE_MAP.get(id) ?? SITE_MAP.get(STARTER_SITE_ID)!;
 }
 
 export function resolveEquippedSkin(id: string) {

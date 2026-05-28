@@ -28,8 +28,8 @@ import type {
 type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "stats";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "pendulum", label: "Pendulums" },
-  { id: "attachment", label: "Attachments" },
+  { id: "pendulum", label: "Bobs" },
+  { id: "attachment", label: "Ropes" },
   { id: "site", label: "Sites" },
   { id: "skin", label: "Bob Skins" },
   { id: "shape", label: "Bob Shapes" },
@@ -67,7 +67,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
       >
         <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
           <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">Customize</h2>
+            <h2 className="font-display text-xl font-bold text-slate-100">Shop</h2>
             <p className="text-xs text-slate-400">
               Equip what you own and unlock more with momentum.
             </p>
@@ -380,7 +380,7 @@ function ItemStats({
         <Stat label="Size" value={`${p.bobRadius}px`} />
         <Stat label="Bobs" value={p.bobCount.toString()} />
         <Stat label="Mult" value={`x${p.basePointMultiplier.toFixed(2)}`} />
-        <Stat label="MaxVel" value={p.maxAngularVelocity.toFixed(2)} />
+        <Stat label="Spin Cap" value={p.maxAngularVelocity.toFixed(2)} />
       </div>
     );
   }
@@ -406,10 +406,17 @@ function ItemStats({
     );
   }
   const s = item as SiteDef;
+  const wallsLabel =
+    s.walls === "breakable"
+      ? "breakable"
+      : s.walls === "solid"
+        ? "solid"
+        : "open";
   return (
     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
       <Stat label="Gravity" value={s.gravity.toFixed(2)} />
       <Stat label="Zones" value={s.hitZoneCount.toString()} />
+      <Stat label="Walls" value={wallsLabel} />
       {s.ambient && <Stat label="Wind" value="yes" />}
     </div>
   );
@@ -453,8 +460,8 @@ function StatsTab() {
           Collection
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatCard label="Pendulums" value={`${owned.pendulums.length}`} />
-          <StatCard label="Attachments" value={`${owned.attachments.length}`} />
+          <StatCard label="Bobs" value={`${owned.pendulums.length}`} />
+          <StatCard label="Ropes" value={`${owned.attachments.length}`} />
           <StatCard label="Sites" value={`${owned.sites.length}`} />
           <StatCard label="Bob Skins" value={`${owned.skins?.length ?? 1}`} />
           <StatCard label="Bob Shapes" value={`${owned.shapes?.length ?? 1}`} />

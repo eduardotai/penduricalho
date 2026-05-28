@@ -54,6 +54,18 @@ export interface AttachmentDef {
   unlock?: UnlockGate;
 }
 
+/**
+ * Boundary-wall behavior for the freed bobs after a rope snap. A strung
+ * pendulum never reaches the walls, so this only matters during the snap
+ * finale.
+ *   "none"      — no walls; freed bobs fly off into the void and the run ends
+ *                 once they all leave the field.
+ *   "solid"     — indestructible walls; freed bobs bounce around until settled.
+ *   "breakable" — walls shatter when slammed hard enough, kicking the bob with
+ *                 an extra impulse; once enough break the bobs can escape.
+ */
+export type WallMode = "none" | "solid" | "breakable";
+
 export interface SiteDef {
   id: string;
   name: string;
@@ -63,6 +75,8 @@ export interface SiteDef {
   hitZoneCount: number;
   hitZoneRadius: [number, number];
   background: string;
+  /** Defaults to "none" when omitted. */
+  walls?: WallMode;
   cost: number;
   unlock?: UnlockGate;
 }
@@ -162,9 +176,8 @@ export type TokenKind =
   | "tiny-bob"
   | "velocity-surge"
   | "speed-ramp"
-  | "long-rope"
-  | "short-rope"
   | "multi-bob"
+  | "repair"
   | "golden";
 
 export interface TokenDef {

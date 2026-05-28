@@ -215,7 +215,7 @@ function DisplayTab() {
 
 function ControlsTab() {
   const shortcuts = [
-    { keys: "Start Run / Run Again", action: "Launch the pendulum" },
+    { keys: "Start Run / Run Again", action: "Launch the Bob" },
     { keys: "G", action: "Spend a ready golden token (mid-run)" },
     { keys: "M", action: "Toggle mute" },
     { keys: "Scroll", action: "Zoom camera in or out" },

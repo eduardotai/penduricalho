@@ -91,10 +91,17 @@ export interface GameState {
   // canvas consumes (and clears) this flag the first time a real bob lands a
   // zone hit. Transient — never persisted, always cleared on reset.
   guaranteedFirstDrop: boolean;
+  // True when the current run was launched via "Run Again" and won the 40%
+  // buff roll: the first token dropped from a multiplier circle this run is
+  // forced to be a beneficial buff. Consumed by the canvas the first time a
+  // token actually spawns. Transient — never persisted, always cleared on reset.
+  guaranteedFirstBuff: boolean;
   cameraZoom: number;
   cameraPanX: number;
   cameraPanY: number;
   audio: AudioSettingsSnapshot;
+  autoRun: boolean;
+  autoToken: boolean;
 
   addMomentum: (n: number) => void;
   registerHit: (points: number, now: number) => void;
@@ -130,11 +137,18 @@ export interface GameState {
   // subsequent hits this run roll modifierChance normally. The canvas calls
   // this from scoreZoneHit on each real-bob zone strike.
   consumeFirstDropGuarantee: () => boolean;
+  // Like consumeFirstDropGuarantee but for the guaranteed-buff roll. Returns
+  // true exactly once per qualifying run, on the first call after a successful
+  // "Run Again" buff roll, and clears the flag. The canvas calls this when the
+  // first token actually drops so it can force that token to be a buff.
+  consumeFirstBuffGuarantee: () => boolean;
   setCameraZoom: (zoom: number) => void;
   adjustCameraZoom: (factor: number) => void;
   panCamera: (screenDx: number, screenDy: number) => void;
   resetCameraPan: () => void;
   resetDisplaySettings: () => void;
+  toggleAutoRun: () => void;
+  toggleAutoToken: () => void;
   setAudioMasterVolume: (volume: number) => void;
   setAudioSfxVolume: (volume: number) => void;
   setAudioUiVolume: (volume: number) => void;
@@ -148,8 +162,22 @@ export interface GameState {
 
 const COMBO_DECAY_MS = 1800;
 
-// Max stacked duration (active or persistent) per modifier defId.
-export const MODIFIER_DURATION_CAP_MS = 120_000;
+// Max stacked duration (active or persistent) for ordinary buffs. Hard ceiling:
+// no ordinary buff can ever hold longer than this, no matter how often it's
+// re-collected.
+export const MODIFIER_DURATION_CAP_MS = 7_000;
+
+// The Golden Token bonus is exempt from the 7s ceiling — its duration is a
+// grindable upgrade (goldenTokenBonusMs), so it keeps its own high cap so each
+// spent token can still extend the boost.
+export const TOKEN_BONUS_DURATION_CAP_MS = 120_000;
+
+/** Per-defId duration ceiling. Golden Token is exempt; everything else is 7s. */
+export function modifierDurationCapMs(defId: string): number {
+  return defId === "token-bonus"
+    ? TOKEN_BONUS_DURATION_CAP_MS
+    : MODIFIER_DURATION_CAP_MS;
+}
 
 /** @deprecated Used only for save migration from run-based bonuses. */
 const LEGACY_PERSISTENT_BONUS_MS = 30_000;
@@ -159,6 +187,12 @@ const LEGACY_PERSISTENT_BONUS_MS = 30_000;
 // launch is a re-launch (totalRuns > 0 OR a stalled run is being restarted);
 // the player's very first Start Run never gets this bonus.
 export const RUN_AGAIN_GUARANTEED_DROP_CHANCE = 0.7;
+
+// Probability that a "Run Again" launch forces the very first token dropped
+// from a multiplier circle to be a guaranteed buff (a beneficial swing
+// modifier) instead of a normal random roll. Same Run Again gating as the
+// lucky-drop chance above; the player's first Start Run never gets it.
+export const RUN_AGAIN_GUARANTEED_BUFF_CHANCE = 0.4;
 
 export const CAMERA_ZOOM_MIN = 0.5;
 export const CAMERA_ZOOM_MAX = 2;
@@ -189,7 +223,7 @@ function clampPersistentBonuses(
   const clamped: PersistentBonus[] = [];
   for (const [defId, layers] of byDef) {
     layers.sort((a, b) => b.expiresAt - a.expiresAt);
-    let budget = MODIFIER_DURATION_CAP_MS;
+    let budget = modifierDurationCapMs(defId);
     for (const layer of layers) {
       if (budget <= 0) break;
       const remaining = layer.expiresAt - now;
@@ -228,6 +262,18 @@ const initialStats: Stats = {
 function normalizeCosmeticState(state: Record<string, unknown>): Record<string, unknown> {
   const owned = (state.owned as Owned | undefined) ?? initialOwned;
   const equipped = (state.equipped as Equipped | undefined) ?? initialEquipped;
+  // The site roster was culled down to Workshop + Bumper Cage. Drop any sites
+  // (e.g. the retired foundry/belfry/etc.) that no longer exist, always keep
+  // the starter, and reset the equipped site if it points at a removed one.
+  const sites =
+    Array.isArray(owned.sites) && owned.sites.length > 0
+      ? owned.sites.filter((id) => SITE_MAP.has(id))
+      : [STARTER_SITE_ID];
+  if (!sites.includes(STARTER_SITE_ID)) sites.unshift(STARTER_SITE_ID);
+  const siteId =
+    typeof equipped.siteId === "string" && SITE_MAP.has(equipped.siteId)
+      ? equipped.siteId
+      : STARTER_SITE_ID;
   const skins =
     Array.isArray(owned.skins) && owned.skins.length > 0
       ? owned.skins.filter((id) => SKIN_MAP.has(id))
@@ -248,8 +294,8 @@ function normalizeCosmeticState(state: Record<string, unknown>): Record<string, 
       : STARTER_SHAPE_ID;
   return {
     ...state,
-    owned: { ...owned, skins, shapes },
-    equipped: { ...equipped, skinId, shapeId },
+    owned: { ...owned, sites, skins, shapes },
+    equipped: { ...equipped, siteId, skinId, shapeId },
   };
 }
 
@@ -300,10 +346,13 @@ export const useGameStore = create<GameState>()(
       pendingGoldenTokens: 0,
       goldenTokenConsumeEpoch: 0,
       guaranteedFirstDrop: false,
+      guaranteedFirstBuff: false,
       cameraZoom: CAMERA_ZOOM_DEFAULT,
       cameraPanX: CAMERA_PAN_X_DEFAULT,
       cameraPanY: CAMERA_PAN_Y_DEFAULT,
       audio: { ...DEFAULT_AUDIO_SETTINGS },
+      autoRun: false,
+      autoToken: false,
 
       addMomentum: (n) =>
         set((s) => ({
@@ -418,7 +467,7 @@ export const useGameStore = create<GameState>()(
           const total = cappedAdditiveDuration(
             currentRemaining,
             addMs,
-            MODIFIER_DURATION_CAP_MS
+            modifierDurationCapMs(defId)
           );
           if (total <= 0) return s;
           return {
@@ -441,7 +490,7 @@ export const useGameStore = create<GameState>()(
           const granted = cappedAdditiveDuration(
             currentTotal,
             layerMs,
-            MODIFIER_DURATION_CAP_MS
+            modifierDurationCapMs(defId)
           ) - currentTotal;
           if (granted <= 0) return s;
           return {
@@ -490,6 +539,8 @@ export const useGameStore = create<GameState>()(
           const isRunAgainLaunch = s.totalRuns > 0 || s.isRunning;
           const guaranteedFirstDrop =
             isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_DROP_CHANCE;
+          const guaranteedFirstBuff =
+            isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_BUFF_CHANCE;
           return {
             isRunning: true,
             runStartId: s.runStartId + 1,
@@ -501,6 +552,7 @@ export const useGameStore = create<GameState>()(
               ? Math.max(s.bestRunMomentum, s.runMomentum)
               : s.bestRunMomentum,
             guaranteedFirstDrop,
+            guaranteedFirstBuff,
           };
         }),
 
@@ -510,6 +562,8 @@ export const useGameStore = create<GameState>()(
           const isRunAgainLaunch = s.totalRuns > 0 || s.isRunning;
           const guaranteedFirstDrop =
             isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_DROP_CHANCE;
+          const guaranteedFirstBuff =
+            isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_BUFF_CHANCE;
           return {
             activeModifiers: [],
             persistentBonuses: [],
@@ -518,6 +572,7 @@ export const useGameStore = create<GameState>()(
             // relaunches from a prior spend don't fire on the fresh run.
             goldenTokenConsumeEpoch: 0,
             guaranteedFirstDrop,
+            guaranteedFirstBuff,
             isRunning: true,
             runStartId: s.runStartId + 1,
             runMomentum: 0,
@@ -540,6 +595,8 @@ export const useGameStore = create<GameState>()(
           // run never silently funnels its bonus into the next launch — the
           // 70% roll is re-evaluated fresh every Run Again.
           guaranteedFirstDrop: false,
+          // Likewise drop any unused buff guarantee — re-rolled each Run Again.
+          guaranteedFirstBuff: false,
         })),
 
       markRunStalled: () =>
@@ -580,6 +637,13 @@ export const useGameStore = create<GameState>()(
         return true;
       },
 
+      consumeFirstBuffGuarantee: () => {
+        const s = get();
+        if (!s.guaranteedFirstBuff) return false;
+        set({ guaranteedFirstBuff: false });
+        return true;
+      },
+
       setCameraZoom: (zoom) => set({ cameraZoom: clampCameraZoom(zoom) }),
 
       adjustCameraZoom: (factor) =>
@@ -600,6 +664,9 @@ export const useGameStore = create<GameState>()(
           cameraPanX: CAMERA_PAN_X_DEFAULT,
           cameraPanY: CAMERA_PAN_Y_DEFAULT,
         }),
+
+      toggleAutoRun: () => set((s) => ({ autoRun: !s.autoRun })),
+      toggleAutoToken: () => set((s) => ({ autoToken: !s.autoToken })),
 
       setAudioMasterVolume: (volume) =>
         set((s) => ({
@@ -654,6 +721,7 @@ export const useGameStore = create<GameState>()(
           pendingGoldenTokens: 0,
           goldenTokenConsumeEpoch: 0,
           guaranteedFirstDrop: false,
+          guaranteedFirstBuff: false,
           cameraZoom: CAMERA_ZOOM_DEFAULT,
           cameraPanX: CAMERA_PAN_X_DEFAULT,
           cameraPanY: CAMERA_PAN_Y_DEFAULT,
@@ -662,7 +730,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "pendulum-clicker-save",
-      version: 16,
+      version: 17,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
@@ -768,6 +836,12 @@ export const useGameStore = create<GameState>()(
             cameraPanY: CAMERA_PAN_Y_DEFAULT,
           };
         }
+        if (version < 17) {
+          // Site roster culled to Workshop + Bumper Cage. normalizeCosmeticState
+          // drops any retired sites the save still owns and resets the equipped
+          // site if it pointed at one.
+          return normalizeCosmeticState({ ...state, audio: mergedAudio });
+        }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },
       merge: (persistedState, currentState) => {
@@ -797,6 +871,8 @@ export const useGameStore = create<GameState>()(
         persistentBonuses: state.persistentBonuses,
         audio: state.audio,
         cameraZoom: state.cameraZoom,
+        autoRun: state.autoRun,
+        autoToken: state.autoToken,
       }),
     }
   )

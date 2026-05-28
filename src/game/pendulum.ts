@@ -35,6 +35,10 @@ export interface PendulumHandle {
   ropeLengthScale: number;
   physics: AttachmentPhysicsState;
   ropePhysics: RopePhysicsState;
+  /** True while the rope is broken and the bobs are flying free. */
+  snapped: boolean;
+  /** Bob-link constraints removed on snap, kept so restoreRope can re-add them. */
+  savedLinks: Matter.Constraint[];
 }
 
 export function bobRadius(pendulum: PendulumDef): number {
@@ -249,6 +253,8 @@ export function buildPendulum(
     ropeLengthScale: 1,
     physics,
     ropePhysics,
+    snapped: false,
+    savedLinks: [],
   };
 }
 
@@ -373,6 +379,100 @@ export function positionChainBobs(handle: PendulumHandle) {
 
 export function destroyPendulum(world: Matter.World, handle: PendulumHandle) {
   Matter.World.remove(world, handle.composite, true);
+}
+
+function setBodySensor(body: Matter.Body, isSensor: boolean) {
+  body.isSensor = isSensor;
+  for (const part of body.parts) part.isSensor = isSensor;
+}
+
+// Outward + random scatter kick layered on top of each bob's carried momentum
+// when the rope breaks. World-scaled so it reads the same at any zoom.
+const SNAP_BASE_KICK = 6 * WORLD_SCALE;
+const SNAP_RANDOM_KICK = 8 * WORLD_SCALE;
+
+/**
+ * Break the rope: detach the bob chain from the line and fling every scoring
+ * bob free, keeping the momentum it had plus an outward scatter so the bobs
+ * spray across the playfield. Freed bobs stay labelled `bob-*` so the existing
+ * zone-hit and token-collection paths keep scoring them as they bounce.
+ */
+export function snapRope(handle: PendulumHandle) {
+  if (handle.snapped) return;
+  handle.snapped = true;
+
+  const pivot = handle.pivot.position;
+  const tip = handle.bobs[handle.bobs.length - 1];
+  const tipVel = tip ? { x: tip.velocity.x, y: tip.velocity.y } : { x: 0, y: 0 };
+
+  // Detach the bob-link constraint(s) so the tip bob is no longer held by the
+  // rope. Keep them so restoreRope can re-string the rig between runs.
+  for (let i = handle.constraints.length - 1; i >= 0; i--) {
+    const c = handle.constraints[i];
+    if (c.label === "rope-bob") {
+      Matter.Composite.remove(handle.composite, c, true);
+      handle.savedLinks.push(c);
+      handle.constraints.splice(i, 1);
+    }
+  }
+
+  // Chain bobs were static sensors riding the rope — turn them into free
+  // dynamic projectiles that inherit a share of the swing's momentum.
+  for (const chainBob of handle.chainBobs) {
+    Matter.Body.setStatic(chainBob, false);
+    setBodySensor(chainBob, false);
+    chainBob.frictionAir = 0.006;
+    chainBob.restitution = 0.5;
+    // A body *created* with `isStatic: true` carries a bogus inertia that
+    // setStatic(false) "restores" as null → NaN. Matter then silently skips
+    // that body's collision response, so a freed chain bob falls straight
+    // through the boundary walls and out of the world: it never bounces back
+    // to score, and its endless free-fall keeps the run from ever stalling or
+    // ending (Run Again stays disabled). Re-derive a real circle inertia +
+    // friction so the freed bob collides, bounces, and stays in play.
+    const r = chainBob.circleRadius ?? getEffectiveBobRadius(handle);
+    const mass = Math.max(0.5, handle.baseMass);
+    Matter.Body.setMass(chainBob, mass);
+    Matter.Body.setInertia(chainBob, Math.max(1, mass * r * r));
+    chainBob.friction = 0.05;
+    Matter.Body.setVelocity(chainBob, { x: tipVel.x * 0.6, y: tipVel.y * 0.6 });
+    Matter.Body.setAngularVelocity(chainBob, (Math.random() - 0.5) * 0.4);
+  }
+
+  for (const bob of getOrderedBobBodies(handle)) {
+    bob.restitution = 0.5;
+    const rx = bob.position.x - pivot.x;
+    const ry = bob.position.y - pivot.y;
+    const r = Math.hypot(rx, ry) || 1;
+    const ang = Math.random() * Math.PI * 2;
+    Matter.Body.setVelocity(bob, {
+      x: bob.velocity.x + (rx / r) * SNAP_BASE_KICK + Math.cos(ang) * SNAP_RANDOM_KICK,
+      y: bob.velocity.y + (ry / r) * SNAP_BASE_KICK + Math.sin(ang) * SNAP_RANDOM_KICK,
+    });
+  }
+}
+
+/** Re-string a snapped rig back to its intact, at-rest pose for the next run. */
+export function restoreRope(handle: PendulumHandle) {
+  if (!handle.snapped) return;
+
+  for (const c of handle.savedLinks) {
+    Matter.Composite.add(handle.composite, c);
+    handle.constraints.push(c);
+  }
+  handle.savedLinks.length = 0;
+
+  for (const chainBob of handle.chainBobs) {
+    Matter.Body.setStatic(chainBob, true);
+    setBodySensor(chainBob, true);
+    chainBob.frictionAir = 0;
+  }
+  for (const bob of handle.bobs) {
+    bob.restitution = 0.3;
+  }
+
+  handle.snapped = false;
+  resetPendulumToRest(handle);
 }
 
 export function syncAttachmentConstraintPhysics(
@@ -529,6 +629,36 @@ export function resetPendulumToRest(handle: PendulumHandle) {
   handle.ropePhysics.stretchRatio = 1;
 }
 
+/**
+ * Idle pose for a snapped rig on a wall-less site (the Workshop): the bobs have
+ * flown clean off the field, so there's nothing to bring back. We leave the rig
+ * snapped and present a clean, empty rope hanging straight down from the pivot,
+ * while freezing the freed bobs in place (off-field) so the runner's gravity
+ * doesn't drift them to infinity. Call every idle frame — like
+ * resetPendulumToRest it overwrites the runner's between-frame jitter, but
+ * unlike it, it deliberately does NOT pull the bobs back onto the rope.
+ */
+export function settleEmptyRope(handle: PendulumHandle) {
+  const pivot = handle.pivot.position;
+  const restLength = handle.attachment.length * handle.ropeLengthScale;
+  const segCount = handle.ropeSegments.length;
+  const segLen = segCount > 0 ? restLength / segCount : restLength;
+  for (let i = 0; i < segCount; i++) {
+    const node = handle.ropeSegments[i];
+    Matter.Body.setPosition(node, { x: pivot.x, y: pivot.y + segLen * (i + 1) });
+    Matter.Body.setVelocity(node, { x: 0, y: 0 });
+    Matter.Body.setAngularVelocity(node, 0);
+  }
+  // Freeze the escaped bobs where they are (off-field) so they read as "gone"
+  // and don't accelerate to huge coordinates while the rig idles.
+  for (const bob of getOrderedBobBodies(handle)) {
+    Matter.Body.setVelocity(bob, { x: 0, y: 0 });
+    Matter.Body.setAngularVelocity(bob, 0);
+  }
+  handle.physics.stretchRatio = 1;
+  handle.ropePhysics.stretchRatio = 1;
+}
+
 function stabilizeRopeBodies(handle: PendulumHandle) {
   const bob = handle.bobs[handle.bobs.length - 1];
   if (!bob) return;
@@ -579,6 +709,41 @@ export function applySpeedRampDelta(
   return targetMult;
 }
 
+/**
+ * Cap how fast each bob may rotate around the pivot. `maxAngularVelocity` is in
+ * radians per physics step: ω = tangential_speed / radius, so we only throttle
+ * the rotational (tangential) part of the velocity and leave the radial part
+ * (rope stretch/contraction) untouched. This is what makes small bobs feel
+ * quick and heavy bobs feel slow — the swing top-speed is bounded per pendulum.
+ */
+export function clampAngularVelocity(handle: PendulumHandle, maxAngularVelocity: number) {
+  if (!(maxAngularVelocity > 0)) return;
+  const pivot = handle.pivot.position;
+  for (const bob of handle.bobs) {
+    const rx = bob.position.x - pivot.x;
+    const ry = bob.position.y - pivot.y;
+    const r = Math.hypot(rx, ry);
+    if (r < 1) continue;
+    const ux = rx / r;
+    const uy = ry / r;
+    const vx = bob.velocity.x;
+    const vy = bob.velocity.y;
+    // Split velocity into radial (along rope) + tangential (around pivot).
+    const vRad = vx * ux + vy * uy;
+    const tvx = vx - vRad * ux;
+    const tvy = vy - vRad * uy;
+    const tMag = Math.hypot(tvx, tvy);
+    if (tMag < 1e-6) continue;
+    const omega = tMag / r;
+    if (omega <= maxAngularVelocity) continue;
+    const scale = (maxAngularVelocity * r) / tMag;
+    Matter.Body.setVelocity(bob, {
+      x: vRad * ux + tvx * scale,
+      y: vRad * uy + tvy * scale,
+    });
+  }
+}
+
 /** Tiny impulse on the rope tail — bob velocity already drives the swing. */
 export function propagateRopeWhip(handle: PendulumHandle, force: Vec2, gain = 0.05) {
   if (handle.ropeSegments.length === 0) return;
@@ -594,6 +759,90 @@ export function propagateRopeWhip(handle: PendulumHandle, force: Vec2, gain = 0.
 
 export function nudgeBob(bob: Matter.Body, force: Vec2) {
   Matter.Body.applyForce(bob, bob.position, force);
+}
+
+/**
+ * Natural air resistance for a winding-down rig. Soft rope constraints under
+ * gravity never fully come to rest on their own — they trade a little energy
+ * back and forth and jitter ("bounce") indefinitely at low speed. Real air drag
+ * is a gentle velocity-proportional force, so we bleed velocity on an
+ * exponential envelope: `rate` is the decay constant in 1/seconds (≈1.2 gives a
+ * ~0.8s time constant, i.e. amplitude visibly coasting down over a few seconds,
+ * the way a real pendulum settles — not an abrupt brake). `dt` is the frame
+ * delta in ms, so the decay is frame-rate independent.
+ */
+export function dampPendulumMotion(handle: PendulumHandle, dt: number, rate = 1.2) {
+  const keep = Math.exp(-rate * (dt / 1000));
+  const damp = (body: Matter.Body) => {
+    Matter.Body.setVelocity(body, {
+      x: body.velocity.x * keep,
+      y: body.velocity.y * keep,
+    });
+    Matter.Body.setAngularVelocity(body, body.angularVelocity * keep);
+  };
+  for (const bob of handle.bobs) damp(bob);
+  for (const node of handle.ropeSegments) damp(node);
+}
+
+/**
+ * Smoothly pull the rig toward its hanging-rest pose. Velocity damping alone
+ * cannot fully kill the residual rope-spring jitter at the tail of a run: the
+ * constraint solver keeps trickling kinetic energy back from gravity-vs-spring
+ * trade-back, so the rope appears to "bounce" forever even when the bob is
+ * essentially still. Blending each rope node and the bob toward their straight-
+ * down rest positions neutralizes that potential-energy oscillation directly.
+ *
+ * `alpha` is the per-frame blend toward rest in [0, 1]; small values (<0.1)
+ * give a soft visual settle that tracks ambient damping rather than snapping.
+ * Velocity is bled in lockstep so the constraint solver can't immediately undo
+ * the position update on the next step.
+ */
+export function settlePendulumTowardRest(handle: PendulumHandle, alpha: number) {
+  if (!(alpha > 0)) return;
+  const a = Math.min(1, alpha);
+  const keep = 1 - a;
+  const tipBob = handle.bobs[handle.bobs.length - 1];
+  if (!tipBob) return;
+
+  const pivot = handle.pivot.position;
+  const extraLinks = Math.max(0, handle.pendulum.bobCount - 1);
+  const chainLen = handle.pendulum.bobSpacing * extraLinks;
+  const restLength = handle.attachment.length * handle.ropeLengthScale;
+  const totalRopeLen = restLength + chainLen;
+  const segCount = handle.ropeSegments.length;
+  const segLen = segCount > 0 ? totalRopeLen / segCount : totalRopeLen;
+  const bobLinkLen =
+    getMainAttachmentConstraint(handle)?.length ??
+    Math.max(4, getEffectiveBobRadius(handle) * 0.35);
+  const tipRestY = pivot.y + totalRopeLen + bobLinkLen;
+
+  const lerpTo = (body: Matter.Body, restX: number, restY: number) => {
+    Matter.Body.setPosition(body, {
+      x: body.position.x + (restX - body.position.x) * a,
+      y: body.position.y + (restY - body.position.y) * a,
+    });
+    Matter.Body.setVelocity(body, {
+      x: body.velocity.x * keep,
+      y: body.velocity.y * keep,
+    });
+    Matter.Body.setAngularVelocity(body, body.angularVelocity * keep);
+  };
+
+  for (let i = 0; i < segCount; i++) {
+    lerpTo(handle.ropeSegments[i], pivot.x, pivot.y + segLen * (i + 1));
+  }
+  lerpTo(tipBob, pivot.x, tipRestY);
+
+  // Other bobs (multi-bob chain head) ride the rope via positionChainBobs,
+  // so we only need to bleed their velocity here.
+  for (const other of handle.bobs) {
+    if (other === tipBob) continue;
+    Matter.Body.setVelocity(other, {
+      x: other.velocity.x * keep,
+      y: other.velocity.y * keep,
+    });
+    Matter.Body.setAngularVelocity(other, other.angularVelocity * keep);
+  }
 }
 
 /** Total reach from anchor through rope and bob chain. */

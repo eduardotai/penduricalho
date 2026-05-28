@@ -12,6 +12,7 @@ export type SoundId =
   | "bonus-zones-spawn"
   | "maneuver"
   | "launch"
+  | "rope-snap"
   | "run-stall"
   | "run-complete"
   | "token-expire"

@@ -8,6 +8,7 @@ interface Snapshot {
   angularVel: number;
   altitude: number;
   signedAngVel: number;
+  speed: number;
 }
 
 interface ManeuverEvent {
@@ -28,6 +29,22 @@ const HIGH_ARC_COOLDOWN_MS = 1200;
 const ROTATION_COOLDOWN_MS = 1400;
 const DOUBLE_SWING_COOLDOWN_MS = 900;
 const PERFECT_TWIST_COOLDOWN_MS = 700;
+// A bob settling at rest still has tiny residual spin whose sign flips back and
+// forth as noise. Those micro-reversals must not register as a double swing, so
+// we only count crossings when the bob actually reached a real swing speed.
+const DOUBLE_SWING_MIN_SPEED = 1.5;
+// And the bob must currently be moving — `recentMaxSpeed` looks 600ms back, so
+// a swing that crested into the window and then fell to rope-jitter speeds
+// could still satisfy it. Requiring the latest speed to be above this floor
+// rules out the case where the swing has already died and only soft-constraint
+// trade-back is flipping the angular-velocity sign.
+const DOUBLE_SWING_MIN_CURRENT_SPEED = 0.9;
+// Soft-rope spring jitter produces angular-velocity sign flips at extremely
+// small magnitudes (well under 0.05 rad/step). A real swing reversal sweeps
+// through a much larger angular velocity peak between crossings, so we ignore
+// any zero-crossing whose flanking angular velocities are both below this
+// threshold — they are noise, not a swing.
+const DOUBLE_SWING_MIN_PEAK_ANGVEL = 0.06;
 
 export function createManeuverDetector(): ManeuverDetector {
   const buffer: Snapshot[] = [];
@@ -51,6 +68,7 @@ export function createManeuverDetector(): ManeuverDetector {
       const altitude = pivot.y - bob.position.y;
       const angularVel = bob.angularVelocity;
       const signedAngVel = angularVel;
+      const speed = Math.hypot(bob.velocity.x, bob.velocity.y);
 
       const events: ManeuverEvent[] = [];
 
@@ -80,19 +98,33 @@ export function createManeuverDetector(): ManeuverDetector {
         lastHighArcAt = now;
       }
 
-      buffer.push({ t: now, angle, angularVel, altitude, signedAngVel });
+      buffer.push({ t: now, angle, angularVel, altitude, signedAngVel, speed });
       compactBuffer(now);
 
       let crossings = 0;
+      let recentMaxSpeed = 0;
       for (let i = 1; i < buffer.length; i++) {
         const prev = buffer[i - 1].signedAngVel;
         const cur = buffer[i].signedAngVel;
+        if (now - buffer[i].t < ZERO_CROSS_WINDOW_MS) {
+          recentMaxSpeed = Math.max(recentMaxSpeed, buffer[i].speed);
+        }
         if (prev === 0 && cur === 0) continue;
         if ((prev < 0 && cur > 0) || (prev > 0 && cur < 0)) {
-          if (now - buffer[i].t < ZERO_CROSS_WINDOW_MS) crossings++;
+          if (now - buffer[i].t >= ZERO_CROSS_WINDOW_MS) continue;
+          // Skip rope-spring micro-jitter: a true swing reversal carries
+          // meaningful angular momentum on at least one side of the crossing.
+          const peakAround = Math.max(Math.abs(prev), Math.abs(cur));
+          if (peakAround < DOUBLE_SWING_MIN_PEAK_ANGVEL) continue;
+          crossings++;
         }
       }
-      if (crossings >= 2 && now - lastDoubleSwingAt > DOUBLE_SWING_COOLDOWN_MS) {
+      if (
+        crossings >= 2 &&
+        recentMaxSpeed >= DOUBLE_SWING_MIN_SPEED &&
+        speed >= DOUBLE_SWING_MIN_CURRENT_SPEED &&
+        now - lastDoubleSwingAt > DOUBLE_SWING_COOLDOWN_MS
+      ) {
         events.push({ def: MANEUVERS.doubleSwing, at: now });
         lastDoubleSwingAt = now;
       }

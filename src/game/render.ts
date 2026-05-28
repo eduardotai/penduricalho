@@ -1,5 +1,6 @@
 import type { AttachmentDef, BobShapeKind, BobSkinDef, PendulumDef, SiteDef, Vec2 } from "../types";
 import { TOKEN_MAP } from "../data/tokens";
+import { WALL_MAX_HP, type WallField } from "./engine";
 import type { PendulumHandle } from "./pendulum";
 import { getEffectiveBobRadius, getOrderedBobBodies } from "./pendulum";
 import type { HitZoneField } from "./hitZones";
@@ -26,10 +27,7 @@ export interface EchoBobRender {
 
 const SITE_BACKGROUNDS: Record<string, [string, string]> = {
   workshop: ["#1e293b", "#0f172a"],
-  foundry: ["#3b1d12", "#1c0c08"],
-  belfry: ["#1f1b3a", "#0c0a1f"],
-  outdoor: ["#0f3320", "#04140a"],
-  "zero-g": ["#0c1b3a", "#040716"],
+  "bumper-cage": ["#2a1233", "#120318"],
 };
 
 function drawGrid(
@@ -90,6 +88,84 @@ export function drawSiteAnchor(rc: RenderContext, anchor: Vec2) {
   rc.ctx.fillStyle = "#334155";
   rc.ctx.fillRect(anchor.x - 50, anchor.y - 10, 100, 6);
   rc.ctx.restore();
+}
+
+/**
+ * Draws the boundary walls of a walled site as bars along the inner field
+ * edges. Walls redden and crack as they take hits; broken walls leave a gap.
+ * Wall-less sites pass an empty field and nothing is drawn.
+ */
+export function drawWalls(rc: RenderContext, field: WallField) {
+  if (field.walls.length === 0) return;
+  const t = 9;
+  const w = rc.width;
+  const h = rc.height;
+
+  for (const wall of field.walls) {
+    if (wall.broken) continue;
+    const wear = 1 - wall.hp / WALL_MAX_HP;
+    const fill = mixHex("#475569", "#b91c1c", wear);
+    const edge = mixHex("#94a3b8", "#fca5a5", wear);
+
+    let x = 0;
+    let y = 0;
+    let bw = 0;
+    let bh = 0;
+    if (wall.side === "top") {
+      x = 0;
+      y = 0;
+      bw = w;
+      bh = t;
+    } else if (wall.side === "bottom") {
+      x = 0;
+      y = h - t;
+      bw = w;
+      bh = t;
+    } else if (wall.side === "left") {
+      x = 0;
+      y = 0;
+      bw = t;
+      bh = h;
+    } else {
+      x = w - t;
+      y = 0;
+      bw = t;
+      bh = h;
+    }
+
+    rc.ctx.save();
+    rc.ctx.globalAlpha = 0.82;
+    rc.ctx.fillStyle = fill;
+    rc.ctx.fillRect(x, y, bw, bh);
+    rc.ctx.globalAlpha = 1;
+    rc.ctx.strokeStyle = withAlpha(edge, 0.7);
+    rc.ctx.lineWidth = 1.5;
+    rc.ctx.strokeRect(x + 0.75, y + 0.75, bw - 1.5, bh - 1.5);
+
+    // Cracks build up as the wall takes hits, hinting it's about to shatter.
+    const cracks = WALL_MAX_HP - wall.hp;
+    if (cracks > 0) {
+      const horizontal = wall.side === "top" || wall.side === "bottom";
+      const span = horizontal ? w : h;
+      rc.ctx.strokeStyle = withAlpha("#fee2e2", 0.6);
+      rc.ctx.lineWidth = 1;
+      for (let i = 0; i < cracks; i++) {
+        const f = (i + 1) / (cracks + 1);
+        rc.ctx.beginPath();
+        if (horizontal) {
+          const cx = span * f;
+          rc.ctx.moveTo(cx, y);
+          rc.ctx.lineTo(cx + (i % 2 === 0 ? 5 : -5), y + bh);
+        } else {
+          const cy = span * f;
+          rc.ctx.moveTo(x, cy);
+          rc.ctx.lineTo(x + bw, cy + (i % 2 === 0 ? 5 : -5));
+        }
+        rc.ctx.stroke();
+      }
+    }
+    rc.ctx.restore();
+  }
 }
 
 /** @deprecated Use drawSiteBackground + drawSiteAnchor for camera zoom support. */
@@ -313,16 +389,31 @@ export function drawPendulum(
   attachment: AttachmentDef,
   skin: BobSkinDef,
   stretchRatio: number = 1,
-  shape: BobShapeKind = "circle"
+  shape: BobShapeKind = "circle",
+  durability: number = 1
 ) {
   const stretch = Math.max(0.85, Math.min(1.75, stretchRatio));
   const ordered = getOrderedBobBodies(handle);
   const pivot = handle.pivot.position;
   const defaultRadius = getEffectiveBobRadius(handle);
+  const snapped = handle.snapped;
+
+  // The rope frays, thins, and reddens as durability drains. Near zero it
+  // shimmers a danger pulse; once snapped the broken line dangles slack.
+  const dur = Math.max(0, Math.min(1, durability));
+  const wear = 1 - dur;
+  const baseColor = attachmentColor(attachment, stretch);
+  const ropeColor = mixHex(baseColor, "#7f1d1d", Math.pow(wear, 1.4) * 0.85);
+  const ropeWidth = attachmentLineWidth(attachment, stretch) * (0.55 + 0.45 * dur);
+  const dangerShimmer =
+    !snapped && dur < 0.12
+      ? 0.55 + 0.45 * Math.sin(rc.now / 70)
+      : 1;
 
   rc.ctx.save();
-  rc.ctx.strokeStyle = attachmentColor(attachment, stretch);
-  rc.ctx.lineWidth = attachmentLineWidth(attachment, stretch);
+  rc.ctx.globalAlpha = snapped ? 0.4 : dangerShimmer;
+  rc.ctx.strokeStyle = ropeColor;
+  rc.ctx.lineWidth = ropeWidth;
   rc.ctx.lineCap = "round";
   rc.ctx.lineJoin = "round";
 
@@ -334,26 +425,36 @@ export function drawPendulum(
     rc.ctx.lineTo(node.position.x, node.position.y);
     drewSegment = true;
   }
-  if (handle.chainBobs.length > 0) {
-    // Rope nodes already span the chain — only the short link to the tip remains.
-    const tip = handle.bobs[handle.bobs.length - 1];
-    if (tip && Number.isFinite(tip.position.x) && Number.isFinite(tip.position.y)) {
-      rc.ctx.lineTo(tip.position.x, tip.position.y);
-      drewSegment = true;
-    }
-  } else {
-    for (const bob of ordered) {
-      if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
-      rc.ctx.lineTo(bob.position.x, bob.position.y);
-      drewSegment = true;
+  // While snapped the bob chain has torn free of the rope — only the dangling
+  // line from the pivot is still drawn, never a line out to the flying bobs.
+  if (!snapped) {
+    if (handle.chainBobs.length > 0) {
+      // Rope nodes already span the chain — only the short link to the tip remains.
+      const tip = handle.bobs[handle.bobs.length - 1];
+      if (tip && Number.isFinite(tip.position.x) && Number.isFinite(tip.position.y)) {
+        rc.ctx.lineTo(tip.position.x, tip.position.y);
+        drewSegment = true;
+      }
+    } else {
+      for (const bob of ordered) {
+        if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
+        rc.ctx.lineTo(bob.position.x, bob.position.y);
+        drewSegment = true;
+      }
     }
   }
   if (drewSegment) rc.ctx.stroke();
+  rc.ctx.globalAlpha = 1;
+
+  // Loose frayed strands branch off the rope as it nears failure.
+  if (!snapped && dur < 0.35) {
+    drawRopeFray(rc, handle, ropeColor, ropeWidth, dur);
+  }
 
   // Chain bobs sit on the rope polyline — draw a small crimp so they read as attached.
-  if (handle.chainBobs.length > 0) {
+  if (!snapped && handle.chainBobs.length > 0) {
     rc.ctx.save();
-    rc.ctx.strokeStyle = attachmentColor(attachment, stretch);
+    rc.ctx.strokeStyle = ropeColor;
     rc.ctx.lineWidth = Math.max(2, attachmentLineWidth(attachment, stretch) * 0.85);
     rc.ctx.lineCap = "round";
     for (const bob of handle.chainBobs) {
@@ -373,8 +474,8 @@ export function drawPendulum(
   for (const node of handle.ropeSegments ?? []) {
     if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
     const r = node.circleRadius ?? 3.5;
-    rc.ctx.fillStyle = attachmentColor(attachment, stretch);
-    rc.ctx.globalAlpha = 0.65;
+    rc.ctx.fillStyle = ropeColor;
+    rc.ctx.globalAlpha = snapped ? 0.3 : 0.65;
     rc.ctx.beginPath();
     rc.ctx.arc(node.position.x, node.position.y, r, 0, Math.PI * 2);
     rc.ctx.fill();
@@ -549,6 +650,66 @@ const ROPE_LINE_WIDTH: Record<string, number> = {
   "magnetic-tether": 1.5,
 };
 
+function parseHex(color: string): [number, number, number] | null {
+  if (!color.startsWith("#") || color.length < 7) return null;
+  return [
+    parseInt(color.slice(1, 3), 16),
+    parseInt(color.slice(3, 5), 16),
+    parseInt(color.slice(5, 7), 16),
+  ];
+}
+
+/** Linear blend between two hex colors; falls back to `a` if either isn't hex. */
+function mixHex(a: string, b: string, t: number): string {
+  const ca = parseHex(a);
+  const cb = parseHex(b);
+  if (!ca || !cb) return a;
+  const k = Math.max(0, Math.min(1, t));
+  const m = (i: number) => Math.round(ca[i] + (cb[i] - ca[i]) * k);
+  return `rgb(${m(0)},${m(1)},${m(2)})`;
+}
+
+/**
+ * Short jittered strands peeling off the rope polyline as it nears failure.
+ * The jitter animates off `rc.now` so the fray visibly trembles, and the count
+ * grows as durability drops toward zero.
+ */
+function drawRopeFray(
+  rc: RenderContext,
+  handle: PendulumHandle,
+  color: string,
+  width: number,
+  durability: number
+) {
+  const nodes = handle.ropeSegments ?? [];
+  if (nodes.length < 2) return;
+  const intensity = Math.max(0, Math.min(1, (0.35 - durability) / 0.35));
+  const strandLen = (4 + intensity * 7);
+
+  rc.ctx.save();
+  rc.ctx.strokeStyle = color;
+  rc.ctx.lineWidth = Math.max(0.75, width * 0.4);
+  rc.ctx.lineCap = "round";
+  rc.ctx.globalAlpha = 0.35 + intensity * 0.4;
+
+  for (let i = 1; i < nodes.length; i++) {
+    // Skip some nodes at low intensity so fray builds up gradually.
+    if ((i % 2 === 0) && intensity < 0.55) continue;
+    const n = nodes[i];
+    if (!Number.isFinite(n.position.x) || !Number.isFinite(n.position.y)) continue;
+    const wobble = Math.sin(rc.now / 90 + i * 1.7) * (0.5 + intensity);
+    const ang = i * 2.4 + wobble;
+    rc.ctx.beginPath();
+    rc.ctx.moveTo(n.position.x, n.position.y);
+    rc.ctx.lineTo(
+      n.position.x + Math.cos(ang) * strandLen,
+      n.position.y + Math.sin(ang) * strandLen
+    );
+    rc.ctx.stroke();
+  }
+  rc.ctx.restore();
+}
+
 function attachmentColor(attachment: AttachmentDef, stretch = 1): string {
   if (attachment.type === "rope") {
     return ROPE_COLORS[attachment.id] ?? "#a16207";
@@ -637,12 +798,10 @@ function tokenGlyph(kind: string): string {
       return ">>";
     case "speed-ramp":
       return "^";
-    case "long-rope":
-      return "L+";
-    case "short-rope":
-      return "L-";
     case "multi-bob":
       return "x3";
+    case "repair":
+      return "+";
     case "golden":
       return "*";
     default:
