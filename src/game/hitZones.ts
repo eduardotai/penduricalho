@@ -6,8 +6,91 @@ import type { HitZone, SiteDef, Vec2 } from "../types";
 // keep the playfield lively and feed the Golden Token combo loop.
 const MODIFIER_CHANCE_BASE = 0.18;
 
-// Even grid spacing across the full canvas (px between cell centers).
-const GRID_SPACING = 88;
+// Tightened automatically when a spawn band is shallow.
+const GRID_SPACING_DEFAULT = 88;
+const GRID_SPACING_MIN = 32;
+
+interface SpawnBand {
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+
+function computeGridSpacing(
+  xMin: number,
+  yMin: number,
+  xMax: number,
+  yMax: number,
+  count: number
+): number {
+  const usableW = xMax - xMin;
+  const usableH = yMax - yMin;
+  if (usableW <= 0 || usableH <= 0) return GRID_SPACING_DEFAULT;
+
+  for (let spacing = GRID_SPACING_DEFAULT; spacing >= GRID_SPACING_MIN; spacing -= 4) {
+    const cols = Math.max(1, Math.floor(usableW / spacing));
+    const rows = Math.max(1, Math.floor(usableH / spacing));
+    if (cols * rows >= count * 1.15) return spacing;
+  }
+  return GRID_SPACING_MIN;
+}
+
+function bandArea(band: SpawnBand): number {
+  return Math.max(0, band.xMax - band.xMin) * Math.max(0, band.yMax - band.yMin);
+}
+
+/** Upper + lower bands (full width), separated by the mount block. */
+function spawnBands(
+  bounds: { x: number; y: number; w: number; h: number },
+  anchor: Vec2,
+  maxRadius: number
+): { upper: SpawnBand; lower: SpawnBand } {
+  const inset = maxRadius;
+  const mountPad = 4 + maxRadius * 0.45;
+  const mountTop = anchor.y - 24;
+  const mountFloor = anchor.y + 14 + mountPad;
+  const xMin = bounds.x + inset;
+  const xMax = bounds.x + bounds.w - inset;
+
+  return {
+    upper: {
+      xMin,
+      yMin: bounds.y + inset,
+      xMax,
+      yMax: mountTop - mountPad,
+    },
+    lower: {
+      xMin,
+      yMin: mountFloor,
+      xMax,
+      yMax: bounds.y + bounds.h - inset,
+    },
+  };
+}
+
+function pickBand(bands: { upper: SpawnBand; lower: SpawnBand }): SpawnBand {
+  const upperArea = bandArea(bands.upper);
+  const lowerArea = bandArea(bands.lower);
+  const total = upperArea + lowerArea;
+  if (total <= 0) return bands.upper;
+  if (lowerArea <= 0) return bands.upper;
+  if (upperArea <= 0) return bands.lower;
+  return Math.random() < upperArea / total ? bands.upper : bands.lower;
+}
+
+function splitCountByArea(
+  count: number,
+  upperArea: number,
+  lowerArea: number
+): [number, number] {
+  const total = upperArea + lowerArea;
+  if (total <= 0) return [Math.ceil(count / 2), Math.floor(count / 2)];
+  if (lowerArea <= 0) return [count, 0];
+  if (upperArea <= 0) return [0, count];
+  const upper = Math.round(count * (upperArea / total));
+  return [upper, count - upper];
+}
 
 export interface HitZoneHandle {
   zone: HitZone;
@@ -34,22 +117,7 @@ function shuffle<T>(items: T[]): T[] {
   return items;
 }
 
-/** Spawn field: the full canvas, inset only by circle radius at the edges. */
-function spawnFieldRect(
-  bounds: { x: number; y: number; w: number; h: number },
-  _anchor: Vec2,
-  maxRadius: number
-) {
-  const inset = maxRadius;
-  return {
-    xMin: bounds.x + inset,
-    yMin: bounds.y + inset,
-    xMax: bounds.x + bounds.w - inset,
-    yMax: bounds.y + bounds.h - inset,
-  };
-}
-
-/** Keep circles off the mount block only — everywhere else is fair game. */
+/** Keep circles off the mount block — both upper and lower bands stay clear. */
 function isValidZonePosition(
   pos: Vec2,
   anchor: Vec2,
@@ -100,20 +168,21 @@ function gridSlotsInRect(
   return slots;
 }
 
-/** Evenly tile across the full canvas. */
-function computeEvenLayout(
-  bounds: { x: number; y: number; w: number; h: number },
-  anchor: Vec2,
+function fillBandLayout(
+  band: SpawnBand,
   count: number,
+  anchor: Vec2,
   maxRadius: number
 ): Vec2[] {
-  const { xMin, yMin, xMax, yMax } = spawnFieldRect(bounds, anchor, maxRadius);
+  if (count <= 0) return [];
+  const { xMin, yMin, xMax, yMax } = band;
+  const spacing = computeGridSpacing(xMin, yMin, xMax, yMax, count);
   const slots = gridSlotsInRect(
     xMin,
     yMin,
     xMax,
     yMax,
-    GRID_SPACING,
+    spacing,
     anchor,
     maxRadius,
     yMin
@@ -133,23 +202,46 @@ function computeEvenLayout(
   return picked.slice(0, count);
 }
 
+/** Evenly tile upper and lower canvas (full width, mount gap excluded). */
+function computeEvenLayout(
+  bounds: { x: number; y: number; w: number; h: number },
+  anchor: Vec2,
+  count: number,
+  maxRadius: number,
+  _pendulumLength: number
+): Vec2[] {
+  const bands = spawnBands(bounds, anchor, maxRadius);
+  const [upperCount, lowerCount] = splitCountByArea(
+    count,
+    bandArea(bands.upper),
+    bandArea(bands.lower)
+  );
+  return [
+    ...fillBandLayout(bands.upper, upperCount, anchor, maxRadius),
+    ...fillBandLayout(bands.lower, lowerCount, anchor, maxRadius),
+  ];
+}
+
 function pickZonePosition(
   bounds: { x: number; y: number; w: number; h: number },
   anchor: Vec2,
   _pendulumLength: number,
   radius: number
 ): Vec2 {
-  const { xMin, yMin, xMax, yMax } = spawnFieldRect(bounds, anchor, radius);
+  const bands = spawnBands(bounds, anchor, radius);
   for (let attempt = 0; attempt < 48; attempt++) {
+    const band = pickBand(bands);
+    const { xMin, yMin, xMax, yMax } = band;
     const pos = {
       x: xMin + Math.random() * (xMax - xMin),
       y: yMin + Math.random() * (yMax - yMin),
     };
     if (isValidZonePosition(pos, anchor, radius, yMin)) return pos;
   }
+  const fallback = pickBand(bands);
   return {
-    x: xMin + Math.random() * (xMax - xMin),
-    y: yMin + Math.random() * (yMax - yMin),
+    x: fallback.xMin + Math.random() * (fallback.xMax - fallback.xMin),
+    y: fallback.yMin + Math.random() * (fallback.yMax - fallback.yMin),
   };
 }
 
@@ -161,7 +253,13 @@ export function generateHitZones(
   pendulumLength: number
 ): HitZoneField {
   const [, rmax] = site.hitZoneRadius;
-  const layout = computeEvenLayout(bounds, anchor, site.hitZoneCount, rmax);
+  const layout = computeEvenLayout(
+    bounds,
+    anchor,
+    site.hitZoneCount,
+    rmax,
+    pendulumLength
+  );
   const zones: HitZoneHandle[] = [];
   for (let i = 0; i < site.hitZoneCount; i++) {
     zones.push(
@@ -239,7 +337,8 @@ export function regenerateHitZones(
     field.bounds,
     field.anchor,
     field.zones.length,
-    rmax
+    rmax,
+    pendulumLength
   );
   for (let i = 0; i < field.zones.length; i++) {
     const handle = field.zones[i];
@@ -261,7 +360,7 @@ export function regenerateHitZones(
 // playfield to feed back into the boosted spin. Extras are reaped at the
 // start of the next run by regenerateHitZones, and a per-site cap keeps the
 // canvas readable while letting late-game sites absorb more golden-token fuel.
-const GOLDEN_ZONE_HEADROOM = 16;
+const GOLDEN_ZONE_HEADROOM = 48;
 
 export function maxTotalZonesForSite(site: SiteDef): number {
   return site.hitZoneCount + GOLDEN_ZONE_HEADROOM;

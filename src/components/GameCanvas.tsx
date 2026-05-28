@@ -2,11 +2,10 @@ import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { useGameStore } from "../state/store";
 import {
+  resolveEquippedCosmetics,
   useEquippedAttachment,
   useEquippedPendulum,
   useEquippedSite,
-  useEquippedSkin,
-  useEquippedShape,
 } from "../state/selectors";
 import { createEngine, destroyEngine, setGravity, applyAmbientForce } from "../game/engine";
 import {
@@ -16,6 +15,7 @@ import {
   setBobRadiusScale,
   setRopeLengthScale,
   getEffectiveBobRadius,
+  getOrderedBobBodies,
   positionChainBobs,
   tickAttachmentPhysics,
   propagateRopeWhip,
@@ -67,6 +67,7 @@ import {
   computeViewTransform,
   type ViewTransform,
 } from "../game/viewTransform";
+import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../game/worldConstants";
 import {
   createEffectsState,
   emitHit,
@@ -74,9 +75,6 @@ import {
   tickEffects,
 } from "../game/effects";
 
-const VIRTUAL_WIDTH = 1280;
-const VIRTUAL_HEIGHT = 800;
-const ANCHOR = { x: VIRTUAL_WIDTH / 2, y: 120 };
 const RUN_END_SPEED_THRESHOLD = 0.45;
 const RUN_END_IDLE_MS = 1500;
 // Once the pendulum's fastest bob drops below this for STALL_TIME_MS while
@@ -94,9 +92,9 @@ const HIT_STOP_COOLDOWN_MS = 90;
 // Multiplier circles spawned per Golden Token spend. Scales with site density
 // so the starter workshop cannot snowball into a late-game playfield.
 function bonusZonesPerGolden(hitZoneCount: number): number {
-  if (hitZoneCount < 32) return 4;
-  if (hitZoneCount < 56) return 6;
-  return 8;
+  if (hitZoneCount < 130) return 10;
+  if (hitZoneCount < 230) return 14;
+  return 20;
 }
 
 export default function GameCanvas() {
@@ -122,12 +120,6 @@ export default function GameCanvas() {
   const pendulum = useEquippedPendulum();
   const attachment = useEquippedAttachment();
   const site = useEquippedSite();
-  const skin = useEquippedSkin();
-  const shape = useEquippedShape();
-  const skinRef = useRef(skin);
-  const shapeRef = useRef(shape);
-  skinRef.current = skin;
-  shapeRef.current = shape;
   const worldVersion = useGameStore((s) => s.worldVersion);
   const runStartId = useGameStore((s) => s.runStartId);
   const goldenTokenConsumeEpoch = useGameStore((s) => s.goldenTokenConsumeEpoch);
@@ -338,7 +330,7 @@ export default function GameCanvas() {
     // `echoCount` from active modifiers — see syncEchoBobs.
     interface EchoBob {
       body: Matter.Body;
-      distanceOffset: number;
+      index: number;
     }
     const echoBobs: EchoBob[] = [];
     // Per-bob zone overlap keys — each bob (chain link or echo) tracks its
@@ -359,7 +351,10 @@ export default function GameCanvas() {
       const bobRadius = getEffectiveBobRadius(pendulumHandle);
 
       const hitters: { body: Matter.Body; isEcho: boolean }[] = [
-        ...pendulumHandle.bobs.map((body) => ({ body, isEcho: false })),
+        ...getOrderedBobBodies(pendulumHandle).map((body) => ({
+          body,
+          isEcho: false,
+        })),
         ...echoBobs.map((e) => ({ body: e.body, isEcho: true })),
       ];
 
@@ -385,26 +380,27 @@ export default function GameCanvas() {
       for (const key of nextOverlaps) zoneOverlapKeys.add(key);
     }
 
+    function echoLinkSpacing(): number {
+      const radius = getEffectiveBobRadius(pendulumHandle);
+      return pendulum.bobCount > 1 ? pendulum.bobSpacing : radius * 2.4;
+    }
+
     function syncEchoBobs(desired: number) {
       while (echoBobs.length < desired) {
         const radius = getEffectiveBobRadius(pendulumHandle);
-        // Spacing roughly matches the twin/triple-bob chain feel: just
-        // enough gap that adjacent echoes don't overlap visually.
-        const spacing = radius * 2.4;
-        const distanceOffset = (echoBobs.length + 1) * spacing;
         const body = Matter.Bodies.circle(
           pendulumHandle.pivot.position.x,
           pendulumHandle.pivot.position.y + 50,
           radius,
           {
-            isStatic: false,
+            isStatic: true,
             isSensor: true,
             frictionAir: 0,
             label: `echo-${echoBobs.length}`,
           }
         );
         Matter.World.add(engineHandle.world, body);
-        echoBobs.push({ body, distanceOffset });
+        echoBobs.push({ body, index: echoBobs.length });
       }
       while (echoBobs.length > desired) {
         const e = echoBobs.pop()!;
@@ -412,23 +408,48 @@ export default function GameCanvas() {
       }
     }
 
+    function syncEchoBobScales() {
+      const radius = getEffectiveBobRadius(pendulumHandle);
+      for (const e of echoBobs) {
+        const current = e.body.circleRadius ?? radius;
+        if (Math.abs(current - radius) < 0.001) continue;
+        Matter.Body.scale(e.body, radius / current, radius / current);
+      }
+    }
+
     function positionEchoBobs() {
       if (echoBobs.length === 0) return;
-      const last = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
       const pivot = pendulumHandle.pivot.position;
-      const dx = last.position.x - pivot.x;
-      const dy = last.position.y - pivot.y;
+      const dx = tip.position.x - pivot.x;
+      const dy = tip.position.y - pivot.y;
       const dist = Math.hypot(dx, dy) || 1;
       const ux = dx / dist;
       const uy = dy / dist;
-      for (const e of echoBobs) {
-        const r = dist + e.distanceOffset;
-        Matter.Body.setPosition(e.body, {
-          x: pivot.x + ux * r,
-          y: pivot.y + uy * r,
-        });
-        Matter.Body.setVelocity(e.body, { x: 0, y: 0 });
-        Matter.Body.setAngularVelocity(e.body, 0);
+      const chainLinks = pendulumHandle.chainBobs.length;
+      const spacing = echoLinkSpacing();
+
+      if (chainLinks > 0) {
+        const scaledAttach = attachment.length * pendulumHandle.ropeLengthScale;
+        const nominalTotal = scaledAttach + pendulum.bobSpacing * chainLinks;
+        const stretch = dist / nominalTotal;
+        for (const e of echoBobs) {
+          const nominalAlong =
+            scaledAttach + pendulum.bobSpacing * (chainLinks + 1 + e.index);
+          const r = nominalAlong * stretch;
+          Matter.Body.setPosition(e.body, {
+            x: pivot.x + ux * r,
+            y: pivot.y + uy * r,
+          });
+        }
+      } else {
+        for (const e of echoBobs) {
+          const r = dist + spacing * (e.index + 1);
+          Matter.Body.setPosition(e.body, {
+            x: pivot.x + ux * r,
+            y: pivot.y + uy * r,
+          });
+        }
       }
     }
 
@@ -651,8 +672,9 @@ export default function GameCanvas() {
       // Spawn / despawn echo sensor bodies to match the active Multi-Bob
       // modifier, then snap them onto the rope line trailing the real bob.
       syncEchoBobs(effects$.echoCount);
-      positionEchoBobs();
+      syncEchoBobScales();
       positionChainBobs(pendulumHandle);
+      positionEchoBobs();
       tickBobZoneHits(now);
       tickTokens(tokenField, now);
       const reaped = reapTokens(engineHandle.world, tokenField, now);
@@ -818,8 +840,9 @@ export default function GameCanvas() {
           y: e.body.position.y,
           radius: getEffectiveBobRadius(pendulumHandle),
         }));
-        const activeSkin = skinRef.current;
-        const activeShape = shapeRef.current;
+        const { skin: activeSkin, shape: activeShape } = resolveEquippedCosmetics(
+          store.equipped
+        );
         drawEchoBobs(rc, pendulumHandle.pivot.position, echoRender, activeSkin, activeShape.shape);
         drawPendulum(
           rc,
@@ -910,7 +933,7 @@ function relaunchPendulum(
   const velBonus = attachment.bonuses.velocityBonus ?? 0;
   // Modestly stronger than a regular launch — enough to reach circles without
   // the old token slingshot feel.
-  const baseSpeed = 17;
+  const baseSpeed = 17 * WORLD_SCALE;
   const kick =
     baseSpeed *
     (1 + twistBonus) *
@@ -920,7 +943,7 @@ function relaunchPendulum(
   // Preserve and nudge existing velocity per spend; lower mult keeps chains
   // from snowballing while still compounding on back-to-back spends.
   const VELOCITY_STACK_MULT = 1.28;
-  const MAX_SPEED_PER_AXIS = 72;
+  const MAX_SPEED_PER_AXIS = 72 * WORLD_SCALE;
 
   for (let i = 0; i < handle.bobs.length; i++) {
     const bob = handle.bobs[i];

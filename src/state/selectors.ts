@@ -22,14 +22,31 @@ export function useEquippedSite() {
   return SITE_MAP.get(id)!;
 }
 
+export function resolveEquippedSkin(id: string) {
+  return SKIN_MAP.get(id) ?? SKIN_MAP.get(STARTER_SKIN_ID) ?? BOB_SKINS[0];
+}
+
+export function resolveEquippedShape(id: string) {
+  return SHAPE_MAP.get(id) ?? SHAPE_MAP.get(STARTER_SHAPE_ID) ?? BOB_SHAPES[0];
+}
+
+export function resolveEquippedCosmetics(equipped: {
+  skinId: string;
+  shapeId: string;
+}) {
+  const skin = resolveEquippedSkin(equipped.skinId);
+  const shape = resolveEquippedShape(equipped.shapeId);
+  return { skin, shape };
+}
+
 export function useEquippedSkin() {
   const id = useGameStore((s) => s.equipped.skinId);
-  return SKIN_MAP.get(id) ?? SKIN_MAP.get(STARTER_SKIN_ID) ?? BOB_SKINS[0];
+  return resolveEquippedSkin(id);
 }
 
 export function useEquippedShape() {
   const id = useGameStore((s) => s.equipped.shapeId);
-  return SHAPE_MAP.get(id) ?? SHAPE_MAP.get(STARTER_SHAPE_ID) ?? BOB_SHAPES[0];
+  return resolveEquippedShape(id);
 }
 
 export function aggregateModifierEffects(

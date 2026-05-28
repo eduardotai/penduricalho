@@ -5,7 +5,7 @@ import { formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { PENDULUMS } from "../data/pendulums";
-import { ATTACHMENTS } from "../data/attachments";
+import { ATTACHMENTS, ROPE_ATTACHMENTS } from "../data/attachments";
 import { SITES } from "../data/sites";
 import { BOB_SKINS, SKIN_MAP, STARTER_SKIN_ID } from "../data/bobSkins";
 import { BOB_SHAPES, STARTER_SHAPE_ID } from "../data/bobShapes";
@@ -144,6 +144,12 @@ function ItemList({ kind }: { kind: ItemKind }) {
     return BOB_SKINS;
   }, [kind]);
 
+  const ropeList = useMemo(() => ROPE_ATTACHMENTS, []);
+  const otherAttachments = useMemo(
+    () => ATTACHMENTS.filter((a) => a.type !== "rope"),
+    []
+  );
+
   const ownedList =
     kind === "pendulum"
       ? owned.pendulums
@@ -171,32 +177,50 @@ function ItemList({ kind }: { kind: ItemKind }) {
     BOB_SKINS.find((s) => s.id === STARTER_SKIN_ID) ??
     BOB_SKINS[0];
 
-  return (
-    <div className="flex flex-col gap-2">
-      {list.map((item) => (
-        <Row
-          key={item.id}
-          kind={kind}
-          item={item}
-          previewSkin={previewSkin}
-          stats={stats}
-          isOwned={ownedList.includes(item.id)}
-          isEquipped={item.id === equippedId}
-          momentum={momentum}
-          onBuy={() => {
-            playUiClick();
-            const ok = buy(kind, item.id);
-            playGameSound(ok ? "ui-buy" : "ui-error");
-          }}
-          onEquip={() => {
-            playUiClick();
-            equip(kind, item.id);
-            playGameSound("ui-equip");
-          }}
-        />
-      ))}
-    </div>
-  );
+  const renderRows = (items: typeof list) =>
+    items.map((item) => (
+      <Row
+        key={item.id}
+        kind={kind}
+        item={item}
+        previewSkin={previewSkin}
+        stats={stats}
+        isOwned={ownedList.includes(item.id)}
+        isEquipped={item.id === equippedId}
+        momentum={momentum}
+        onBuy={() => {
+          playUiClick();
+          const ok = buy(kind, item.id);
+          playGameSound(ok ? "ui-buy" : "ui-error");
+        }}
+        onEquip={() => {
+          playUiClick();
+          equip(kind, item.id);
+          playGameSound("ui-equip");
+        }}
+      />
+    ));
+
+  if (kind === "attachment") {
+    return (
+      <div className="flex flex-col gap-4">
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+            Ropes — short to long
+          </h3>
+          <div className="flex flex-col gap-2">{renderRows(ropeList)}</div>
+        </section>
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+            Rods, chains &amp; elastic
+          </h3>
+          <div className="flex flex-col gap-2">{renderRows(otherAttachments)}</div>
+        </section>
+      </div>
+    );
+  }
+
+  return <div className="flex flex-col gap-2">{renderRows(list)}</div>;
 }
 
 interface RowProps {

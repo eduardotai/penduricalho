@@ -50,9 +50,10 @@ function buildRopeChain(
   stiffness: number,
   damping: number,
   constraints: Matter.Constraint[],
-  ropeSegments: Matter.Body[]
+  ropeSegments: Matter.Body[],
+  extraLinks: number = 0
 ): Matter.Body {
-  const segCount = ropeSegmentCount(ropeLength, material);
+  const segCount = ropeSegmentCount(ropeLength, material, extraLinks);
   const segLen = ropeLength / segCount;
   let prev: Matter.Body = pivot;
 
@@ -168,20 +169,21 @@ export function buildPendulum(
     Matter.Composite.add(composite, bobLink);
     constraints.push(bobLink);
   } else {
-    const totalLength = attachment.length + pendulum.bobSpacing * extraLinks;
+    const chainLen = pendulum.bobSpacing * extraLinks;
+    const totalRopeLength = attachment.length + chainLen;
 
     for (let i = 0; i < extraLinks; i++) {
       const chainBob = Matter.Bodies.circle(
         anchor.x,
         anchor.y + attachment.length + pendulum.bobSpacing * i,
         radius,
-        { label: `bob-${i}`, isSensor: true, frictionAir: 0 }
+        { label: `bob-${i}`, isSensor: true, isStatic: true, frictionAir: 0 }
       );
       Matter.Composite.add(composite, chainBob);
       chainBobs.push(chainBob);
     }
 
-    const tipBob = Matter.Bodies.circle(anchor.x, anchor.y + totalLength, radius, {
+    const tipBob = Matter.Bodies.circle(anchor.x, anchor.y + totalRopeLength, radius, {
       label: `bob-${pendulum.bobCount - 1}`,
       density: 0.001 * pendulum.weight * weightScale,
       frictionAir: 0.005,
@@ -191,26 +193,28 @@ export function buildPendulum(
     Matter.Composite.add(composite, tipBob);
     bobs.push(tipBob);
 
+    const bobLinkLen = Math.max(radius * 0.35, 4);
     const ropeTail = buildRopeChain(
       composite,
       pivot,
       anchor,
-      attachment.length,
+      totalRopeLength,
       ropeMaterial,
       ropeNodeMass,
       stiffness,
       damping,
       constraints,
-      ropeSegments
+      ropeSegments,
+      extraLinks
     );
 
     const tipLink = Matter.Constraint.create({
       bodyA: ropeTail,
       bodyB: tipBob,
-      length: pendulum.bobSpacing * extraLinks + 2,
-      stiffness,
+      length: bobLinkLen,
+      stiffness: Math.min(1, stiffness + 0.05),
       damping,
-      label: "link-0",
+      label: "rope-bob",
     });
     Matter.Composite.add(composite, tipLink);
     constraints.push(tipLink);
@@ -249,7 +253,7 @@ export function buildPendulum(
 
 export function getMainAttachmentConstraint(handle: PendulumHandle): Matter.Constraint | null {
   return (
-    handle.constraints.find((c) => c.label === "rope-bob" || c.label === "link-0") ??
+    handle.constraints.find((c) => c.label === "rope-bob") ??
     handle.constraints[handle.constraints.length - 1] ??
     null
   );
@@ -261,17 +265,98 @@ export function getOrderedBobBodies(handle: PendulumHandle): Matter.Body[] {
     : handle.bobs;
 }
 
+function ropePolyline(handle: PendulumHandle): Vec2[] {
+  const pivot = handle.pivot.position;
+  const points: Vec2[] = [{ x: pivot.x, y: pivot.y }];
+  for (const node of handle.ropeSegments) {
+    if (
+      !Number.isFinite(node.position.x) ||
+      !Number.isFinite(node.position.y)
+    ) {
+      continue;
+    }
+    points.push({ x: node.position.x, y: node.position.y });
+  }
+  return points;
+}
+
+function polylineArcLength(points: Vec2[]): number {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    len += Math.hypot(
+      points[i].x - points[i - 1].x,
+      points[i].y - points[i - 1].y
+    );
+  }
+  return len;
+}
+
+/** Point and tangent angle at a given arc length along a polyline. */
+function samplePolyline(
+  points: Vec2[],
+  targetDist: number
+): { x: number; y: number; angle: number } {
+  if (points.length === 0) return { x: 0, y: 0, angle: 0 };
+  if (points.length === 1 || targetDist <= 0) {
+    const next = points[Math.min(1, points.length - 1)];
+    const angle = Math.atan2(next.y - points[0].y, next.x - points[0].x);
+    return { x: points[0].x, y: points[0].y, angle };
+  }
+
+  let traveled = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const segLen = Math.hypot(dx, dy);
+    if (traveled + segLen >= targetDist || i === points.length - 1) {
+      const t = segLen > 0 ? Math.min(1, (targetDist - traveled) / segLen) : 0;
+      return { x: a.x + dx * t, y: a.y + dy * t, angle: Math.atan2(dy, dx) };
+    }
+    traveled += segLen;
+  }
+
+  const last = points[points.length - 1];
+  const prev = points[points.length - 2];
+  return {
+    x: last.x,
+    y: last.y,
+    angle: Math.atan2(last.y - prev.y, last.x - prev.x),
+  };
+}
+
 export function positionChainBobs(handle: PendulumHandle) {
   if (handle.chainBobs.length === 0) return;
   const tip = handle.bobs[handle.bobs.length - 1];
   const pivot = handle.pivot.position;
+  const scaledAttach = handle.attachment.length * handle.ropeLengthScale;
+  const nominalTotal =
+    scaledAttach + handle.pendulum.bobSpacing * handle.chainBobs.length;
+
+  const polyline = ropePolyline(handle);
+  const ropeArcLen = polylineArcLength(polyline);
+
+  if (ropeArcLen > 1 && polyline.length > 1) {
+    for (let i = 0; i < handle.chainBobs.length; i++) {
+      const nominalAlong = scaledAttach + handle.pendulum.bobSpacing * i;
+      const targetDist = (nominalAlong / nominalTotal) * ropeArcLen;
+      const sample = samplePolyline(polyline, targetDist);
+      const bob = handle.chainBobs[i];
+      Matter.Body.setPosition(bob, { x: sample.x, y: sample.y });
+      Matter.Body.setAngle(bob, sample.angle);
+      Matter.Body.setVelocity(bob, { x: 0, y: 0 });
+      Matter.Body.setAngularVelocity(bob, 0);
+    }
+    return;
+  }
+
+  // Fallback: straight pivot-to-tip line when rope nodes are unavailable.
   const dx = tip.position.x - pivot.x;
   const dy = tip.position.y - pivot.y;
   const dist = Math.hypot(dx, dy) || 1;
   const ux = dx / dist;
   const uy = dy / dist;
-  const scaledAttach = handle.attachment.length * handle.ropeLengthScale;
-  const nominalTotal = scaledAttach + handle.pendulum.bobSpacing * handle.chainBobs.length;
   const stretch = dist / nominalTotal;
 
   for (let i = 0; i < handle.chainBobs.length; i++) {
@@ -279,6 +364,7 @@ export function positionChainBobs(handle: PendulumHandle) {
     const r = nominalAlong * stretch;
     const bob = handle.chainBobs[i];
     Matter.Body.setPosition(bob, { x: pivot.x + ux * r, y: pivot.y + uy * r });
+    Matter.Body.setAngle(bob, Math.atan2(dy, dx));
     Matter.Body.setVelocity(bob, { x: 0, y: 0 });
     Matter.Body.setAngularVelocity(bob, 0);
   }
@@ -364,10 +450,13 @@ export function setRopeLengthScale(handle: PendulumHandle, targetScale: number) 
   const clamped = Math.max(0.3, Math.min(2.5, targetScale));
   if (Math.abs(clamped - handle.ropeLengthScale) < 0.001) return;
 
-  const scaledLength = handle.attachment.length * clamped;
+  const extraLinks = Math.max(0, handle.pendulum.bobCount - 1);
+  const chainLen = handle.pendulum.bobSpacing * extraLinks;
+  const scaledAttach = handle.attachment.length * clamped;
+  const totalRopeLen = scaledAttach + chainLen;
   const segCount = handle.ropeSegments.length;
   if (segCount > 0) {
-    const segLen = scaledLength / segCount;
+    const segLen = totalRopeLen / segCount;
     for (const c of handle.constraints) {
       if (!c.label?.startsWith("rope-")) continue;
       c.length = segLen;
@@ -377,13 +466,8 @@ export function setRopeLengthScale(handle: PendulumHandle, targetScale: number) 
 
   const link = getMainAttachmentConstraint(handle);
   if (link) {
-    const extraLinks = Math.max(0, handle.pendulum.bobCount - 1);
-    link.length =
-      handle.pendulum.bobCount === 1
-        ? Math.max(getEffectiveBobRadius(handle) * 0.35, 4)
-        : handle.pendulum.bobSpacing * extraLinks + 2;
-    handle.physics.restLength =
-      scaledLength + handle.pendulum.bobSpacing * extraLinks;
+    link.length = Math.max(getEffectiveBobRadius(handle) * 0.35, 4);
+    handle.physics.restLength = totalRopeLen;
     syncAttachmentConstraintPhysics(
       handle,
       handle.physics.bobMass,
@@ -405,17 +489,15 @@ export function resetPendulumToRest(handle: PendulumHandle) {
   if (!bob) return;
 
   const extraLinks = Math.max(0, handle.pendulum.bobCount - 1);
+  const chainLen = handle.pendulum.bobSpacing * extraLinks;
   const restLength = handle.attachment.length * handle.ropeLengthScale;
+  const totalRopeLen = restLength + chainLen;
   const segCount = handle.ropeSegments.length;
-  const segLen = segCount > 0 ? restLength / segCount : restLength;
-  const bobLink =
+  const segLen = segCount > 0 ? totalRopeLen / segCount : totalRopeLen;
+  const bobLinkLen =
     getMainAttachmentConstraint(handle)?.length ??
     Math.max(4, getEffectiveBobRadius(handle) * 0.35);
-  const tipRestY =
-    pivot.y +
-    restLength +
-    (extraLinks > 0 ? handle.pendulum.bobSpacing * extraLinks : 0) +
-    (extraLinks > 0 ? 0 : bobLink);
+  const tipRestY = pivot.y + totalRopeLen + bobLinkLen;
 
   for (let i = 0; i < segCount; i++) {
     const node = handle.ropeSegments[i];

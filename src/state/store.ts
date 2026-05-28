@@ -21,6 +21,11 @@ import {
   DEFAULT_AUDIO_SETTINGS,
   type AudioSettingsSnapshot,
 } from "../audio/types";
+import {
+  CAMERA_PAN_X_DEFAULT,
+  CAMERA_PAN_Y_DEFAULT,
+  CAMERA_ZOOM_DEFAULT,
+} from "../game/worldConstants";
 
 interface Owned {
   pendulums: string[];
@@ -157,11 +162,8 @@ export const RUN_AGAIN_GUARANTEED_DROP_CHANCE = 0.7;
 
 export const CAMERA_ZOOM_MIN = 0.5;
 export const CAMERA_ZOOM_MAX = 2;
-export const CAMERA_ZOOM_DEFAULT = 1;
-// Default pan frames the pendulum anchor in the upper third so the full
-// swing arc and hit zones stay in view (matches the intended opening shot).
-export const CAMERA_PAN_X_DEFAULT = 0;
-export const CAMERA_PAN_Y_DEFAULT = 215;
+
+export { CAMERA_PAN_X_DEFAULT, CAMERA_PAN_Y_DEFAULT, CAMERA_ZOOM_DEFAULT };
 
 function clampCameraZoom(zoom: number) {
   return Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, zoom));
@@ -660,7 +662,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: "pendulum-clicker-save",
-      version: 12,
+      version: 16,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
@@ -729,6 +731,42 @@ export const useGameStore = create<GameState>()(
             owned: { ...owned, shapes: owned.shapes ?? [STARTER_SHAPE_ID] },
             equipped: { ...equipped, shapeId: equipped.shapeId ?? STARTER_SHAPE_ID },
           });
+        }
+        if (version < 13) {
+          return {
+            ...state,
+            audio: mergedAudio,
+            cameraPanX: CAMERA_PAN_X_DEFAULT,
+            cameraPanY: CAMERA_PAN_Y_DEFAULT,
+            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+          };
+        }
+        if (version < 14) {
+          return {
+            ...state,
+            audio: mergedAudio,
+            cameraPanX: CAMERA_PAN_X_DEFAULT,
+            cameraPanY: CAMERA_PAN_Y_DEFAULT,
+            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+          };
+        }
+        if (version < 15) {
+          return {
+            ...state,
+            audio: mergedAudio,
+            cameraPanX: CAMERA_PAN_X_DEFAULT,
+            cameraPanY: CAMERA_PAN_Y_DEFAULT,
+            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+          };
+        }
+        if (version < 16) {
+          return {
+            ...state,
+            audio: mergedAudio,
+            cameraZoom: CAMERA_ZOOM_DEFAULT,
+            cameraPanX: CAMERA_PAN_X_DEFAULT,
+            cameraPanY: CAMERA_PAN_Y_DEFAULT,
+          };
         }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },

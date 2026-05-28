@@ -55,7 +55,13 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
 };
 
 const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
+  "micro-twine": { segmentSpacing: 22, stiffness: 0.9, damping: 0.03, maxStretchRatio: 1.07 },
+  "short-hemp": { segmentSpacing: 24, stiffness: 0.89, damping: 0.028 },
+  "compact-rope": { segmentSpacing: 26, stiffness: 0.88, damping: 0.026 },
   "steel-rope": { stiffness: 0.95, damping: 0.018, maxStretchRatio: 1.02 },
+  "braided-rope": { stiffness: 0.86, damping: 0.022, maxStretchRatio: 1.05 },
+  "tow-rope": { segmentSpacing: 30, nodeMassRatio: 0.06, stiffness: 0.84, damping: 0.024 },
+  "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015 },
   "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05 },
   "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04 },
 };
@@ -71,6 +77,14 @@ export function resolveRopeMaterial(attachment: AttachmentDef): RopeMaterialProf
   };
 }
 
-export function ropeSegmentCount(length: number, profile: RopeMaterialProfile): number {
-  return Math.max(3, Math.min(24, Math.round(length / profile.segmentSpacing)));
+export function ropeSegmentCount(
+  length: number,
+  profile: RopeMaterialProfile,
+  extraLinks: number = 0
+): number {
+  const base = Math.round(length / profile.segmentSpacing);
+  // Twin/triple rigs get extra nodes so whip travels through each chain link.
+  const linkBonus = extraLinks > 0 ? extraLinks * 3 : 0;
+  const maxSegs = extraLinks > 0 ? 36 : 24;
+  return Math.max(3, Math.min(maxSegs, base + linkBonus));
 }

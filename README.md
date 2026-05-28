@@ -24,3 +24,7 @@ Open http://localhost:5173.
 - `npm run dev` - local dev server with HMR
 - `npm run build` - type-check and produce a production build in `dist/`
 - `npm run preview` - serve the production build locally
+
+## Versioning
+
+Current release: **1.0.0** (MVP). See [CHANGELOG.md](CHANGELOG.md) and [docs/VERSIONING.md](docs/VERSIONING.md) for tagging, rollbacks, and Vercel promotion.

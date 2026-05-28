@@ -1,4 +1,7 @@
 import type { PendulumDef } from "../types";
+import { WORLD_SCALE } from "../game/worldConstants";
+
+const S = (spacing: number) => Math.round(spacing * WORLD_SCALE);
 
 export const PENDULUMS: PendulumDef[] = [
   {
@@ -47,7 +50,7 @@ export const PENDULUMS: PendulumDef[] = [
     description: "Two bobs chained vertically. Each is modest, but together they cover a long swept arc.",
     weight: 3,
     bobCount: 2,
-    bobSpacing: 60,
+    bobSpacing: S(60),
     bobRadius: 17,
     maxAngularVelocity: 0.5,
     basePointMultiplier: 1.7,
@@ -61,7 +64,7 @@ export const PENDULUMS: PendulumDef[] = [
     description: "Three bobs. Catastrophically effective coverage along the entire chain.",
     weight: 4.5,
     bobCount: 3,
-    bobSpacing: 55,
+    bobSpacing: S(55),
     bobRadius: 16,
     maxAngularVelocity: 0.55,
     basePointMultiplier: 2.6,

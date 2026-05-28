@@ -318,6 +318,7 @@ export function drawPendulum(
   const stretch = Math.max(0.85, Math.min(1.75, stretchRatio));
   const ordered = getOrderedBobBodies(handle);
   const pivot = handle.pivot.position;
+  const defaultRadius = getEffectiveBobRadius(handle);
 
   rc.ctx.save();
   rc.ctx.strokeStyle = attachmentColor(attachment, stretch);
@@ -333,12 +334,41 @@ export function drawPendulum(
     rc.ctx.lineTo(node.position.x, node.position.y);
     drewSegment = true;
   }
-  for (const bob of ordered) {
-    if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
-    rc.ctx.lineTo(bob.position.x, bob.position.y);
-    drewSegment = true;
+  if (handle.chainBobs.length > 0) {
+    // Rope nodes already span the chain — only the short link to the tip remains.
+    const tip = handle.bobs[handle.bobs.length - 1];
+    if (tip && Number.isFinite(tip.position.x) && Number.isFinite(tip.position.y)) {
+      rc.ctx.lineTo(tip.position.x, tip.position.y);
+      drewSegment = true;
+    }
+  } else {
+    for (const bob of ordered) {
+      if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
+      rc.ctx.lineTo(bob.position.x, bob.position.y);
+      drewSegment = true;
+    }
   }
   if (drewSegment) rc.ctx.stroke();
+
+  // Chain bobs sit on the rope polyline — draw a small crimp so they read as attached.
+  if (handle.chainBobs.length > 0) {
+    rc.ctx.save();
+    rc.ctx.strokeStyle = attachmentColor(attachment, stretch);
+    rc.ctx.lineWidth = Math.max(2, attachmentLineWidth(attachment, stretch) * 0.85);
+    rc.ctx.lineCap = "round";
+    for (const bob of handle.chainBobs) {
+      if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
+      const r = bob.circleRadius ?? defaultRadius;
+      const inset = r * 0.42;
+      const ax = bob.position.x - Math.cos(bob.angle) * inset;
+      const ay = bob.position.y - Math.sin(bob.angle) * inset;
+      rc.ctx.beginPath();
+      rc.ctx.moveTo(ax, ay);
+      rc.ctx.lineTo(bob.position.x, bob.position.y);
+      rc.ctx.stroke();
+    }
+    rc.ctx.restore();
+  }
 
   for (const node of handle.ropeSegments ?? []) {
     if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
@@ -360,24 +390,12 @@ export function drawPendulum(
   rc.ctx.arc(pivot.x, pivot.y, 3, 0, Math.PI * 2);
   rc.ctx.fill();
 
-  const tipRadius = getEffectiveBobRadius(handle);
-  for (let i = 0; i < ordered.length; i++) {
-    const bob = ordered[i];
+  for (const bob of ordered) {
     const bx = bob.position.x;
     const by = bob.position.y;
     if (!Number.isFinite(bx) || !Number.isFinite(by)) continue;
 
-    const isTip = i === ordered.length - 1;
-    const r = isTip ? tipRadius : Math.max(4, tipRadius * 0.22);
-
-    if (!isTip) {
-      rc.ctx.fillStyle = attachmentColor(attachment, stretch);
-      rc.ctx.beginPath();
-      rc.ctx.arc(bx, by, r, 0, Math.PI * 2);
-      rc.ctx.fill();
-      continue;
-    }
-
+    const r = bob.circleRadius ?? defaultRadius;
     drawBobBody(rc.ctx, bx, by, r, skin, shape);
   }
   rc.ctx.restore();
@@ -507,25 +525,51 @@ export function applyShake(rc: RenderContext, eff: EffectsState) {
   if (o.x !== 0 || o.y !== 0) rc.ctx.translate(o.x, o.y);
 }
 
+const ROPE_COLORS: Record<string, string> = {
+  "micro-twine": "#d4a574",
+  "short-hemp": "#b8860b",
+  "compact-rope": "#a16207",
+  "hemp-rope": "#ca8a04",
+  "steel-rope": "#64748b",
+  "braided-rope": "#92400e",
+  "tow-rope": "#78716c",
+  "titan-cable": "#475569",
+  "magnetic-tether": "#22d3ee",
+};
+
+const ROPE_LINE_WIDTH: Record<string, number> = {
+  "micro-twine": 2,
+  "short-hemp": 2.25,
+  "compact-rope": 2.5,
+  "hemp-rope": 3,
+  "steel-rope": 2.5,
+  "braided-rope": 3.25,
+  "tow-rope": 3.5,
+  "titan-cable": 3,
+  "magnetic-tether": 1.5,
+};
+
 function attachmentColor(attachment: AttachmentDef, stretch = 1): string {
-  if (attachment.id === "magnetic-tether") return "#22d3ee";
+  if (attachment.type === "rope") {
+    return ROPE_COLORS[attachment.id] ?? "#a16207";
+  }
   switch (attachment.type) {
-    case "rope":
-      return attachment.id === "steel-rope" ? "#64748b" : "#a16207";
     case "rod":
       return "#94a3b8";
     case "chain":
       return "#64748b";
     case "elastic":
       return stretch > 1.08 ? "#c084fc" : "#a78bfa";
+    default:
+      return "#a16207";
   }
 }
 
 function attachmentLineWidth(attachment: AttachmentDef, stretch = 1): number {
-  if (attachment.id === "magnetic-tether") return 1.5;
+  if (attachment.type === "rope") {
+    return ROPE_LINE_WIDTH[attachment.id] ?? 3;
+  }
   switch (attachment.type) {
-    case "rope":
-      return attachment.id === "steel-rope" ? 2.5 : 3;
     case "rod":
       return 5;
     case "chain":

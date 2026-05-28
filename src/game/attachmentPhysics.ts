@@ -18,6 +18,30 @@ export interface AttachmentMaterialProfile {
 }
 
 export const ATTACHMENT_MATERIALS: Record<string, AttachmentMaterialProfile> = {
+  "micro-twine": {
+    youngsModulus: 1.4,
+    crossSection: 0.45,
+    linearDensity: 0.001,
+    dampingRatio: 0.11,
+    maxStretchRatio: 1.05,
+    equilibriumStretchFraction: 0.4,
+  },
+  "short-hemp": {
+    youngsModulus: 1.8,
+    crossSection: 0.75,
+    linearDensity: 0.0014,
+    dampingRatio: 0.1,
+    maxStretchRatio: 1.048,
+    equilibriumStretchFraction: 0.48,
+  },
+  "compact-rope": {
+    youngsModulus: 2.0,
+    crossSection: 0.9,
+    linearDensity: 0.0016,
+    dampingRatio: 0.095,
+    maxStretchRatio: 1.046,
+    equilibriumStretchFraction: 0.52,
+  },
   "hemp-rope": {
     youngsModulus: 2.2,
     crossSection: 1.0,
@@ -61,6 +85,30 @@ export const ATTACHMENT_MATERIALS: Record<string, AttachmentMaterialProfile> = {
     equilibriumStretchFraction: 0.35,
     nonlinearStretchGain: 28,
     limitStiffness: 0.12,
+  },
+  "braided-rope": {
+    youngsModulus: 3.2,
+    crossSection: 1.15,
+    linearDensity: 0.002,
+    dampingRatio: 0.085,
+    maxStretchRatio: 1.042,
+    equilibriumStretchFraction: 0.58,
+  },
+  "tow-rope": {
+    youngsModulus: 4.5,
+    crossSection: 1.35,
+    linearDensity: 0.0026,
+    dampingRatio: 0.08,
+    maxStretchRatio: 1.04,
+    equilibriumStretchFraction: 0.6,
+  },
+  "titan-cable": {
+    youngsModulus: 140,
+    crossSection: 0.7,
+    linearDensity: 0.0038,
+    dampingRatio: 0.016,
+    maxStretchRatio: 1.008,
+    equilibriumStretchFraction: 0.62,
   },
   "magnetic-tether": {
     youngsModulus: 120,
