@@ -23,6 +23,7 @@ export interface PendulumDef {
   weight: number;
   bobCount: number;
   bobSpacing: number;
+  bobRadius: number;
   maxAngularVelocity: number;
   basePointMultiplier: number;
   rarity: Rarity;
@@ -44,7 +45,9 @@ export interface AttachmentDef {
   description: string;
   type: AttachmentType;
   length: number;
+  /** Derived from material physics (Hooke's law + damping ratio). */
   stiffness: number;
+  /** Derived from material damping ratio ζ. */
   damping: number;
   bonuses: AttachmentBonuses;
   cost: number;
@@ -78,11 +81,21 @@ export interface ActiveModifier {
   expiresAt: number;
 }
 
+export interface PersistentBonus {
+  defId: string;
+  expiresAt: number;
+}
+
 export interface ModifierEffects {
   twistPowerMult?: number;
   pointMult?: number;
   accelerationMult?: number;
   weightMult?: number;
+  bobSizeMult?: number;
+  ropeLengthMult?: number;
+  echoCount?: number;
+  /** Fractional speed growth per second while active (0.1 = +10%/s). */
+  velocityGrowthPerSec?: number;
 }
 
 export interface ModifierDef {
@@ -101,4 +114,76 @@ export interface ManeuverDef {
   description: string;
 }
 
-export type ItemKind = "pendulum" | "attachment" | "site";
+export type BobSkinPattern = "solid" | "striped" | "starfield" | "crystal" | "band";
+
+export interface BobSkinDef {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  highlight: string;
+  stroke: string;
+  pattern: BobSkinPattern;
+  rarity: Rarity;
+  cost: number;
+  unlock?: UnlockGate;
+}
+
+export type BobShapeKind =
+  | "circle"
+  | "square"
+  | "diamond"
+  | "star"
+  | "hex"
+  | "triangle"
+  | "heart"
+  | "bolt"
+  | "flame"
+  | "cog"
+  | "cross"
+  | "moon"
+  | "ring";
+
+export interface BobShapeDef {
+  id: string;
+  name: string;
+  description: string;
+  shape: BobShapeKind;
+  rarity: Rarity;
+  cost: number;
+  unlock?: UnlockGate;
+}
+
+export type ItemKind = "pendulum" | "attachment" | "site" | "skin" | "shape";
+
+export type TokenKind =
+  | "bigger-bob"
+  | "giant-bob"
+  | "tiny-bob"
+  | "velocity-surge"
+  | "speed-ramp"
+  | "long-rope"
+  | "short-rope"
+  | "multi-bob"
+  | "golden";
+
+export interface TokenDef {
+  kind: TokenKind;
+  name: string;
+  description: string;
+  color: string;
+  weight: number;
+  grantsModifierId?: string;
+  isGolden?: boolean;
+}
+
+export interface TokenInstance {
+  id: string;
+  kind: TokenKind;
+  position: Vec2;
+  radius: number;
+  spawnedAt: number;
+  expiresAt: number;
+  driftPhase: number;
+  consumed: boolean;
+}

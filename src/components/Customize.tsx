@@ -1,10 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { drawBobSkin } from "../game/render";
+import { FormattedNumber } from "./FormattedNumber";
+import { formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
+import { playGameSound, playUiClick } from "../audio/soundMap";
 import { PENDULUMS } from "../data/pendulums";
 import { ATTACHMENTS } from "../data/attachments";
 import { SITES } from "../data/sites";
+import { BOB_SKINS, SKIN_MAP, STARTER_SKIN_ID } from "../data/bobSkins";
+import { BOB_SHAPES, STARTER_SHAPE_ID } from "../data/bobShapes";
+import {
+  formatStretchBudget,
+  getMaterialProfile,
+} from "../game/attachmentPhysics";
 import type {
   AttachmentDef,
+  BobShapeDef,
+  BobSkinDef,
   ItemKind,
   PendulumDef,
   SiteDef,
@@ -12,12 +24,14 @@ import type {
   UnlockGate,
 } from "../types";
 
-type Tab = "pendulum" | "attachment" | "site" | "stats";
+type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "stats";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "pendulum", label: "Pendulums" },
   { id: "attachment", label: "Attachments" },
   { id: "site", label: "Sites" },
+  { id: "skin", label: "Bob Skins" },
+  { id: "shape", label: "Bob Shapes" },
   { id: "stats", label: "Stats" },
 ];
 
@@ -43,6 +57,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      data-no-camera-zoom
       onClick={onClose}
     >
       <div
@@ -85,6 +100,8 @@ export default function Customize({ open, onClose }: CustomizeProps) {
           {tab === "pendulum" && <ItemList kind="pendulum" />}
           {tab === "attachment" && <ItemList kind="attachment" />}
           {tab === "site" && <ItemList kind="site" />}
+          {tab === "skin" && <ItemList kind="skin" />}
+          {tab === "shape" && <ItemList kind="shape" />}
           {tab === "stats" && <StatsTab />}
         </div>
       </div>
@@ -100,7 +117,10 @@ function MomentumBadge() {
         Momentum
       </div>
       <div className="font-display text-sm font-semibold text-brand-300">
-        {momentum.toLocaleString()}
+        <FormattedNumber
+          value={momentum}
+          className="font-display text-sm font-semibold text-brand-300"
+        />
       </div>
     </div>
   );
@@ -114,10 +134,14 @@ function ItemList({ kind }: { kind: ItemKind }) {
   const buy = useGameStore((s) => s.buy);
   const equip = useGameStore((s) => s.equip);
 
+  const equippedSkin = useGameStore((s) => s.equipped.skinId);
+
   const list = useMemo(() => {
     if (kind === "pendulum") return PENDULUMS;
     if (kind === "attachment") return ATTACHMENTS;
-    return SITES;
+    if (kind === "site") return SITES;
+    if (kind === "shape") return BOB_SHAPES;
+    return BOB_SKINS;
   }, [kind]);
 
   const ownedList =
@@ -125,14 +149,27 @@ function ItemList({ kind }: { kind: ItemKind }) {
       ? owned.pendulums
       : kind === "attachment"
         ? owned.attachments
-        : owned.sites;
+        : kind === "site"
+          ? owned.sites
+          : kind === "skin"
+            ? (owned.skins ?? [STARTER_SKIN_ID])
+            : (owned.shapes ?? [STARTER_SHAPE_ID]);
 
   const equippedId =
     kind === "pendulum"
       ? equipped.pendulumId
       : kind === "attachment"
         ? equipped.attachmentId
-        : equipped.siteId;
+        : kind === "site"
+          ? equipped.siteId
+          : kind === "skin"
+            ? equipped.skinId
+            : equipped.shapeId;
+
+  const previewSkin =
+    SKIN_MAP.get(equippedSkin) ??
+    BOB_SKINS.find((s) => s.id === STARTER_SKIN_ID) ??
+    BOB_SKINS[0];
 
   return (
     <div className="flex flex-col gap-2">
@@ -141,12 +178,21 @@ function ItemList({ kind }: { kind: ItemKind }) {
           key={item.id}
           kind={kind}
           item={item}
+          previewSkin={previewSkin}
           stats={stats}
           isOwned={ownedList.includes(item.id)}
           isEquipped={item.id === equippedId}
           momentum={momentum}
-          onBuy={() => buy(kind, item.id)}
-          onEquip={() => equip(kind, item.id)}
+          onBuy={() => {
+            playUiClick();
+            const ok = buy(kind, item.id);
+            playGameSound(ok ? "ui-buy" : "ui-error");
+          }}
+          onEquip={() => {
+            playUiClick();
+            equip(kind, item.id);
+            playGameSound("ui-equip");
+          }}
         />
       ))}
     </div>
@@ -155,7 +201,8 @@ function ItemList({ kind }: { kind: ItemKind }) {
 
 interface RowProps {
   kind: ItemKind;
-  item: PendulumDef | AttachmentDef | SiteDef;
+  item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
+  previewSkin: BobSkinDef;
   stats: StatsT;
   isOwned: boolean;
   isEquipped: boolean;
@@ -167,6 +214,7 @@ interface RowProps {
 function Row({
   kind,
   item,
+  previewSkin,
   stats,
   isOwned,
   isEquipped,
@@ -188,7 +236,16 @@ function Row({
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
+        <div className="flex flex-1 items-start gap-3">
+          {kind === "skin" && <BobPreview skin={item as BobSkinDef} />}
+          {kind === "shape" && (
+            <BobPreview
+              skin={previewSkin}
+              shape={(item as BobShapeDef).shape}
+              title={(item as BobShapeDef).name}
+            />
+          )}
+          <div className="flex-1">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-100">{item.name}</h3>
             {"rarity" in item && (
@@ -208,6 +265,7 @@ function Row({
           </div>
           <p className="mt-0.5 text-xs text-slate-400">{item.description}</p>
           <ItemStats kind={kind} item={item} />
+          </div>
         </div>
         <div className="flex w-32 flex-col items-end gap-1.5">
           {isOwned ? (
@@ -233,7 +291,10 @@ function Row({
                 Cost
               </div>
               <div className="font-display text-sm font-semibold text-brand-300">
-                {item.cost.toLocaleString()}
+                <FormattedNumber
+                  value={item.cost}
+                  className="font-display text-sm font-semibold text-brand-300"
+                />
               </div>
               <button
                 onClick={onBuy}
@@ -259,8 +320,26 @@ function ItemStats({
   item,
 }: {
   kind: ItemKind;
-  item: PendulumDef | AttachmentDef | SiteDef;
+  item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
 }) {
+  if (kind === "skin") {
+    const skin = item as BobSkinDef;
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+        <Stat label="Finish" value={skin.pattern} />
+        <Stat label="Cosmetic" value="bob only" />
+      </div>
+    );
+  }
+  if (kind === "shape") {
+    const shape = item as BobShapeDef;
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+        <Stat label="Silhouette" value={shape.shape} />
+        <Stat label="Cosmetic" value="bob only" />
+      </div>
+    );
+  }
   if (kind === "pendulum") {
     const p = item as PendulumDef;
     return (
@@ -274,11 +353,13 @@ function ItemStats({
   }
   if (kind === "attachment") {
     const a = item as AttachmentDef;
+    const profile = getMaterialProfile(a);
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
         <Stat label="Type" value={a.type} />
         <Stat label="Length" value={a.length.toString()} />
-        <Stat label="Stiff" value={a.stiffness.toFixed(2)} />
+        <Stat label="Stretch" value={formatStretchBudget(profile)} />
+        <Stat label="Damp" value={profile.dampingRatio.toFixed(2)} />
         {a.bonuses.momentumMult && (
           <Stat label="Pts" value={`x${a.bonuses.momentumMult.toFixed(2)}`} />
         )}
@@ -316,10 +397,19 @@ function StatsTab() {
           Lifetime
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <StatCard label="Momentum" value={momentum.toLocaleString()} />
-          <StatCard label="All-Time Momentum" value={stats.totalMomentum.toLocaleString()} />
+          <StatCard
+            label="Momentum"
+            value={<FormattedNumber value={momentum} />}
+          />
+          <StatCard
+            label="All-Time Momentum"
+            value={<FormattedNumber value={stats.totalMomentum} />}
+          />
           <StatCard label="Total Runs" value={totalRuns.toLocaleString()} />
-          <StatCard label="Best Run" value={bestRunMomentum.toLocaleString()} />
+          <StatCard
+            label="Best Run"
+            value={<FormattedNumber value={bestRunMomentum} />}
+          />
           <StatCard label="Total Hits" value={stats.totalHits.toLocaleString()} />
           <StatCard label="Best Combo" value={`x${stats.bestCombo}`} />
         </div>
@@ -329,10 +419,12 @@ function StatsTab() {
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
           Collection
         </h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatCard label="Pendulums" value={`${owned.pendulums.length}`} />
           <StatCard label="Attachments" value={`${owned.attachments.length}`} />
           <StatCard label="Sites" value={`${owned.sites.length}`} />
+          <StatCard label="Bob Skins" value={`${owned.skins?.length ?? 1}`} />
+          <StatCard label="Bob Shapes" value={`${owned.shapes?.length ?? 1}`} />
         </div>
       </section>
 
@@ -361,7 +453,13 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
       <div className="text-[10px] uppercase tracking-widest text-slate-500">
@@ -385,10 +483,43 @@ function unlockText(gate: UnlockGate): string {
     totalHits: "Hits",
     bestCombo: "Best Combo",
   };
-  return `Unlocks at ${labels[gate.stat]} >= ${gate.gte.toLocaleString()}`;
+  return `Unlocks at ${labels[gate.stat]} >= ${formatNumber(gate.gte)}`;
 }
 
-function rarityClass(r: PendulumDef["rarity"]): string {
+function BobPreview({
+  skin,
+  shape = "circle",
+  title,
+}: {
+  skin: BobSkinDef;
+  shape?: BobShapeDef["shape"];
+  title?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const size = canvas.width;
+    ctx.clearRect(0, 0, size, size);
+    drawBobSkin(ctx, size / 2, size / 2, size * 0.42, skin, shape);
+  }, [skin, shape]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={48}
+      height={48}
+      className="relative mt-0.5 h-12 w-12 shrink-0 rounded-full"
+      title={title ?? skin.name}
+      aria-hidden
+    />
+  );
+}
+
+function rarityClass(r: PendulumDef["rarity"] | BobSkinDef["rarity"] | BobShapeDef["rarity"]): string {
   switch (r) {
     case "common":
       return "bg-slate-700/60 text-slate-300";

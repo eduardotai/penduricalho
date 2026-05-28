@@ -12,6 +12,9 @@ export function createEngine(width: number, height: number): EngineHandle {
   const engine = Matter.Engine.create({
     gravity: { x: 0, y: 1, scale: 0.001 },
     enableSleeping: false,
+    constraintIterations: 4,
+    positionIterations: 10,
+    velocityIterations: 8,
   });
   const runner = Matter.Runner.create({
     isFixed: true,
