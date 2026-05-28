@@ -34,23 +34,22 @@ function shuffle<T>(items: T[]): T[] {
   return items;
 }
 
-/** Spawn field: full canvas width, from the rope mount down to the bottom edge. */
+/** Spawn field: the full canvas, inset only by circle radius at the edges. */
 function spawnFieldRect(
   bounds: { x: number; y: number; w: number; h: number },
-  anchor: Vec2,
+  _anchor: Vec2,
   maxRadius: number
 ) {
   const inset = maxRadius;
-  const mountPad = 4 + maxRadius * 0.45;
   return {
     xMin: bounds.x + inset,
-    yMin: anchor.y + 14 + mountPad,
+    yMin: bounds.y + inset,
     xMax: bounds.x + bounds.w - inset,
     yMax: bounds.y + bounds.h - inset,
   };
 }
 
-/** Keep circles off the mount block and above the rope anchor. */
+/** Keep circles off the mount block only — everywhere else is fair game. */
 function isValidZonePosition(
   pos: Vec2,
   anchor: Vec2,
@@ -101,7 +100,7 @@ function gridSlotsInRect(
   return slots;
 }
 
-/** Evenly tile from the rope mount down to the bottom of the canvas. */
+/** Evenly tile across the full canvas. */
 function computeEvenLayout(
   bounds: { x: number; y: number; w: number; h: number },
   anchor: Vec2,
