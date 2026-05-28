@@ -4,17 +4,17 @@ export const MODIFIERS: ModifierDef[] = [
   {
     id: "power-twist",
     name: "Power Twist",
-    description: "+50% twist power for 10s.",
+    description: "+50% twist power for 7s.",
     color: "#f97316",
-    durationMs: 10000,
+    durationMs: 7000,
     effects: { twistPowerMult: 1.5 },
   },
   {
     id: "heavy-air",
     name: "Heavy Air",
-    description: "+25% acceleration for 8s.",
+    description: "+25% acceleration for 7s.",
     color: "#38bdf8",
-    durationMs: 8000,
+    durationMs: 7000,
     effects: { accelerationMult: 1.25 },
   },
   {
@@ -41,10 +41,86 @@ export const MODIFIERS: ModifierDef[] = [
     durationMs: 4000,
     effects: { twistPowerMult: 1.75, pointMult: 1.5 },
   },
+  {
+    id: "speed-ramp",
+    name: "Speed Ramp",
+    description: "Swing speed builds up to +40% over 7s (timed only).",
+    color: "#2dd4bf",
+    durationMs: 7000,
+    effects: { velocityGrowthPerSec: 0.1 },
+  },
+  {
+    id: "tiny-bob",
+    name: "Tiny Bob",
+    description: "-45% bob size for 7s. Darts through tight gaps.",
+    color: "#818cf8",
+    durationMs: 7000,
+    effects: { bobSizeMult: 0.55 },
+  },
+
+  // ------- Token-granted physical modifiers -------
+  {
+    id: "bigger-bob",
+    name: "Bigger Bob",
+    description: "+80% bob size for 7s. Sweeps through more zones.",
+    color: "#34d399",
+    durationMs: 7000,
+    effects: { bobSizeMult: 1.8 },
+  },
+  {
+    id: "giant-bob",
+    name: "Giant Bob",
+    description: "+120% bob size for 6s. Huge arc coverage.",
+    color: "#059669",
+    durationMs: 6000,
+    effects: { bobSizeMult: 2.2 },
+  },
+  {
+    id: "velocity-surge",
+    name: "Velocity Surge",
+    description: "Big velocity kick + 25% twist power for 5s.",
+    color: "#22d3ee",
+    durationMs: 5000,
+    effects: { twistPowerMult: 1.25 },
+  },
+  {
+    id: "multi-bob",
+    name: "Multi-Bob",
+    description: "+2 echo bobs land hits alongside you for 6s.",
+    color: "#c084fc",
+    durationMs: 6000,
+    effects: { echoCount: 2 },
+  },
+
+  // The rare token's score multiplier component. Duration here is a fallback —
+  // the actual lifetime is set when the token is collected, so the grindable
+  // goldenTokenBonusMs can stretch it.
+  {
+    id: "token-bonus",
+    name: "Token Bonus",
+    description: "x3 points and re-launched Bob.",
+    color: "#fde047",
+    durationMs: 6000,
+    effects: { pointMult: 3, twistPowerMult: 1.5 },
+  },
 ];
 
 export const MODIFIER_MAP = new Map(MODIFIERS.map((m) => [m.id, m]));
 
+// Modifiers eligible for the legacy "random buff from a zone" path. Token-
+// granted physical modifiers are excluded — they only enter play via tokens.
+const RANDOM_ROLLABLE_IDS = new Set([
+  "power-twist",
+  "heavy-air",
+  "featherweight",
+  "golden-hour",
+  "overdrive",
+  "speed-ramp",
+  "bigger-bob",
+  "tiny-bob",
+]);
+const ROLLABLE_MODIFIERS = MODIFIERS.filter((m) => RANDOM_ROLLABLE_IDS.has(m.id));
+
 export function rollRandomModifier(): ModifierDef {
-  return MODIFIERS[Math.floor(Math.random() * MODIFIERS.length)];
+  return ROLLABLE_MODIFIERS[Math.floor(Math.random() * ROLLABLE_MODIFIERS.length)];
 }
