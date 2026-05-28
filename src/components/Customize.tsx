@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { drawBobSkin } from "../game/render";
+import { bobRadius } from "../game/pendulum";
 import { FormattedNumber } from "./FormattedNumber";
 import { formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
@@ -269,6 +270,13 @@ function Row({
               title={(item as BobShapeDef).name}
             />
           )}
+          {kind === "pendulum" && (
+            <BobPreview
+              skin={previewSkin}
+              radius={bobRadius(item as PendulumDef)}
+              title={(item as PendulumDef).name}
+            />
+          )}
           <div className="flex-1">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold text-slate-100">{item.name}</h3>
@@ -369,6 +377,7 @@ function ItemStats({
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
         <Stat label="Weight" value={p.weight.toFixed(1)} />
+        <Stat label="Size" value={`${p.bobRadius}px`} />
         <Stat label="Bobs" value={p.bobCount.toString()} />
         <Stat label="Mult" value={`x${p.basePointMultiplier.toFixed(2)}`} />
         <Stat label="MaxVel" value={p.maxAngularVelocity.toFixed(2)} />
@@ -510,13 +519,21 @@ function unlockText(gate: UnlockGate): string {
   return `Unlocks at ${labels[gate.stat]} >= ${formatNumber(gate.gte)}`;
 }
 
+/** Reference bob radius for shop thumbnails (brass bob, world-scaled). */
+const PREVIEW_REF_BOB_RADIUS = bobRadius(
+  PENDULUMS.find((p) => p.id === "brass-bob") ?? PENDULUMS[0]!
+);
+
 function BobPreview({
   skin,
   shape = "circle",
+  radius,
   title,
 }: {
   skin: BobSkinDef;
   shape?: BobShapeDef["shape"];
+  /** When set, scales the thumbnail to match pendulum bob size. */
+  radius?: number;
   title?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -528,8 +545,13 @@ function BobPreview({
     if (!ctx) return;
     const size = canvas.width;
     ctx.clearRect(0, 0, size, size);
-    drawBobSkin(ctx, size / 2, size / 2, size * 0.42, skin, shape);
-  }, [skin, shape]);
+    const baseR = size * 0.42;
+    const drawR =
+      radius === undefined
+        ? baseR
+        : baseR * Math.max(0.55, Math.min(1.35, radius / PREVIEW_REF_BOB_RADIUS));
+    drawBobSkin(ctx, size / 2, size / 2, drawR, skin, shape);
+  }, [skin, shape, radius]);
 
   return (
     <canvas

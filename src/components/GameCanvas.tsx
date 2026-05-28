@@ -9,6 +9,7 @@ import {
 } from "../state/selectors";
 import { createEngine, destroyEngine, setGravity, applyAmbientForce } from "../game/engine";
 import {
+  bobRadius,
   buildPendulum,
   destroyPendulum,
   setPendulumWeightScale,
@@ -293,12 +294,18 @@ export default function GameCanvas() {
     );
     pendulumHandleRef.current = pendulumHandle;
 
+    const pendulumReach =
+      attachment.length + pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1);
+    const [, zoneRmax] = site.hitZoneRadius;
+    const spawnClearance = Math.max(zoneRmax, bobRadius(pendulum));
+
     const field: HitZoneField = generateHitZones(
       engineHandle.world,
       site,
       { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT },
       ANCHOR,
-      attachment.length + pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1)
+      pendulumReach,
+      spawnClearance
     );
 
     const tokenField: TokenField = createTokenField();
@@ -538,12 +545,7 @@ export default function GameCanvas() {
         }
       }
 
-      relocateZone(
-        field,
-        handle,
-        attachment.length +
-          pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1)
-      );
+      relocateZone(field, handle, pendulumReach, spawnClearance);
     }
 
     function collectToken(handle: TokenHandle, bobBody: Matter.Body, now: number) {
@@ -690,8 +692,8 @@ export default function GameCanvas() {
         regenerateHitZones(
           engineHandle.world,
           field,
-          attachment.length +
-            pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1)
+          pendulumReach,
+          spawnClearance
         );
         destroyTokenField(engineHandle.world, tokenField);
         launchPendulum(pendulumHandle, attachment, pendulum, effects$);
@@ -739,14 +741,12 @@ export default function GameCanvas() {
           // boosted spin to gobble up. Stacking tokens stacks playfield
           // density too — up to the field cap — so the snowball loop has
           // more fuel each successive spend.
-          const ropeLen =
-            attachment.length +
-            pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1);
           const newZones = spawnExtraZones(
             engineHandle.world,
             field,
             bonusZonesPerGolden(site.hitZoneCount),
-            ropeLen
+            pendulumReach,
+            spawnClearance
           );
           for (const nz of newZones) {
             emitHit(effects, nz.zone.position, now, {

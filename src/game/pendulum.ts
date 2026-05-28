@@ -15,9 +15,10 @@ import {
   ropeSegmentCount,
   type RopePhysicsState,
 } from "./rope";
+import { WORLD_SCALE } from "./worldConstants";
 
 const PIVOT_RADIUS = 8;
-const DEFAULT_BOB_RADIUS = 16;
+const DEFAULT_BOB_RADIUS = Math.round(16 * WORLD_SCALE);
 
 export interface PendulumHandle {
   pivot: Matter.Body;

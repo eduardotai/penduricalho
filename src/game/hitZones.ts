@@ -250,20 +250,20 @@ export function generateHitZones(
   site: SiteDef,
   bounds: { x: number; y: number; w: number; h: number },
   anchor: Vec2,
-  pendulumLength: number
+  pendulumLength: number,
+  bobClearanceRadius: number
 ): HitZoneField {
-  const [, rmax] = site.hitZoneRadius;
   const layout = computeEvenLayout(
     bounds,
     anchor,
     site.hitZoneCount,
-    rmax,
+    bobClearanceRadius,
     pendulumLength
   );
   const zones: HitZoneHandle[] = [];
   for (let i = 0; i < site.hitZoneCount; i++) {
     zones.push(
-      createZone(world, site, bounds, anchor, pendulumLength, i, layout[i])
+      createZone(world, site, bounds, anchor, pendulumLength, bobClearanceRadius, i, layout[i])
     );
   }
   return { zones, bounds, site, anchor };
@@ -275,6 +275,7 @@ function createZone(
   bounds: { x: number; y: number; w: number; h: number },
   anchor: Vec2,
   pendulumLength: number,
+  bobClearanceRadius: number,
   index: number,
   fixedPosition?: Vec2
 ): HitZoneHandle {
@@ -282,7 +283,7 @@ function createZone(
   const radius = randomBetween(rmin, rmax);
   const pos =
     fixedPosition ??
-    pickZonePosition(bounds, anchor, pendulumLength, radius);
+    pickZonePosition(bounds, anchor, pendulumLength, bobClearanceRadius);
   const basePoints = Math.round(randomBetween(1, 5));
   const multiplier = +(randomBetween(1, 1.5) + index * 0.02).toFixed(2);
   const zone: HitZone = {
@@ -305,11 +306,12 @@ function createZone(
 export function relocateZone(
   field: HitZoneField,
   handle: HitZoneHandle,
-  pendulumLength: number
+  pendulumLength: number,
+  bobClearanceRadius: number
 ) {
   const [rmin, rmax] = field.site.hitZoneRadius;
   const radius = randomBetween(rmin, rmax);
-  const pos = pickZonePosition(field.bounds, field.anchor, pendulumLength, radius);
+  const pos = pickZonePosition(field.bounds, field.anchor, pendulumLength, bobClearanceRadius);
   Matter.Body.setPosition(handle.body, pos);
   handle.zone.position = pos;
   handle.zone.radius = radius;
@@ -326,18 +328,18 @@ export function relocateZone(
 export function regenerateHitZones(
   world: Matter.World,
   field: HitZoneField,
-  pendulumLength: number
+  pendulumLength: number,
+  bobClearanceRadius: number
 ) {
   while (field.zones.length > field.site.hitZoneCount) {
     const extra = field.zones.pop()!;
     Matter.World.remove(world, extra.body);
   }
-  const [, rmax] = field.site.hitZoneRadius;
   const layout = computeEvenLayout(
     field.bounds,
     field.anchor,
     field.zones.length,
-    rmax,
+    bobClearanceRadius,
     pendulumLength
   );
   for (let i = 0; i < field.zones.length; i++) {
@@ -370,7 +372,8 @@ export function spawnExtraZones(
   world: Matter.World,
   field: HitZoneField,
   count: number,
-  pendulumLength: number
+  pendulumLength: number,
+  bobClearanceRadius: number
 ): HitZoneHandle[] {
   const added: HitZoneHandle[] = [];
   const cap = maxTotalZonesForSite(field.site);
@@ -383,6 +386,7 @@ export function spawnExtraZones(
       field.bounds,
       field.anchor,
       pendulumLength,
+      bobClearanceRadius,
       field.zones.length
     );
     field.zones.push(handle);

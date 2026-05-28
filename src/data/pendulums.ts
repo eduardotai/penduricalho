@@ -2,6 +2,8 @@ import type { PendulumDef } from "../types";
 import { WORLD_SCALE } from "../game/worldConstants";
 
 const S = (spacing: number) => Math.round(spacing * WORLD_SCALE);
+/** Bob collision/render radius in virtual world units (design px × world scale). */
+const R = (radius: number) => Math.round(radius * WORLD_SCALE);
 
 export const PENDULUMS: PendulumDef[] = [
   {
@@ -11,7 +13,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 1.2,
     bobCount: 1,
     bobSpacing: 0,
-    bobRadius: 14,
+    bobRadius: R(12),
     maxAngularVelocity: 0.5,
     basePointMultiplier: 1.1,
     rarity: "common",
@@ -24,7 +26,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 2.2,
     bobCount: 1,
     bobSpacing: 0,
-    bobRadius: 19,
+    bobRadius: R(20),
     maxAngularVelocity: 0.55,
     basePointMultiplier: 1.4,
     rarity: "common",
@@ -37,7 +39,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 4,
     bobCount: 1,
     bobSpacing: 0,
-    bobRadius: 28,
+    bobRadius: R(30),
     maxAngularVelocity: 0.45,
     basePointMultiplier: 2.0,
     rarity: "rare",
@@ -51,7 +53,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 3,
     bobCount: 2,
     bobSpacing: S(60),
-    bobRadius: 17,
+    bobRadius: R(18),
     maxAngularVelocity: 0.5,
     basePointMultiplier: 1.7,
     rarity: "rare",
@@ -65,7 +67,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 4.5,
     bobCount: 3,
     bobSpacing: S(55),
-    bobRadius: 16,
+    bobRadius: R(15),
     maxAngularVelocity: 0.55,
     basePointMultiplier: 2.6,
     rarity: "epic",
@@ -79,7 +81,7 @@ export const PENDULUMS: PendulumDef[] = [
     weight: 9,
     bobCount: 1,
     bobSpacing: 0,
-    bobRadius: 40,
+    bobRadius: R(42),
     maxAngularVelocity: 0.4,
     basePointMultiplier: 4.5,
     rarity: "legendary",
