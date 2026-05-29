@@ -58,6 +58,36 @@ export const SITES: SiteDef[] = [
     cost: 24000,
     unlock: { stat: "totalMomentum", gte: 24000 },
   },
+  {
+    id: "layers",
+    name: "The Layers",
+    description:
+      "An open field ringed by concentric circular walls centered on the mount. Multiplier circles spawn between the rings and deep inside the core — thread the bob through the rotating gaps to reach the richest layers, then watch the snap finale ricochet through every ring on the way out.",
+    gravity: 1,
+    hitZoneCount: 170,
+    hitZoneRadius: [18, 30],
+    background: "layers",
+    walls: "none",
+    wallShape: "rings",
+    ringCount: 4,
+    cost: 16000,
+    unlock: { stat: "totalMomentum", gte: 16000 },
+  },
+  {
+    id: "black-hole",
+    name: "Black Hole",
+    description:
+      "A singularity lurks somewhere off-center, dragging every bob toward its core with a relentless pull. Walls keep the bobs from escaping — feed the bob into the event horizon and you can launch again from the brink.",
+    gravity: 1,
+    hitZoneCount: 150,
+    hitZoneRadius: [18, 30],
+    background: "black-hole",
+    walls: "solid",
+    cageScale: 1,
+    blackHole: true,
+    cost: 32000,
+    unlock: { stat: "totalMomentum", gte: 32000 },
+  },
 ];
 
 export const SITE_MAP = new Map(SITES.map((s) => [s.id, s]));

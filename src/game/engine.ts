@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import type { WallMode } from "../types";
+import { COLLISION } from "./worldConstants";
 
 export interface EngineHandle {
   engine: Matter.Engine;
@@ -83,6 +84,12 @@ export interface WallField {
    * actually escaped the arena.
    */
   bounds: CageBounds;
+  /**
+   * Indestructible in-field obstacle bodies (the Layers map's concentric ring
+   * walls). Empty on every ordinary site. These are masked to collide only with
+   * BOB-category bodies, so the rope threads through them while bobs bounce off.
+   */
+  obstacles: Matter.Body[];
 }
 
 /** Baseline hits a breakable wall absorbs (at the lightest rig). */
@@ -129,7 +136,7 @@ export function createWallField(
     maxX: centerX + halfW,
     maxY: centerY + halfH,
   };
-  if (mode === "none") return { walls: [], breakable: false, bounds };
+  if (mode === "none") return { walls: [], breakable: false, bounds, obstacles: [] };
   const breakable = mode === "breakable";
   const maxHp = wallHpForWeight(bobWeight, durabilityMult);
   const thickness = 200;
@@ -173,7 +180,63 @@ export function createWallField(
     broken: false,
   }));
   Matter.World.add(world, walls.map((w) => w.body));
-  return { walls, breakable, bounds };
+  return { walls, breakable, bounds, obstacles: [] };
+}
+
+/**
+ * Build the Layers map's concentric ring walls, centered on `center` (the rope
+ * pivot, so the bob's orbit naturally crosses them). Each ring is a circle of
+ * short rectangular segments with one rotating gap left open, so a swinging or
+ * freed bob can thread through to the richer inner rings. Rings are static and
+ * indestructible, and masked to COLLISION.OBSTACLE → BOB so the rope's segment
+ * nodes pass straight through while the bobs ricochet. The created bodies are
+ * added to the world and returned for storage on `WallField.obstacles`.
+ */
+export function createRingObstacles(
+  world: Matter.World,
+  center: { x: number; y: number },
+  ringCount: number,
+  ringSpacing: number,
+  thickness: number
+): Matter.Body[] {
+  const bodies: Matter.Body[] = [];
+  const opts = {
+    isStatic: true,
+    restitution: 0.7,
+    friction: 0.02,
+    label: "ring-wall",
+    collisionFilter: { category: COLLISION.OBSTACLE, mask: COLLISION.BOB },
+  };
+  for (let ring = 0; ring < ringCount; ring++) {
+    const radius = ringSpacing * (ring + 1);
+    // A wedge left open so bobs can pass inward; rotate it per ring so the gaps
+    // don't line up into a single straight corridor.
+    const gapHalf = 0.55; // radians → ~63° opening
+    const gapCenter = (ring * 1.7) % (Math.PI * 2) + Math.random() * 0.6;
+    const circumference = 2 * Math.PI * radius;
+    const segCount = Math.max(10, Math.round(circumference / (thickness * 4)));
+    const step = (Math.PI * 2) / segCount;
+    const segLen = step * radius * 1.08; // slight overlap so there are no seams
+    const TAU = Math.PI * 2;
+    for (let i = 0; i < segCount; i++) {
+      const a = i * step;
+      // Smallest absolute angle between this segment and the gap center, kept in
+      // [0, π] so the JS modulo never trips on a negative operand.
+      const diff = (((a - gapCenter) % TAU) + TAU) % TAU;
+      const da = Math.min(diff, TAU - diff);
+      if (da < gapHalf) continue;
+      const seg = Matter.Bodies.rectangle(
+        center.x + Math.cos(a) * radius,
+        center.y + Math.sin(a) * radius,
+        segLen,
+        thickness,
+        { ...opts, angle: a + Math.PI / 2 }
+      );
+      bodies.push(seg);
+    }
+  }
+  Matter.World.add(world, bodies);
+  return bodies;
 }
 
 export function destroyWallField(world: Matter.World, field: WallField) {
@@ -181,6 +244,8 @@ export function destroyWallField(world: Matter.World, field: WallField) {
     if (!wall.broken) Matter.World.remove(world, wall.body);
   }
   field.walls = [];
+  for (const obstacle of field.obstacles) Matter.World.remove(world, obstacle);
+  field.obstacles = [];
 }
 
 export function findWallByBody(

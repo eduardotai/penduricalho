@@ -107,6 +107,83 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     cost: 80000,
     unlock: { stat: "bestCombo", gte: 30 },
   },
+  // --- Behavior ropes: the rope analog of the special bobs. Each carries a
+  // `behavior` the game loop special-cases. Sorted into the list by length. ---
+  {
+    id: "mechanic-belt",
+    name: "Mechanic Belt",
+    description:
+      "Shortest line in the game. Runs on a battery — repair drops recharge it, and it conveyor-steers the bob toward nearby circles along a route that re-rolls each run.",
+    type: "rope",
+    length: L(50),
+    stiffness: 0.93,
+    damping: 0.03,
+    bonuses: { momentumMult: 0.8, velocityBonus: 0.3 },
+    cost: 6000,
+    unlock: { stat: "totalHits", gte: 60 },
+    behavior: {
+      kind: "belt",
+      batterySeconds: 12,
+      batteryRecharge: 0.4,
+      beltSteerAccel: 0.05,
+      beltSteerRadius: 360,
+    },
+  },
+  {
+    id: "flux-cord",
+    name: "Flux Cord",
+    description:
+      "An unstable line. Its reach and how fast it frays churn at random through the whole run — never the same swing twice.",
+    type: "rope",
+    length: L(210),
+    stiffness: 0.88,
+    damping: 0.024,
+    bonuses: { momentumMult: 1.05 },
+    cost: 4000,
+    unlock: { stat: "totalSwings", gte: 25 },
+    behavior: {
+      kind: "flux",
+      fluxRerollMs: 850,
+      fluxLerpRate: 3,
+    },
+  },
+  {
+    id: "pendulum-line",
+    name: "Pendulum Line",
+    description:
+      "Pumps itself. Its length swings in and out on a steady beat, driving a self-sustaining pendulum motion.",
+    type: "rope",
+    length: L(250),
+    stiffness: 0.86,
+    damping: 0.02,
+    bonuses: { momentumMult: 1.25, twistPowerBonus: 0.1 },
+    cost: 9000,
+    unlock: { stat: "totalSwings", gte: 40 },
+    behavior: {
+      kind: "metronome",
+      swingPeriodMs: 2600,
+      swingDepth: 0.28,
+    },
+  },
+  {
+    id: "bulwark-weave",
+    name: "Bulwark Weave",
+    description:
+      "Every half-second it hardens a random stretch from the anchor into a rigid wall. It can't grab repair drops — but whip the bob hard enough to break the wall and that stretch is repaired.",
+    type: "rope",
+    length: L(270),
+    stiffness: 0.9,
+    damping: 0.022,
+    bonuses: { momentumMult: 1.3, twistPowerBonus: 0.12 },
+    cost: 14000,
+    unlock: { stat: "totalHits", gte: 150 },
+    behavior: {
+      kind: "bulwark",
+      wallIntervalMs: 500,
+      wallBreakSpeed: 30,
+      wallRepairMs: 700,
+    },
+  },
 ];
 
 const OTHER_ATTACHMENTS: AttachmentDef[] = [

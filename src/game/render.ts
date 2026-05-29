@@ -30,6 +30,8 @@ const SITE_BACKGROUNDS: Record<string, [string, string]> = {
   "bumper-cage": ["#2a1233", "#120318"],
   "bumper-arena": ["#0f2a33", "#04161c"],
   "bumper-colosseum": ["#332512", "#1a1003"],
+  layers: ["#0b2a2f", "#04141a"],
+  "black-hole": ["#0a0a14", "#010103"],
 };
 
 function drawGrid(
@@ -173,6 +175,84 @@ export function drawWalls(rc: RenderContext, field: WallField) {
     }
     rc.ctx.restore();
   }
+}
+
+/**
+ * Draws the Layers map's concentric ring walls. Each obstacle body is a short
+ * rectangular segment; we render them as filled, slightly glowing slabs so the
+ * rings read as solid arcs with gaps. No-op on sites without ring obstacles.
+ */
+export function drawObstacles(rc: RenderContext, field: WallField) {
+  if (field.obstacles.length === 0) return;
+  const ctx = rc.ctx;
+  ctx.save();
+  for (const body of field.obstacles) {
+    const verts = body.vertices;
+    if (!verts || verts.length === 0) continue;
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(125,211,252,0.22)";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(186,230,253,0.55)";
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * Draws the Black Hole map's singularity at (`x`, `y`): a dark core ringed by a
+ * faint accretion glow and a slowly rotating event-horizon arc, so the player
+ * can read where the pull originates and where the "launch again" core sits.
+ */
+export function drawBlackHole(
+  rc: RenderContext,
+  x: number,
+  y: number,
+  coreRadius: number,
+  influenceRadius: number,
+  now: number
+) {
+  const ctx = rc.ctx;
+  ctx.save();
+
+  // Outer influence falloff — a soft purple haze fading to nothing at the edge
+  // of the pull radius.
+  const haze = ctx.createRadialGradient(x, y, coreRadius, x, y, influenceRadius);
+  haze.addColorStop(0, "rgba(129,140,248,0.20)");
+  haze.addColorStop(1, "rgba(129,140,248,0)");
+  ctx.fillStyle = haze;
+  ctx.beginPath();
+  ctx.arc(x, y, influenceRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Accretion glow ring just outside the core.
+  const glow = ctx.createRadialGradient(x, y, coreRadius * 0.6, x, y, coreRadius * 1.6);
+  glow.addColorStop(0, "rgba(167,139,250,0.0)");
+  glow.addColorStop(0.7, "rgba(192,132,252,0.55)");
+  glow.addColorStop(1, "rgba(56,12,80,0.0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius * 1.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rotating event-horizon arc.
+  const spin = (now / 900) % (Math.PI * 2);
+  ctx.lineWidth = Math.max(2, coreRadius * 0.12);
+  ctx.strokeStyle = "rgba(233,213,255,0.75)";
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius, spin, spin + Math.PI * 1.35);
+  ctx.stroke();
+
+  // Black core.
+  ctx.fillStyle = "#04010a";
+  ctx.beginPath();
+  ctx.arc(x, y, coreRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
 }
 
 /** @deprecated Use drawSiteBackground + drawSiteAnchor for camera zoom support. */
@@ -397,7 +477,8 @@ export function drawPendulum(
   skin: BobSkinDef,
   stretchRatio: number = 1,
   shape: BobShapeKind = "circle",
-  durability: number = 1
+  durability: number = 1,
+  density: number = 1
 ) {
   const stretch = Math.max(0.85, Math.min(1.75, stretchRatio));
   const ordered = getOrderedBobBodies(handle);
@@ -504,7 +585,7 @@ export function drawPendulum(
     if (!Number.isFinite(bx) || !Number.isFinite(by)) continue;
 
     const r = bob.circleRadius ?? defaultRadius;
-    drawBobBody(rc.ctx, bx, by, r, skin, shape);
+    drawBobBody(rc.ctx, bx, by, r, skin, shape, density);
   }
   rc.ctx.restore();
 }
@@ -526,7 +607,8 @@ function drawBobBody(
   y: number,
   r: number,
   skin: BobSkinDef,
-  shape: BobShapeKind = "circle"
+  shape: BobShapeKind = "circle",
+  density: number = 1
 ) {
   if (skin.rarity === "epic" || skin.rarity === "legendary") {
     ctx.save();
@@ -566,10 +648,37 @@ function drawBobBody(
   ctx.fillRect(x - r, y - r, r * 2, r * 2);
   ctx.restore();
 
+  // Weight cue: a dense bob (heavy for its size) carries a dark, packed core;
+  // a sparse bob (light for its size) reads hollow and washed out. This is what
+  // lets a small-but-heavy Chaos Bob look different from a small-but-light one.
+  if (Math.abs(density - 1) > 0.04) {
+    ctx.save();
+    clipBobShape(ctx, x, y, r, shape);
+    const cue = ctx.createRadialGradient(x, y, 0, x, y, r);
+    if (density > 1) {
+      const t = Math.min(1, (density - 1) / 2);
+      cue.addColorStop(0, `rgba(0,0,0,${(0.18 + 0.42 * t).toFixed(3)})`);
+      cue.addColorStop(0.6, `rgba(0,0,0,${(0.04 + 0.16 * t).toFixed(3)})`);
+      cue.addColorStop(1, "rgba(0,0,0,0)");
+    } else {
+      const t = Math.min(1, (1 - density) / 0.6);
+      cue.addColorStop(0, `rgba(255,255,255,${(0.14 * t).toFixed(3)})`);
+      cue.addColorStop(1, "rgba(255,255,255,0)");
+    }
+    ctx.fillStyle = cue;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+  }
+
   drawBobSpecular(ctx, x, y, r, skin, shape);
 
-  ctx.lineWidth = Math.max(1.2, r * 0.07);
-  ctx.strokeStyle = withAlpha(skin.stroke, 0.85);
+  // Heavy bobs get a chunkier, darker rim so the silhouette reads as solid.
+  const heavyRim = Math.min(1, Math.max(0, density - 1) / 2);
+  ctx.lineWidth = Math.max(1.2, r * 0.07) * (1 + heavyRim * 0.8);
+  ctx.strokeStyle = withAlpha(
+    heavyRim > 0 ? shadeColor(skin.stroke, -0.35 * heavyRim) : skin.stroke,
+    0.85 + 0.1 * heavyRim
+  );
   strokeBobShape(ctx, x, y, r, shape);
 
   ctx.lineWidth = Math.max(0.6, r * 0.035);
@@ -643,6 +752,10 @@ const ROPE_COLORS: Record<string, string> = {
   "tow-rope": "#78716c",
   "titan-cable": "#475569",
   "magnetic-tether": "#22d3ee",
+  "mechanic-belt": "#fbbf24",
+  "flux-cord": "#e879f9",
+  "pendulum-line": "#34d399",
+  "bulwark-weave": "#94a3b8",
 };
 
 const ROPE_LINE_WIDTH: Record<string, number> = {

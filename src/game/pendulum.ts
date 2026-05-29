@@ -15,7 +15,7 @@ import {
   ropeSegmentCount,
   type RopePhysicsState,
 } from "./rope";
-import { WORLD_SCALE } from "./worldConstants";
+import { COLLISION, WORLD_SCALE } from "./worldConstants";
 
 const PIVOT_RADIUS = 8;
 const DEFAULT_BOB_RADIUS = Math.round(16 * WORLD_SCALE);
@@ -68,6 +68,9 @@ function buildRopeChain(
       label: `rope-${i}`,
       frictionAir: material.frictionAir,
       restitution: 0.1,
+      // Rope nodes are tagged ROPE so in-field ring obstacles ignore them and
+      // the line threads cleanly through a ring gap instead of snagging.
+      collisionFilter: { category: COLLISION.ROPE },
     });
     Matter.Body.setMass(node, nodeMass);
     Matter.Composite.add(composite, node);
@@ -144,6 +147,7 @@ export function buildPendulum(
         density: 0.001 * baseMass * weightScale,
         frictionAir: 0.005,
         restitution: 0.3,
+        collisionFilter: { category: COLLISION.BOB },
       }
     );
     Matter.Body.setMass(bob, baseMass * weightScale + attachMass);
@@ -182,7 +186,13 @@ export function buildPendulum(
         anchor.x,
         anchor.y + attachment.length + pendulum.bobSpacing * i,
         radius,
-        { label: `bob-${i}`, isSensor: true, isStatic: true, frictionAir: 0 }
+        {
+          label: `bob-${i}`,
+          isSensor: true,
+          isStatic: true,
+          frictionAir: 0,
+          collisionFilter: { category: COLLISION.BOB },
+        }
       );
       Matter.Composite.add(composite, chainBob);
       chainBobs.push(chainBob);
@@ -193,6 +203,7 @@ export function buildPendulum(
       density: 0.001 * pendulum.weight * weightScale,
       frictionAir: 0.005,
       restitution: 0.3,
+      collisionFilter: { category: COLLISION.BOB },
     });
     Matter.Body.setMass(tipBob, pendulum.weight * weightScale + attachMass);
     Matter.Composite.add(composite, tipBob);
@@ -392,14 +403,30 @@ const SNAP_BASE_KICK = 6 * WORLD_SCALE;
 const SNAP_RANDOM_KICK = 8 * WORLD_SCALE;
 
 /**
+ * How far past its reach the TP Bob may blink (multiple of the rig's full reach).
+ * Big enough to land it clearly outside the rope's reach circle, small enough
+ * that the stiff rope's reel-back stays a fast-but-stable snap rather than a
+ * field-crossing streak that could tunnel through walls.
+ */
+const TELEPORT_OVERSHOOT = 2.5;
+
+/**
  * Break the rope: detach the bob chain from the line and fling every scoring
  * bob free, keeping the momentum it had plus an outward scatter so the bobs
  * spray across the playfield. Freed bobs stay labelled `bob-*` so the existing
  * zone-hit and token-collection paths keep scoring them as they bounce.
+ *
+ * `opts.scatter` (default true) adds the random spray. A Ravager (hunter) bob
+ * passes `scatter: false`: the freed bob keeps its carried momentum with only a
+ * gentle outward nudge so the per-frame homing steering can immediately take
+ * over and aim it at live circles instead of fighting a random kick.
  */
-export function snapRope(handle: PendulumHandle) {
+export function snapRope(handle: PendulumHandle, opts: { scatter?: boolean } = {}) {
   if (handle.snapped) return;
   handle.snapped = true;
+  const scatter = opts.scatter ?? true;
+  const baseKick = scatter ? SNAP_BASE_KICK : SNAP_BASE_KICK * 0.4;
+  const randomKick = scatter ? SNAP_RANDOM_KICK : 0;
 
   const pivot = handle.pivot.position;
   const tip = handle.bobs[handle.bobs.length - 1];
@@ -446,8 +473,8 @@ export function snapRope(handle: PendulumHandle) {
     const r = Math.hypot(rx, ry) || 1;
     const ang = Math.random() * Math.PI * 2;
     Matter.Body.setVelocity(bob, {
-      x: bob.velocity.x + (rx / r) * SNAP_BASE_KICK + Math.cos(ang) * SNAP_RANDOM_KICK,
-      y: bob.velocity.y + (ry / r) * SNAP_BASE_KICK + Math.sin(ang) * SNAP_RANDOM_KICK,
+      x: bob.velocity.x + (rx / r) * baseKick + Math.cos(ang) * randomKick,
+      y: bob.velocity.y + (ry / r) * baseKick + Math.sin(ang) * randomKick,
     });
   }
 }
@@ -625,6 +652,79 @@ export function resetPendulumToRest(handle: PendulumHandle) {
   }
 
   positionChainBobs(handle);
+  handle.physics.stretchRatio = 1;
+  handle.ropePhysics.stretchRatio = 1;
+}
+
+/**
+ * Teleport the strung rig so its bob jumps toward (`targetX`, `targetY`),
+ * re-laying the whole rope along that ray. The bob blinks to the actual spot —
+ * including well past the rope's reach, out in open field "besides the rope
+ * area" — and the stiff rope is left overstretched so its own constraints reel
+ * the bob back to within reach over the next frames. That's the "pushed
+ * accordingly to the rope" behavior: a short rope yanks it home hard while a
+ * long one lets it roam. The blink distance is capped at a multiple of reach so
+ * the snap-back stays fast-but-stable (no NaN blow-up, no wall tunnelling); the
+ * cap still lands the bob clearly outside the reach circle. The bob is handed a
+ * tangential velocity (`speed`) in a random orbital direction so it keeps
+ * swinging — and scoring — after the blink. Single-bob rigs only (the TP Bob
+ * has bobCount 1).
+ */
+export function teleportRig(
+  handle: PendulumHandle,
+  targetX: number,
+  targetY: number,
+  speed: number
+) {
+  const pivot = handle.pivot.position;
+  const bob = handle.bobs[handle.bobs.length - 1];
+  if (!bob) return;
+
+  const bobLinkLen =
+    getMainAttachmentConstraint(handle)?.length ??
+    Math.max(4, getEffectiveBobRadius(handle) * 0.35);
+  const reach = rigReach(handle);
+  const maxDist = reach + bobLinkLen;
+
+  let dx = targetX - pivot.x;
+  let dy = targetY - pivot.y;
+  let dist = Math.hypot(dx, dy);
+  if (dist < 1) {
+    dx = 0;
+    dy = 1;
+    dist = 1;
+  }
+  const ux = dx / dist;
+  const uy = dy / dist;
+  // Blink to the real target, allowing it to land out past the rope's reach so
+  // it actually appears "besides the rope area". Capped at a multiple of reach
+  // so the stiff rope's reel-back stays fast-but-stable, with a floor so a
+  // near-pivot target still blinks a visible distance out.
+  const placed = Math.min(maxDist * TELEPORT_OVERSHOOT, Math.max(maxDist * 0.5, dist));
+
+  const segCount = handle.ropeSegments.length;
+  const ropeLen = Math.max(0, placed - bobLinkLen);
+  const segLen = segCount > 0 ? ropeLen / segCount : ropeLen;
+  for (let i = 0; i < segCount; i++) {
+    const node = handle.ropeSegments[i];
+    Matter.Body.setPosition(node, {
+      x: pivot.x + ux * segLen * (i + 1),
+      y: pivot.y + uy * segLen * (i + 1),
+    });
+    Matter.Body.setVelocity(node, { x: 0, y: 0 });
+    Matter.Body.setAngularVelocity(node, 0);
+  }
+
+  Matter.Body.setPosition(bob, {
+    x: pivot.x + ux * placed,
+    y: pivot.y + uy * placed,
+  });
+  // Tangential (orbital) velocity, random spin direction, so the blink lands
+  // mid-swing rather than dead-stopped.
+  const sign = Math.random() < 0.5 ? -1 : 1;
+  Matter.Body.setVelocity(bob, { x: -uy * sign * speed, y: ux * sign * speed });
+  Matter.Body.setAngularVelocity(bob, 0);
+
   handle.physics.stretchRatio = 1;
   handle.ropePhysics.stretchRatio = 1;
 }
