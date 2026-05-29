@@ -412,11 +412,15 @@ function ItemStats({
       : s.walls === "solid"
         ? "solid"
         : "open";
+  const cageScale = s.cageScale ?? 1;
+  const cageLabel =
+    cageScale >= 1.75 ? "large" : cageScale >= 1.3 ? "medium" : "small";
   return (
     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
       <Stat label="Gravity" value={s.gravity.toFixed(2)} />
       <Stat label="Zones" value={s.hitZoneCount.toString()} />
       <Stat label="Walls" value={wallsLabel} />
+      {s.walls && s.walls !== "none" && <Stat label="Cage" value={cageLabel} />}
       {s.ambient && <Stat label="Wind" value="yes" />}
     </div>
   );

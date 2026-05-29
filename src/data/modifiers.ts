@@ -62,18 +62,18 @@ export const MODIFIERS: ModifierDef[] = [
   {
     id: "bigger-bob",
     name: "Bigger Bob",
-    description: "+80% bob size for 7s. Sweeps through more zones.",
+    description: "+20% bob size for 7s. Sweeps through more zones.",
     color: "#34d399",
     durationMs: 7000,
-    effects: { bobSizeMult: 1.8 },
+    effects: { bobSizeMult: 1.2 },
   },
   {
     id: "giant-bob",
     name: "Giant Bob",
-    description: "+120% bob size for 6s. Huge arc coverage.",
+    description: "+40% bob size for 6s. Wide arc coverage.",
     color: "#059669",
     durationMs: 6000,
-    effects: { bobSizeMult: 2.2 },
+    effects: { bobSizeMult: 1.4 },
   },
   {
     id: "velocity-surge",

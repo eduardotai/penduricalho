@@ -14,9 +14,11 @@ import {
   applyAmbientForce,
   createWallField,
   destroyWallField,
+  regenerateWallField,
   findWallByBody,
   damageWall,
   type BoundaryWall,
+  type WallSide,
 } from "../game/engine";
 import {
   bobRadius,
@@ -140,6 +142,8 @@ const WALL_HIT_MIN_SPEED = 3.5 * WORLD_SCALE;
 // Velocity multiplier on a normal bounce vs. a wall-shattering hit.
 const WALL_BOUNCE_BOOST = 1.22;
 const WALL_BREAK_BOOST = 1.5;
+// Flat momentum bonus for shattering a wall.
+const WALL_BREAK_BONUS = 70;
 // How far past the field edge a freed bob must drift to count as "escaped".
 // Once every bob is out (and the rope has snapped), the run is over: there's
 // nothing left to achieve, so we end it and light up Run Again.
@@ -368,11 +372,16 @@ export default function GameCanvas() {
     // pendulum never reaches them. A wall-less site ("none") lets the freed
     // bobs fly off into the void; a breakable site lets them shatter the walls
     // for an extra impulse before they can escape.
+    // Wall durability scales with the rig's bob weight — heavier bobs face
+    // proportionally tougher walls.
     const wallField = createWallField(
       engineHandle.world,
       VIRTUAL_WIDTH,
       VIRTUAL_HEIGHT,
-      site.walls ?? "none"
+      site.walls ?? "none",
+      pendulum.weight,
+      site.cageScale ?? 1,
+      site.wallDurabilityMult ?? 1
     );
     // A wall-less site (the Workshop) keeps its snapped rig on display — empty
     // rope, bobs gone — between runs instead of auto-restoring it.
@@ -393,10 +402,20 @@ export default function GameCanvas() {
     const [, zoneRmax] = site.hitZoneRadius;
     const spawnClearance = Math.max(zoneRmax, bobRadius(pendulum));
 
+    // Spawn hit circles across the full cage, not just the central playfield.
+    // The cage matches the playfield at cageScale 1 and grows past it for
+    // larger arenas, so deriving the spawn rectangle from the wall field's
+    // bounds keeps circles spread over the whole enclosed area.
+    const cageBounds = wallField.bounds;
     const field: HitZoneField = generateHitZones(
       engineHandle.world,
       site,
-      { x: 0, y: 0, w: VIRTUAL_WIDTH, h: VIRTUAL_HEIGHT },
+      {
+        x: cageBounds.minX,
+        y: cageBounds.minY,
+        w: cageBounds.maxX - cageBounds.minX,
+        h: cageBounds.maxY - cageBounds.minY,
+      },
       ANCHOR,
       pendulumReach,
       spawnClearance
@@ -746,7 +765,15 @@ export default function GameCanvas() {
       Matter.Body.setVelocity(bob, { x: rx, y: ry });
     }
 
-    function handleWallHit(wallBody: Matter.Body, bobBody: Matter.Body, now: number) {
+    // One discrete wall hit: fired on a fresh bob→wall contact (collisionStart).
+    // Each separate impact lands exactly one point of damage — a bob resting or
+    // grinding against the wall does NOT keep wearing it down over time; it has
+    // to pull away and slam in again to deal another hit.
+    function handleWallHit(
+      wallBody: Matter.Body,
+      bobBody: Matter.Body,
+      now: number
+    ) {
       const wall = findWallByBody(wallField, wallBody);
       if (!wall || wall.broken) return;
       // Gentle grazes just bounce off Matter's own restitution — only a real
@@ -762,11 +789,164 @@ export default function GameCanvas() {
         intensity: shattered ? 1.8 : 0.9,
       });
       if (shattered) {
+        // Flat reward for breaking a wall, on top of the ricochet impulse.
+        useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
-        emitManeuver(effects, bobBody.position, "WALL BREAK!", now);
+        emitManeuver(effects, bobBody.position, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
       } else {
         playGameSound("zone-hit", { pitch: 0.7, volume: 0.4 });
       }
+    }
+
+    // Standing (unbroken) wall on a given side, or null when that side is open.
+    function wallForSide(side: WallSide): BoundaryWall | null {
+      for (const w of wallField.walls) {
+        if (w.side === side && !w.broken) return w;
+      }
+      return null;
+    }
+
+    // Land one discrete hit on a breakable wall from a rope-riding bob. Chain
+    // links and echo bobs are kinematically positioned, so Matter never resolves
+    // their wall contacts and their `velocity` is zeroed each frame — we derive a
+    // slam speed from frame-to-frame motion. This is only called on a *new*
+    // contact (see containKinematicBobInWalls), so a bob held against the wall by
+    // the rope deals a single hit, not continuous time-based wear.
+    function wearWallFromKinematicBob(
+      wall: BoundaryWall,
+      bobPos: { x: number; y: number },
+      speed: number,
+      now: number
+    ) {
+      if (!wallField.breakable || wall.broken) return;
+      if (speed < WALL_HIT_MIN_SPEED) return;
+
+      const shattered = damageWall(engineHandle.world, wallField, wall);
+      emitHit(effects, { x: bobPos.x, y: bobPos.y }, now, {
+        color: shattered ? "#f87171" : "#fbbf24",
+        points: 0,
+        intensity: shattered ? 1.8 : 0.9,
+      });
+      if (shattered) {
+        useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
+        playGameSound("bonus-zones-spawn", { volume: 0.7 });
+        emitManeuver(effects, bobPos, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
+      }
+    }
+
+    // Previous-frame positions for the kinematic bobs, used to estimate how
+    // hard a rope-riding bob is pushing into a wall (its body.velocity is 0).
+    const kinematicWallLastPos = new Map<number, { x: number; y: number }>();
+    // Which wall sides each kinematic bob was already touching last frame, so a
+    // sustained press only counts as a hit on the frame it first makes contact —
+    // not on every frame it stays pinned. Cleared per side as the bob pulls away.
+    const kinematicWallContact = new Map<number, Set<WallSide>>();
+
+    // Keep one rope-riding bob (a twin/triple chain link or a Multi-Bob echo)
+    // inside the wall cage. These bodies are positioned by hand to track the
+    // rope, so they'd otherwise sail straight through the static walls. We clamp
+    // the position against every standing wall (giving them a real hitbox) and,
+    // on breakable sites, wear the wall down when the push is hard enough.
+    function containKinematicBobInWalls(
+      body: Matter.Body,
+      radius: number,
+      now: number,
+      dt: number
+    ) {
+      const { minX, minY, maxX, maxY } = wallField.bounds;
+      // Speed is derived from the *unclamped* rope-desired position so a bob
+      // pinned against a wall still reads its true sweep speed (its clamped
+      // position barely moves). Expressed in per-physics-step units to match
+      // `body.velocity` and the WALL_HIT_MIN_SPEED threshold the freed bobs use.
+      const incomingX = body.position.x;
+      const incomingY = body.position.y;
+      const prev = kinematicWallLastPos.get(body.id);
+      let speed = 0;
+      if (prev && dt > 0) {
+        const dist = Math.hypot(incomingX - prev.x, incomingY - prev.y);
+        speed = (dist / dt) * (1000 / 60);
+      }
+
+      let x = incomingX;
+      let y = incomingY;
+      const hits: BoundaryWall[] = [];
+
+      const left = wallForSide("left");
+      if (left && x - radius < minX) {
+        x = minX + radius;
+        hits.push(left);
+      }
+      const right = wallForSide("right");
+      if (right && x + radius > maxX) {
+        x = maxX - radius;
+        hits.push(right);
+      }
+      const top = wallForSide("top");
+      if (top && y - radius < minY) {
+        y = minY + radius;
+        hits.push(top);
+      }
+      const bottom = wallForSide("bottom");
+      if (bottom && y + radius > maxY) {
+        y = maxY - radius;
+        hits.push(bottom);
+      }
+
+      if (x !== incomingX || y !== incomingY) {
+        Matter.Body.setPosition(body, { x, y });
+        Matter.Body.setVelocity(body, { x: 0, y: 0 });
+      }
+
+      // Only count a hit on the frame a bob *newly* touches a given wall side. A
+      // bob the rope keeps pressed against the wall stays in `prevSides`, so it
+      // never re-damages until it pulls off and slams back in.
+      const prevSides = kinematicWallContact.get(body.id);
+      const curSides = new Set<WallSide>();
+      for (const wall of hits) {
+        curSides.add(wall.side);
+        if (!prevSides || !prevSides.has(wall.side)) {
+          wearWallFromKinematicBob(wall, { x, y }, speed, now);
+        }
+      }
+      if (curSides.size > 0) kinematicWallContact.set(body.id, curSides);
+      else kinematicWallContact.delete(body.id);
+
+      // Track the unclamped rope position so next frame's speed reflects how
+      // fast the rope is sweeping the bob, not the clamped wall-pinned spot.
+      kinematicWallLastPos.set(body.id, { x: incomingX, y: incomingY });
+    }
+
+    // Contain every rope-riding bob (chain links + echoes) after they've been
+    // snapped onto the rope line for this frame. Only relevant while strung —
+    // once the rope breaks these become free dynamic bodies that Matter and
+    // handleWallHit resolve against the walls directly.
+    function containRopeBobsInWalls(now: number, dt: number) {
+      if (wallField.walls.length === 0) return;
+      const radius = getEffectiveBobRadius(pendulumHandle);
+      for (const chainBob of pendulumHandle.chainBobs) {
+        containKinematicBobInWalls(
+          chainBob,
+          chainBob.circleRadius ?? radius,
+          now,
+          dt
+        );
+      }
+      for (const e of echoBobs) {
+        containKinematicBobInWalls(e.body, e.body.circleRadius ?? radius, now, dt);
+      }
+    }
+
+    // Auto end-of-run (the "hard end" — idle timeout or every freed bob having
+    // escaped the cage). On top of stopping the run, this rebuilds the arena:
+    // every shattered wall is restored and all durability topped back to
+    // pristine, so the next run starts against whole walls.
+    function hardEndRun(at: { x: number; y: number }, now: number) {
+      useGameStore.getState().endRun();
+      if (wallField.breakable) {
+        regenerateWallField(engineHandle.world, wallField);
+      }
+      playGameSound("run-complete");
+      emitManeuver(effects, at, "Run Complete", now);
     }
 
     function handleCollision(evt: Matter.IEventCollision<Matter.Engine>) {
@@ -781,10 +961,12 @@ export default function GameCanvas() {
             : null;
         if (!bobBody) continue;
 
-        // Breakable-wall ricochet only fires once the rope has snapped and the
-        // bobs are free projectiles — the user's rule: it's purely a snap-finale
-        // event. A strung pendulum is held near the pivot and never reaches here.
-        if (wallField.breakable && pendulumHandle.snapped) {
+        // Walls have a live hitbox at all times — both during the run (a long
+        // swing or an extended Multi-Bob can drive a bob into the cage) and
+        // while the freed bobs ricochet after a snap. The dynamic tip/free bobs
+        // resolve here via Matter; the kinematic chain/echo bobs that ride the
+        // rope are contained separately in containRopeBobsInWalls.
+        if (wallField.walls.length > 0) {
           const wallBody = a.label === "wall" ? a : b.label === "wall" ? b : null;
           if (wallBody) {
             handleWallHit(wallBody, bobBody, now);
@@ -887,6 +1069,10 @@ export default function GameCanvas() {
       if (!snapped) {
         positionChainBobs(pendulumHandle);
         positionEchoBobs();
+        // Give the rope-riding bobs (twin/triple links + Multi-Bob echoes) a
+        // real wall hitbox during the run: clamp them inside the cage and let
+        // them wear down breakable walls, just like the freed bobs after a snap.
+        containRopeBobsInWalls(now, dt);
       }
       tickBobZoneHits(now);
       tickTokens(tokenField, now);
@@ -901,6 +1087,13 @@ export default function GameCanvas() {
         // before it can swing again, and the fresh run starts at full durability.
         if (pendulumHandle.snapped) restoreRope(pendulumHandle);
         durability = 1;
+        // Every fresh run starts against a pristine arena: rebuild any walls
+        // shattered last run and top all durability back up. This runs on every
+        // launch (manual Run Again or Auto-Run), which bypass the hard-end
+        // timeout, so walls always reset between runs — not only on a hard end.
+        if (wallField.breakable) {
+          regenerateWallField(engineHandle.world, wallField);
+        }
         // Reroll every hit zone (new positions and new multipliers) so each
         // new run gets a fresh playfield. Stale tokens from a prior run go
         // with it — they shouldn't survive into a new launch.
@@ -938,6 +1131,11 @@ export default function GameCanvas() {
             restoreRope(pendulumHandle);
           }
           durability = 1;
+          // Spending the token also resets the arena: every shattered wall is
+          // rebuilt and all durability topped back up to pristine.
+          if (wallField.breakable) {
+            regenerateWallField(engineHandle.world, wallField);
+          }
 
           // Each spent Golden Token extends the active bonus and stacks a
           // matching persistent layer — both capped per modifier defId.
@@ -1008,22 +1206,24 @@ export default function GameCanvas() {
         // into the void never drop below the idle-speed threshold and the run
         // would hang forever (the wall-less Workshop relies entirely on this).
         if (snapped) {
+          // Escape is measured against the cage rectangle (which grows with the
+          // site's cageScale), so a bob still ricocheting inside a large arena
+          // isn't mistaken for one that has flown clear of the field.
+          const cage = wallField.bounds;
           let allEscaped = true;
           for (const bob of getOrderedBobBodies(pendulumHandle)) {
             if (
-              bob.position.x >= -FIELD_ESCAPE_MARGIN &&
-              bob.position.x <= VIRTUAL_WIDTH + FIELD_ESCAPE_MARGIN &&
-              bob.position.y >= -FIELD_ESCAPE_MARGIN &&
-              bob.position.y <= VIRTUAL_HEIGHT + FIELD_ESCAPE_MARGIN
+              bob.position.x >= cage.minX - FIELD_ESCAPE_MARGIN &&
+              bob.position.x <= cage.maxX + FIELD_ESCAPE_MARGIN &&
+              bob.position.y >= cage.minY - FIELD_ESCAPE_MARGIN &&
+              bob.position.y <= cage.maxY + FIELD_ESCAPE_MARGIN
             ) {
               allEscaped = false;
               break;
             }
           }
           if (allEscaped) {
-            useGameStore.getState().endRun();
-            playGameSound("run-complete");
-            emitManeuver(effects, last.position, "Run Complete", now);
+            hardEndRun(last.position, now);
           }
         }
         // Idle timer with hysteresis: count up once the rig is below the rest
@@ -1102,9 +1302,7 @@ export default function GameCanvas() {
         }
         if (runIdleMs >= RUN_END_IDLE_MS) {
           runIdleMs = 0;
-          useGameStore.getState().endRun();
-          playGameSound("run-complete");
-          emitManeuver(effects, last.position, "Run Complete", now);
+          hardEndRun(last.position, now);
         }
       } else {
         maneuvers.reset();

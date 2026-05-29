@@ -1,6 +1,6 @@
 import type { AttachmentDef, BobShapeKind, BobSkinDef, PendulumDef, SiteDef, Vec2 } from "../types";
 import { TOKEN_MAP } from "../data/tokens";
-import { WALL_MAX_HP, type WallField } from "./engine";
+import { type WallField } from "./engine";
 import type { PendulumHandle } from "./pendulum";
 import { getEffectiveBobRadius, getOrderedBobBodies } from "./pendulum";
 import type { HitZoneField } from "./hitZones";
@@ -28,6 +28,8 @@ export interface EchoBobRender {
 const SITE_BACKGROUNDS: Record<string, [string, string]> = {
   workshop: ["#1e293b", "#0f172a"],
   "bumper-cage": ["#2a1233", "#120318"],
+  "bumper-arena": ["#0f2a33", "#04161c"],
+  "bumper-colosseum": ["#332512", "#1a1003"],
 };
 
 function drawGrid(
@@ -98,12 +100,15 @@ export function drawSiteAnchor(rc: RenderContext, anchor: Vec2) {
 export function drawWalls(rc: RenderContext, field: WallField) {
   if (field.walls.length === 0) return;
   const t = 9;
-  const w = rc.width;
-  const h = rc.height;
+  // Draw at the actual cage rectangle so larger arenas render their walls in
+  // the right place, not at the playfield edges.
+  const { minX, minY, maxX, maxY } = field.bounds;
+  const cageW = maxX - minX;
+  const cageH = maxY - minY;
 
   for (const wall of field.walls) {
     if (wall.broken) continue;
-    const wear = 1 - wall.hp / WALL_MAX_HP;
+    const wear = 1 - wall.hp / wall.maxHp;
     const fill = mixHex("#475569", "#b91c1c", wear);
     const edge = mixHex("#94a3b8", "#fca5a5", wear);
 
@@ -112,25 +117,25 @@ export function drawWalls(rc: RenderContext, field: WallField) {
     let bw = 0;
     let bh = 0;
     if (wall.side === "top") {
-      x = 0;
-      y = 0;
-      bw = w;
+      x = minX;
+      y = minY;
+      bw = cageW;
       bh = t;
     } else if (wall.side === "bottom") {
-      x = 0;
-      y = h - t;
-      bw = w;
+      x = minX;
+      y = maxY - t;
+      bw = cageW;
       bh = t;
     } else if (wall.side === "left") {
-      x = 0;
-      y = 0;
+      x = minX;
+      y = minY;
       bw = t;
-      bh = h;
+      bh = cageH;
     } else {
-      x = w - t;
-      y = 0;
+      x = maxX - t;
+      y = minY;
       bw = t;
-      bh = h;
+      bh = cageH;
     }
 
     rc.ctx.save();
@@ -143,21 +148,23 @@ export function drawWalls(rc: RenderContext, field: WallField) {
     rc.ctx.strokeRect(x + 0.75, y + 0.75, bw - 1.5, bh - 1.5);
 
     // Cracks build up as the wall takes hits, hinting it's about to shatter.
-    const cracks = WALL_MAX_HP - wall.hp;
+    // Capped to a clean visual count regardless of how high the wall's max HP
+    // scaled with the rig's weight.
+    const cracks = Math.round(wear * 6);
     if (cracks > 0) {
       const horizontal = wall.side === "top" || wall.side === "bottom";
-      const span = horizontal ? w : h;
+      const span = horizontal ? cageW : cageH;
       rc.ctx.strokeStyle = withAlpha("#fee2e2", 0.6);
       rc.ctx.lineWidth = 1;
       for (let i = 0; i < cracks; i++) {
         const f = (i + 1) / (cracks + 1);
         rc.ctx.beginPath();
         if (horizontal) {
-          const cx = span * f;
+          const cx = minX + span * f;
           rc.ctx.moveTo(cx, y);
           rc.ctx.lineTo(cx + (i % 2 === 0 ? 5 : -5), y + bh);
         } else {
-          const cy = span * f;
+          const cy = minY + span * f;
           rc.ctx.moveTo(x, cy);
           rc.ctx.lineTo(x + bw, cy + (i % 2 === 0 ? 5 : -5));
         }

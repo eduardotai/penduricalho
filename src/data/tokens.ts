@@ -2,7 +2,7 @@ import type { TokenDef, TokenKind } from "../types";
 
 export const TOKENS: TokenDef[] = [
   { kind: "bigger-bob", name: "Bigger Bob", description: "Swells the bob for 7s.", color: "#34d399", weight: 18, grantsModifierId: "bigger-bob" },
-  { kind: "giant-bob", name: "Giant Bob", description: "Massive bob for 6s.", color: "#059669", weight: 14, grantsModifierId: "giant-bob" },
+  { kind: "giant-bob", name: "Giant Bob", description: "Large bob for 6s.", color: "#059669", weight: 14, grantsModifierId: "giant-bob" },
   { kind: "tiny-bob", name: "Tiny Bob", description: "Shrinks the bob for 8s.", color: "#818cf8", weight: 16, grantsModifierId: "tiny-bob" },
   { kind: "velocity-surge", name: "Velocity Surge", description: "Slams the bob with extra speed for 5s.", color: "#22d3ee", weight: 18, grantsModifierId: "velocity-surge" },
   { kind: "speed-ramp", name: "Speed Ramp", description: "Speed builds to +40% over 8s.", color: "#2dd4bf", weight: 16, grantsModifierId: "speed-ramp" },

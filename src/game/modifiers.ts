@@ -78,17 +78,28 @@ export function aggregateEffects(
     echoCount: 0,
     velocityGrowthPerSec: 0,
   };
+  // Apply each modifier's effects exactly once per defId. Active and persistent
+  // layers only govern *how long* a buff lasts — they must not re-multiply its
+  // magnitude, otherwise the same buff compounds with itself (e.g. an active
+  // Giant Bob plus its persistent layer would square the size multiplier).
+  const inActive = new Set<string>();
   for (const m of active) {
-    const def = MODIFIER_MAP.get(m.defId);
-    if (!def) continue;
-    applyDefEffects(eff, def.effects);
+    if (MODIFIER_MAP.has(m.defId)) inActive.add(m.defId);
   }
-  // Echo bobs and speed ramp are strictly timed — cross-run stacks must not
-  // keep them alive after the active window ends.
+  const seen = new Set<string>(inActive);
   for (const b of persistentBonuses) {
-    const def = MODIFIER_MAP.get(b.defId);
+    if (MODIFIER_MAP.has(b.defId)) seen.add(b.defId);
+  }
+  for (const defId of seen) {
+    const def = MODIFIER_MAP.get(defId);
     if (!def) continue;
-    applyDefEffects(eff, def.effects, { includeEcho: false, includeSpeedRamp: false });
+    // Echo bobs and speed ramp are strictly timed — a persistent-only layer
+    // (no live active window) must not keep them alive across runs.
+    const live = inActive.has(defId);
+    applyDefEffects(eff, def.effects, {
+      includeEcho: live,
+      includeSpeedRamp: live,
+    });
   }
   return eff;
 }

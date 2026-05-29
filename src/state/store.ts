@@ -179,6 +179,38 @@ export function modifierDurationCapMs(defId: string): number {
     : MODIFIER_DURATION_CAP_MS;
 }
 
+// Modifiers that share the same "channel" — picking one cancels the others so
+// their effects (e.g. bob size) can never multiply together. Bigger Bob and
+// Giant Bob are size buffs of the same family, so only the freshest one holds.
+const MUTUALLY_EXCLUSIVE_GROUPS: readonly (readonly string[])[] = [
+  ["bigger-bob", "giant-bob"],
+];
+
+/** Modifier ids that must be cleared when `defId` becomes active. */
+export function conflictingModifierIds(defId: string): string[] {
+  const out: string[] = [];
+  for (const group of MUTUALLY_EXCLUSIVE_GROUPS) {
+    if (group.includes(defId)) {
+      for (const id of group) if (id !== defId) out.push(id);
+    }
+  }
+  return out;
+}
+
+// Modifiers where re-picking the same token should REFRESH the timer rather
+// than extend/accumulate it. Bob-size buffs are one-at-a-time effects, so
+// grabbing the same one again just resets its window instead of stacking
+// duration (active layer) or piling up persistent layers.
+const NON_STACKING_MODIFIER_IDS = new Set<string>([
+  "bigger-bob",
+  "giant-bob",
+  "tiny-bob",
+]);
+
+export function isNonStackingModifier(defId: string): boolean {
+  return NON_STACKING_MODIFIER_IDS.has(defId);
+}
+
 /** @deprecated Used only for save migration from run-based bonuses. */
 const LEGACY_PERSISTENT_BONUS_MS = 30_000;
 
@@ -451,14 +483,24 @@ export const useGameStore = create<GameState>()(
         if (!def) return;
         const addMs = addMsOverride ?? def.durationMs;
         if (addMs <= 0) return;
+        const conflicts = conflictingModifierIds(defId);
         set((s) => {
           const existing = s.activeModifiers.find((m) => m.defId === defId);
-          const others = s.activeModifiers.filter((m) => m.defId !== defId);
-          // Speed Ramp's boost curve is tied to a fixed ramp window — re-picks
-          // refresh the timer instead of extending hold at max boost.
-          if (defId === "speed-ramp") {
+          const others = s.activeModifiers.filter(
+            (m) => m.defId !== defId && !conflicts.includes(m.defId)
+          );
+          // Clear any lingering conflicting buff (active or persistent) so the
+          // mutually-exclusive size families never compound.
+          const persistentBonuses = conflicts.length
+            ? s.persistentBonuses.filter((b) => !conflicts.includes(b.defId))
+            : s.persistentBonuses;
+          // Speed Ramp's boost curve is tied to a fixed ramp window, and the
+          // non-stacking buffs (e.g. bob-size) are one-at-a-time — both refresh
+          // the timer to the base duration instead of extending/accumulating.
+          if (defId === "speed-ramp" || isNonStackingModifier(defId)) {
             return {
               activeModifiers: [...others, { defId, expiresAt: now + def.durationMs }],
+              persistentBonuses,
             };
           }
           const currentRemaining = existing
@@ -469,9 +511,10 @@ export const useGameStore = create<GameState>()(
             addMs,
             modifierDurationCapMs(defId)
           );
-          if (total <= 0) return s;
+          if (total <= 0) return { activeModifiers: others, persistentBonuses };
           return {
             activeModifiers: [...others, { defId, expiresAt: now + total }],
+            persistentBonuses,
           };
         });
       },
@@ -481,9 +524,30 @@ export const useGameStore = create<GameState>()(
         if (!def) return;
         const layerMs = durationMs ?? def.durationMs;
         if (layerMs <= 0) return;
+        const conflicts = conflictingModifierIds(defId);
         set((s) => {
+          // Drop any conflicting buff so mutually-exclusive families don't
+          // linger and compound across active + persistent layers.
+          const basePersistent = conflicts.length
+            ? s.persistentBonuses.filter((b) => !conflicts.includes(b.defId))
+            : s.persistentBonuses;
+          const activeModifiers = conflicts.length
+            ? s.activeModifiers.filter((m) => !conflicts.includes(m.defId))
+            : s.activeModifiers;
+          // Non-stacking buffs keep a single refreshed persistent layer rather
+          // than piling up duration each time the same token is grabbed.
+          if (isNonStackingModifier(defId)) {
+            const withoutSelf = basePersistent.filter((b) => b.defId !== defId);
+            return {
+              activeModifiers,
+              persistentBonuses: clampPersistentBonuses(
+                [...withoutSelf, { defId, expiresAt: now + layerMs }],
+                now
+              ),
+            };
+          }
           const currentTotal = sumPersistentRemainingMs(
-            s.persistentBonuses,
+            basePersistent,
             defId,
             now
           );
@@ -492,11 +556,18 @@ export const useGameStore = create<GameState>()(
             layerMs,
             modifierDurationCapMs(defId)
           ) - currentTotal;
-          if (granted <= 0) return s;
+          if (granted <= 0) {
+            if (!conflicts.length) return s;
+            return {
+              activeModifiers,
+              persistentBonuses: clampPersistentBonuses(basePersistent, now),
+            };
+          }
           return {
+            activeModifiers,
             persistentBonuses: clampPersistentBonuses(
               [
-                ...s.persistentBonuses,
+                ...basePersistent,
                 { defId, expiresAt: now + granted },
               ],
               now

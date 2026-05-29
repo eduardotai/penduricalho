@@ -77,6 +77,18 @@ export interface SiteDef {
   background: string;
   /** Defaults to "none" when omitted. */
   walls?: WallMode;
+  /**
+   * Scales the boundary-wall cage relative to the playfield (1 = field-sized).
+   * Larger values give freed bobs a roomier arena to ricochet around in.
+   * Defaults to 1 when omitted.
+   */
+  cageScale?: number;
+  /**
+   * Per-map multiplier on breakable-wall durability (1 = the weight-derived
+   * baseline). Lower values make this map's walls shatter in fewer hits.
+   * Defaults to 1 when omitted; ignored on non-breakable sites.
+   */
+  wallDurabilityMult?: number;
   cost: number;
   unlock?: UnlockGate;
 }
