@@ -90,7 +90,7 @@ export default function App() {
           pb-[max(0.75rem,env(safe-area-inset-bottom))]
           md:inset-y-0 md:right-auto md:w-80 md:max-w-[min(20rem,calc(100%-2rem))] md:justify-start md:p-6"
       >
-        <div className="pointer-events-none max-h-[42dvh] max-w-[min(20rem,calc(100%-1rem))] min-h-0 overflow-y-auto overscroll-contain md:max-h-none md:max-w-none md:flex-1 md:pb-4">
+        <div className="pointer-events-none max-h-[42dvh] max-w-[13.5rem] min-h-0 overflow-y-auto overscroll-contain sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:pb-4">
           <HUDStats />
         </div>
         <div className="pointer-events-none flex justify-center md:block">
