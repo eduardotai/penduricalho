@@ -437,7 +437,11 @@ function ActiveBuffsPanel() {
   );
 }
 
-export default function HUD() {
+export default function HUD({
+  buffsBottomOffset,
+}: {
+  buffsBottomOffset?: number;
+}) {
   const combo = useGameStore((s) => s.combo);
   const [now, setNow] = useState(() => performance.now());
 
@@ -477,7 +481,12 @@ export default function HUD() {
         )}
       </div>
 
-      <div className="pointer-events-none flex flex-1 items-end justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pb-44 md:pb-5">
+      <div
+        className="pointer-events-none flex flex-1 items-end justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] md:pb-5"
+        style={
+          buffsBottomOffset != null ? { paddingBottom: buffsBottomOffset } : undefined
+        }
+      >
         <ActiveBuffsPanel />
       </div>
 

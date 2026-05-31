@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GameCanvas from "./components/GameCanvas";
 import HUD, { HUDStats } from "./components/HUD";
 import Customize from "./components/Customize";
@@ -13,6 +13,37 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const toggleAudioMuted = useGameStore((s) => s.toggleAudioMuted);
   const audio = useGameStore((s) => s.audio);
+  // Distance from the viewport bottom to the top of the bottom control bar, so
+  // the buffs panel can sit just above it on mobile and stay visible even when
+  // the controls expand. Undefined on md+, where the controls are a sidebar.
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const [buffsBottomOffset, setBuffsBottomOffset] = useState<number | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    const el = controlsRef.current;
+    if (!el) return;
+    const mq = window.matchMedia("(min-width: 768px)"); // Tailwind md
+    function update() {
+      if (mq.matches) {
+        setBuffsBottomOffset(undefined);
+        return;
+      }
+      const rect = el!.getBoundingClientRect();
+      setBuffsBottomOffset(Math.max(0, Math.round(window.innerHeight - rect.top + 8)));
+    }
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    mq.addEventListener("change", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+      mq.removeEventListener("change", update);
+    };
+  }, []);
 
   useEffect(() => {
     const unlock = () => {
@@ -94,7 +125,10 @@ export default function App() {
           <HUDStats />
         </div>
         <div className="pointer-events-none flex justify-center md:block">
-          <div className="pointer-events-auto w-full max-w-md md:max-w-none">
+          <div
+            ref={controlsRef}
+            className="pointer-events-auto w-full max-w-md md:max-w-none"
+          >
             <ControlPanel
               onOpenCustomize={openCustomize}
               onOpenSettings={openSettings}
@@ -102,7 +136,7 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <HUD />
+      <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} />
     </div>
