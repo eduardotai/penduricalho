@@ -5,7 +5,8 @@
 html,
 body,
 #root {
-  height: 100%;
+  height: 100%; /* fallback for browsers without dvh */
+  height: 100dvh; /* avoids the iOS Safari dynamic-toolbar height jump */
   margin: 0;
 }
 
@@ -21,6 +22,32 @@ body {
 
 canvas {
   display: block;
+}
+
+/* Mobile touch hygiene: no blue tap flash, no 300ms delay / double-tap zoom on
+   controls, and no accidental text selection while dragging the UI. Inputs in
+   menus (sliders, etc.) opt back into selection where the browser needs it. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"],
+[role="switch"],
+a {
+  touch-action: manipulation;
+}
+
+#root {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select {
+  user-select: auto;
+  -webkit-user-select: auto;
 }
 
 .scrollbar-thin {

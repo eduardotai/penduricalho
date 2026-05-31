@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
-import { useGameStore } from "../state/store";
+import { useGameStore, CAMERA_ZOOM_MIN } from "../state/store";
 import {
   resolveEquippedCosmetics,
   useEquippedAttachment,
@@ -115,7 +115,14 @@ import {
   computeViewTransform,
   type ViewTransform,
 } from "../game/viewTransform";
-import { ANCHOR, COLLISION, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../game/worldConstants";
+import {
+  ANCHOR,
+  CAMERA_ZOOM_DEFAULT,
+  COLLISION,
+  VIRTUAL_HEIGHT,
+  VIRTUAL_WIDTH,
+  WORLD_SCALE,
+} from "../game/worldConstants";
 import {
   createEffectsState,
   emitHit,
@@ -199,6 +206,12 @@ export default function GameCanvas() {
     fitX: 0,
     fitY: 0,
   });
+  // Orientation-aware framing: set true the first time the player touches the
+  // camera (wheel/pinch/drag) so we stop auto-fitting the default zoom on resize.
+  const userAdjustedCameraRef = useRef(false);
+  // Tracks the last zoom we auto-applied, so a portrait↔landscape rotation can
+  // re-fit even though the stored zoom no longer equals the persisted default.
+  const lastAutoZoomRef = useRef<number | null>(null);
   const pendulumHandleRef = useRef<PendulumHandle | null>(null);
   const launchPendingRef = useRef(false);
   // Counts how many Golden Token spends are queued up waiting for the frame
@@ -266,6 +279,7 @@ export default function GameCanvas() {
       if (target?.closest("input, textarea, select, [data-no-camera-zoom]")) return;
       e.preventDefault();
       const factor = e.deltaY > 0 ? 0.92 : 1.08;
+      userAdjustedCameraRef.current = true;
       useGameStore.getState().adjustCameraZoom(factor);
     }
     window.addEventListener("wheel", onWheel, { passive: false });
@@ -273,9 +287,22 @@ export default function GameCanvas() {
   }, []);
 
   useEffect(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+
+    // Multi-touch camera gestures plus the desktop space+drag fallback. All
+    // coordinates are CSS display pixels (matching viewTransform's fit/cover),
+    // so pan tracks the finger 1:1 regardless of devicePixelRatio.
+    const PAN_THRESHOLD = 4; // css px before a touch drag starts panning
     const spaceHeld = { current: false };
-    const panning = { current: false };
-    const lastPointer = { x: 0, y: 0 };
+    const pointers = new Map<number, { x: number; y: number }>();
+    let panning = false; // a single-pointer pan gesture is active
+    let panStarted = false; // crossed the movement threshold (touch) / immediate (mouse)
+    let downPoint = { x: 0, y: 0 };
+    let lastPan = { x: 0, y: 0 };
+    let pinchPrevDist = 0;
+    let pinchPrevMid = { x: 0, y: 0 };
 
     function blockedTarget(target: EventTarget | null) {
       return (target as HTMLElement | null)?.closest?.(
@@ -283,21 +310,14 @@ export default function GameCanvas() {
       );
     }
 
-    function canvasPoint(clientX: number, clientY: number) {
-      const canvas = canvasRef.current;
-      if (!canvas) return null;
-      const rect = canvas.getBoundingClientRect();
+    function cssPoint(clientX: number, clientY: number) {
+      const rect = canvas!.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return null;
-      return {
-        x: ((clientX - rect.left) / rect.width) * canvas.width,
-        y: ((clientY - rect.top) / rect.height) * canvas.height,
-      };
+      return { x: clientX - rect.left, y: clientY - rect.top };
     }
 
     function setPanCursor(active: boolean) {
-      const container = containerRef.current;
-      if (!container) return;
-      container.style.cursor = active ? "grab" : "";
+      container!.style.cursor = active ? "grab" : "";
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -312,69 +332,130 @@ export default function GameCanvas() {
     function onKeyUp(e: KeyboardEvent) {
       if (e.code !== "Space") return;
       spaceHeld.current = false;
-      panning.current = false;
+      panning = false;
+      panStarted = false;
       setPanCursor(false);
     }
 
     function onPointerDown(e: PointerEvent) {
-      if (!spaceHeld.current || blockedTarget(e.target)) return;
-      const pt = canvasPoint(e.clientX, e.clientY);
+      if (blockedTarget(e.target)) return;
+      const pt = cssPoint(e.clientX, e.clientY);
       if (!pt) return;
-      e.preventDefault();
-      panning.current = true;
-      lastPointer.x = pt.x;
-      lastPointer.y = pt.y;
-      const container = containerRef.current;
-      if (container) container.style.cursor = "grabbing";
-      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    }
+      const touch = e.pointerType === "touch";
+      // Mouse/pen only pan while Space is held (preserve desktop behavior);
+      // touch always drives the camera since the canvas has no tap action.
+      if (!touch && !spaceHeld.current) return;
 
-    function onPointerMove(e: PointerEvent) {
-      if (!panning.current) return;
-      const pt = canvasPoint(e.clientX, e.clientY);
-      if (!pt) return;
-      const dx = pt.x - lastPointer.x;
-      const dy = pt.y - lastPointer.y;
-      lastPointer.x = pt.x;
-      lastPointer.y = pt.y;
-      if (dx !== 0 || dy !== 0) {
-        const cover = viewRef.current.coverScale;
-        useGameStore.getState().panCamera(dx / cover, dy / cover);
+      pointers.set(e.pointerId, pt);
+      container!.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+
+      if (pointers.size === 1) {
+        panning = true;
+        downPoint = pt;
+        lastPan = pt;
+        panStarted = !touch; // mouse+space starts immediately; touch waits for threshold
+        if (panStarted) container!.style.cursor = "grabbing";
+      } else if (pointers.size === 2) {
+        // Two fingers down — switch from pan to pinch.
+        panning = false;
+        panStarted = false;
+        const [a, b] = [...pointers.values()];
+        pinchPrevDist = Math.hypot(a.x - b.x, a.y - b.y);
+        pinchPrevMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       }
     }
 
-    function endPan(e: PointerEvent) {
-      if (!panning.current) return;
-      panning.current = false;
-      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-      setPanCursor(spaceHeld.current);
+    function onPointerMove(e: PointerEvent) {
+      if (!pointers.has(e.pointerId)) return;
+      const pt = cssPoint(e.clientX, e.clientY);
+      if (!pt) return;
+      pointers.set(e.pointerId, pt);
+      const view = viewRef.current;
+      const cover = view.coverScale;
+      const store = useGameStore.getState();
+
+      if (pointers.size >= 2) {
+        const [a, b] = [...pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (pinchPrevDist > 0) {
+          userAdjustedCameraRef.current = true;
+          const factor = dist / pinchPrevDist;
+          if (factor !== 1) {
+            const focalU = (mid.x - view.fitX) / cover;
+            const focalV = (mid.y - view.fitY) / cover;
+            store.zoomAtScreenPoint(factor, focalU, focalV);
+          }
+          const mdx = mid.x - pinchPrevMid.x;
+          const mdy = mid.y - pinchPrevMid.y;
+          if (mdx !== 0 || mdy !== 0) store.panCamera(mdx / cover, mdy / cover);
+        }
+        pinchPrevDist = dist;
+        pinchPrevMid = mid;
+        return;
+      }
+
+      if (!panning) return;
+      if (!panStarted) {
+        if (Math.hypot(pt.x - downPoint.x, pt.y - downPoint.y) < PAN_THRESHOLD) return;
+        panStarted = true;
+        lastPan = pt; // reset origin so the camera doesn't jump by the threshold
+        return;
+      }
+      const dx = pt.x - lastPan.x;
+      const dy = pt.y - lastPan.y;
+      lastPan = pt;
+      if (dx !== 0 || dy !== 0) {
+        userAdjustedCameraRef.current = true;
+        store.panCamera(dx / cover, dy / cover);
+      }
+    }
+
+    function endPointer(e: PointerEvent) {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.delete(e.pointerId);
+      container!.releasePointerCapture?.(e.pointerId);
+      if (pointers.size === 1) {
+        // One finger lifted after a pinch — resume single-finger pan.
+        const [p] = [...pointers.values()];
+        panning = true;
+        panStarted = true;
+        downPoint = p;
+        lastPan = p;
+        pinchPrevDist = 0;
+      } else if (pointers.size === 0) {
+        panning = false;
+        panStarted = false;
+        pinchPrevDist = 0;
+        setPanCursor(spaceHeld.current);
+      }
+    }
+
+    function onBlur() {
+      spaceHeld.current = false;
+      panning = false;
+      panStarted = false;
+      pointers.clear();
+      pinchPrevDist = 0;
+      setPanCursor(false);
     }
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    const container = containerRef.current;
-    if (!container) {
-      return () => {
-        window.removeEventListener("keydown", onKeyDown);
-        window.removeEventListener("keyup", onKeyUp);
-      };
-    }
     container.addEventListener("pointerdown", onPointerDown);
     container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerup", endPan);
-    container.addEventListener("pointercancel", endPan);
-    window.addEventListener("blur", () => {
-      spaceHeld.current = false;
-      panning.current = false;
-      setPanCursor(false);
-    });
+    container.addEventListener("pointerup", endPointer);
+    container.addEventListener("pointercancel", endPointer);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerup", endPan);
-      container.removeEventListener("pointercancel", endPan);
+      container.removeEventListener("pointerup", endPointer);
+      container.removeEventListener("pointercancel", endPointer);
+      window.removeEventListener("blur", onBlur);
       setPanCursor(false);
     };
   }, []);
@@ -382,6 +463,29 @@ export default function GameCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const container = containerRef.current!;
+
+    // Auto-frame the playfield for the current aspect ratio: portrait screens
+    // crop the wide (1.6:1) world heavily at the desktop default zoom, so fit the
+    // full world width — but never zoom in past the tuned default. Only runs
+    // while the player hasn't manually adjusted the camera; once they pinch/drag
+    // we leave their framing alone.
+    function applyAutoFitZoom(view: ViewTransform) {
+      if (userAdjustedCameraRef.current) return;
+      const store = useGameStore.getState();
+      const z = store.cameraZoom;
+      const ours = lastAutoZoomRef.current;
+      // Respect a returning player's persisted custom zoom: only auto-fit from
+      // the default, or from a value we set ourselves on a previous resize.
+      if (z !== CAMERA_ZOOM_DEFAULT && (ours === null || Math.abs(z - ours) > 1e-4)) {
+        return;
+      }
+      const fit = Math.min(
+        CAMERA_ZOOM_DEFAULT,
+        Math.max(CAMERA_ZOOM_MIN, view.displayWidth / (view.coverScale * VIRTUAL_WIDTH))
+      );
+      lastAutoZoomRef.current = fit;
+      if (Math.abs(fit - z) > 1e-4) store.setCameraZoom(fit);
+    }
 
     function resizeCanvas() {
       const w = container.clientWidth;
@@ -392,7 +496,9 @@ export default function GameCanvas() {
       canvas.height = Math.max(1, Math.floor(h * dpr));
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
-      viewRef.current = computeViewTransform(w, h, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+      const view = computeViewTransform(w, h, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+      viewRef.current = view;
+      applyAutoFitZoom(view);
     }
 
     resizeCanvas();

@@ -18,6 +18,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
   const startRun = useGameStore((s) => s.startRun);
   const hardEndAndRestartRun = useGameStore((s) => s.hardEndAndRestartRun);
   const [hardEndConfirmOpen, setHardEndConfirmOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
   const spendGoldenToken = useGameStore((s) => s.spendGoldenToken);
   const autoRun = useGameStore((s) => s.autoRun);
@@ -96,7 +97,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
   return (
     <div className="pointer-events-auto w-full min-w-0">
       <div className="flex w-full flex-col items-stretch gap-2 rounded-2xl border border-slate-700/60 bg-slate-950/85 p-3 shadow-xl backdrop-blur">
-        <div className="px-2 pt-1 pb-2 text-center">
+        <div className="hidden px-2 pt-1 pb-2 text-center md:block">
           <div className="text-[10px] uppercase tracking-widest text-slate-500">Loadout</div>
           <div className="text-xs text-slate-300">
             {pendulum.name}
@@ -173,6 +174,24 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => {
+            playUiClick();
+            setMoreOpen((v) => !v);
+          }}
+          className="flex w-full items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 transition-colors hover:bg-slate-800 md:hidden"
+          aria-expanded={moreOpen}
+        >
+          {moreOpen ? "Less" : "More"}
+          <span aria-hidden className={moreOpen ? "rotate-180" : ""}>
+            ⌄
+          </span>
+        </button>
+
+        <div
+          className={`${moreOpen ? "flex" : "hidden"} flex-col gap-2 md:flex`}
+        >
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => {
@@ -274,6 +293,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
             Hard End Run
           </button>
         )}
+        </div>
       </div>
     </div>
   );

@@ -26,11 +26,13 @@ export function HUDStats() {
 
   return (
     <div className="pointer-events-none space-y-3">
-      <div className="rounded-2xl bg-slate-900/70 px-5 py-3 backdrop-blur">
-        <div className="text-xs uppercase tracking-widest text-slate-400">Momentum</div>
+      <div className="inline-block rounded-2xl bg-slate-900/70 px-4 py-2 backdrop-blur sm:block sm:px-5 sm:py-3">
+        <div className="text-[10px] uppercase tracking-widest text-slate-400 sm:text-xs">
+          Momentum
+        </div>
         <FormattedNumber
           value={momentum}
-          className="font-display text-3xl font-bold text-brand-300"
+          className="font-display text-2xl font-bold text-brand-300 sm:text-3xl"
         />
       </div>
 
@@ -371,7 +373,7 @@ function ActiveBuffsPanel() {
 
   return (
     <div
-      className="scrollbar-thin flex w-80 max-w-[min(20rem,calc(100vw-2.5rem))] flex-col items-stretch gap-2 overflow-y-auto overscroll-contain"
+      className="scrollbar-thin flex w-52 max-w-[min(20rem,calc(100vw-2.5rem))] flex-col items-stretch gap-1.5 overflow-y-auto overscroll-contain sm:w-80 sm:gap-2"
       style={{
         maxHeight:
           BUFF_ROW_HEIGHT_PX * VISIBLE_BUFF_SLOTS +
@@ -392,7 +394,7 @@ function ActiveBuffsPanel() {
         return (
           <div
             key={row.key}
-            className={`relative h-12 shrink-0 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/88 backdrop-blur ${buffRowClass(row.phase)}`}
+            className={`relative h-10 shrink-0 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/88 backdrop-blur sm:h-12 ${buffRowClass(row.phase)}`}
             style={
               {
                 "--buff-glow": `${def.color}99`,
@@ -404,9 +406,9 @@ function ActiveBuffsPanel() {
                 : def.description
             }
           >
-            <div className="flex h-full items-center gap-3 px-4 pb-1.5">
+            <div className="flex h-full items-center gap-2 px-3 pb-1 sm:gap-3 sm:px-4 sm:pb-1.5">
               <span
-                className="inline-block h-3 w-3 shrink-0 rounded-full"
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full sm:h-3 sm:w-3"
                 style={{
                   background: def.color,
                   boxShadow:
@@ -415,10 +417,10 @@ function ActiveBuffsPanel() {
                       : `0 0 6px ${def.color}88`,
                 }}
               />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100">
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100 sm:text-sm">
                 {def.name}
               </span>
-              <span className="shrink-0 text-sm tabular-nums font-medium text-slate-300">
+              <span className="shrink-0 text-xs tabular-nums font-medium text-slate-300 sm:text-sm">
                 {(remaining / 1000).toFixed(1)}s
               </span>
             </div>
@@ -435,7 +437,11 @@ function ActiveBuffsPanel() {
   );
 }
 
-export default function HUD() {
+export default function HUD({
+  buffsBottomOffset,
+}: {
+  buffsBottomOffset?: number;
+}) {
   const combo = useGameStore((s) => s.combo);
   const [now, setNow] = useState(() => performance.now());
 
@@ -456,13 +462,13 @@ export default function HUD() {
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
-      <div className="pointer-events-none flex items-start justify-end p-5">
+      <div className="pointer-events-none flex items-start justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         {comboActive && (
-          <div className="rounded-2xl bg-amber-500/20 px-5 py-3 text-right backdrop-blur">
-            <div className="text-xs uppercase tracking-widest text-amber-200/80">
+          <div className="rounded-2xl bg-amber-500/20 px-3 py-2 text-right backdrop-blur sm:px-5 sm:py-3">
+            <div className="text-[10px] uppercase tracking-widest text-amber-200/80 sm:text-xs">
               Combo
             </div>
-            <div className="font-display text-3xl font-bold text-amber-200">
+            <div className="font-display text-2xl font-bold text-amber-200 sm:text-3xl">
               x{combo.count}
             </div>
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-amber-900/50">
@@ -475,7 +481,12 @@ export default function HUD() {
         )}
       </div>
 
-      <div className="pointer-events-none flex flex-1 items-end justify-end p-5">
+      <div
+        className="pointer-events-none flex flex-1 items-end justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] md:pb-5"
+        style={
+          buffsBottomOffset != null ? { paddingBottom: buffsBottomOffset } : undefined
+        }
+      >
         <ActiveBuffsPanel />
       </div>
 
@@ -489,8 +500,8 @@ function Hint() {
   const isRunning = useGameStore((s) => s.isRunning);
   if (totalRuns > 0 || isRunning) return null;
   return (
-    <div className="pointer-events-none absolute bottom-44 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-sm text-slate-300 backdrop-blur">
-      Press <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
+    <div className="pointer-events-none absolute bottom-56 left-1/2 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-center text-sm text-slate-300 backdrop-blur md:bottom-44 md:w-auto">
+      Tap <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
     </div>
   );
 }

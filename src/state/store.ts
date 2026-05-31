@@ -22,6 +22,7 @@ import {
   type AudioSettingsSnapshot,
 } from "../audio/types";
 import {
+  ANCHOR,
   CAMERA_PAN_X_DEFAULT,
   CAMERA_PAN_Y_DEFAULT,
   CAMERA_ZOOM_DEFAULT,
@@ -144,6 +145,10 @@ export interface GameState {
   consumeFirstBuffGuarantee: () => boolean;
   setCameraZoom: (zoom: number) => void;
   adjustCameraZoom: (factor: number) => void;
+  // Zoom by `factor` while keeping the world point under a focal screen point
+  // fixed (pinch-to-zoom toward the fingers). focalU/focalV are the focal point
+  // in virtual/world-cover units: (screenCssPx - view.fit) / view.coverScale.
+  zoomAtScreenPoint: (factor: number, focalU: number, focalV: number) => void;
   panCamera: (screenDx: number, screenDy: number) => void;
   resetCameraPan: () => void;
   resetDisplaySettings: () => void;
@@ -719,6 +724,22 @@ export const useGameStore = create<GameState>()(
 
       adjustCameraZoom: (factor) =>
         set((s) => ({ cameraZoom: clampCameraZoom(s.cameraZoom * factor) })),
+
+      zoomAtScreenPoint: (factor, focalU, focalV) =>
+        set((s) => {
+          const z0 = s.cameraZoom;
+          const z1 = clampCameraZoom(z0 * factor);
+          if (z1 === z0) return {};
+          // Keep the world point under (focalU, focalV) stationary across the
+          // zoom change. worldX = (focalU - anchor) / zoom + anchor - panX, so
+          // holding worldX constant gives panX += (focal - anchor)(1/z1 - 1/z0).
+          const inv = 1 / z1 - 1 / z0;
+          return {
+            cameraZoom: z1,
+            cameraPanX: s.cameraPanX + (focalU - ANCHOR.x) * inv,
+            cameraPanY: s.cameraPanY + (focalV - ANCHOR.y) * inv,
+          };
+        }),
 
       panCamera: (screenDx, screenDy) =>
         set((s) => ({
