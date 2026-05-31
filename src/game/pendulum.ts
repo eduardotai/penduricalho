@@ -20,9 +20,9 @@ import { COLLISION, WORLD_SCALE } from "./worldConstants";
 const PIVOT_RADIUS = 8;
 const DEFAULT_BOB_RADIUS = Math.round(16 * WORLD_SCALE);
 
-/** Pendulum Line (metronome behavior): one stiff pivot→bob rod, not a segmented rope. */
+/** Rigid rods use one stiff pivot→bob constraint, not segmented rope links. */
 export function isRigidPendulumAttachment(attachment: AttachmentDef): boolean {
-  return attachment.behavior?.kind === "metronome";
+  return attachment.type === "rod" || attachment.behavior?.kind === "metronome";
 }
 
 /** Mechanic Belt: completely unattached bob that rides a random conveyor tunnel with walls + initial kick. */
@@ -354,6 +354,24 @@ export function getMainAttachmentConstraint(handle: PendulumHandle): Matter.Cons
     handle.constraints[handle.constraints.length - 1] ??
     null
   );
+}
+
+function bobLinkLength(handle: PendulumHandle, totalRopeLen: number): number {
+  const fallback = Math.max(4, getEffectiveBobRadius(handle) * 0.35);
+  const link = getMainAttachmentConstraint(handle);
+  if (!link) return fallback;
+  const linkLength = link.length ?? fallback;
+  return handle.ropeSegments.length === 0
+    ? Math.max(fallback, linkLength - totalRopeLen)
+    : linkLength;
+}
+
+function tipRestDistance(handle: PendulumHandle, totalRopeLen: number): number {
+  const link = getMainAttachmentConstraint(handle);
+  if (handle.ropeSegments.length === 0 && link) {
+    return link.length ?? totalRopeLen + bobLinkLength(handle, totalRopeLen);
+  }
+  return totalRopeLen + bobLinkLength(handle, totalRopeLen);
 }
 
 export function getOrderedBobBodies(handle: PendulumHandle): Matter.Body[] {
@@ -709,10 +727,7 @@ export function resetPendulumToRest(handle: PendulumHandle) {
   const totalRopeLen = restLength + chainLen;
   const segCount = handle.ropeSegments.length;
   const segLen = segCount > 0 ? totalRopeLen / segCount : totalRopeLen;
-  const bobLinkLen =
-    getMainAttachmentConstraint(handle)?.length ??
-    Math.max(4, getEffectiveBobRadius(handle) * 0.35);
-  const tipRestY = pivot.y + totalRopeLen + bobLinkLen;
+  const tipRestY = pivot.y + tipRestDistance(handle, totalRopeLen);
 
   for (let i = 0; i < segCount; i++) {
     const node = handle.ropeSegments[i];
@@ -848,10 +863,8 @@ export function teleportRig(
   const bob = handle.bobs[handle.bobs.length - 1];
   if (!bob) return;
 
-  const bobLinkLen =
-    getMainAttachmentConstraint(handle)?.length ??
-    Math.max(4, getEffectiveBobRadius(handle) * 0.35);
   const reach = rigReach(handle);
+  const bobLinkLen = bobLinkLength(handle, reach);
   const maxDist = reach + bobLinkLen;
 
   let dx = targetX - pivot.x;
@@ -1079,10 +1092,7 @@ export function settlePendulumTowardRest(handle: PendulumHandle, alpha: number) 
   const totalRopeLen = restLength + chainLen;
   const segCount = handle.ropeSegments.length;
   const segLen = segCount > 0 ? totalRopeLen / segCount : totalRopeLen;
-  const bobLinkLen =
-    getMainAttachmentConstraint(handle)?.length ??
-    Math.max(4, getEffectiveBobRadius(handle) * 0.35);
-  const tipRestY = pivot.y + totalRopeLen + bobLinkLen;
+  const tipRestY = pivot.y + tipRestDistance(handle, totalRopeLen);
 
   const lerpTo = (body: Matter.Body, restX: number, restY: number) => {
     Matter.Body.setPosition(body, {

@@ -9,10 +9,11 @@ export interface RopeMaterialProfile {
   maxStretchRatio: number;
   nonlinearGain: number;
   frictionAir: number;
+  loadRating: number;
   /**
-   * Active-swing seconds for durability to drain 100%→0% at the reference bob
-   * weight. Higher = tougher. Drain scales with bobWeight / REFERENCE_WEIGHT,
-   * so a heavy bob wears the rope proportionally faster. Fragile ropes are
+   * Active-swing seconds for durability to drain 100%->0% at the material's
+   * load rating. Higher = tougher. Drain scales with bobWeight / loadRating,
+   * so stronger ropes carry heavy bobs longer. Fragile ropes are
    * tuned below a typical self-stall time so they reliably snap mid-run;
    * tough ropes outlast the swing and only snap on long / golden-extended runs.
    */
@@ -29,6 +30,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.06,
     nonlinearGain: 0,
     frictionAir: 0.012,
+    loadRating: 2.2,
     durabilitySeconds: 14,
   },
   rod: {
@@ -40,6 +42,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.002,
     nonlinearGain: 0,
     frictionAir: 0.004,
+    loadRating: 8,
     durabilitySeconds: 70,
   },
   chain: {
@@ -51,6 +54,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.02,
     nonlinearGain: 0,
     frictionAir: 0.018,
+    loadRating: 6,
     durabilitySeconds: 22,
   },
   elastic: {
@@ -62,31 +66,30 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.35,
     nonlinearGain: 2.4,
     frictionAir: 0.01,
+    loadRating: 3,
     durabilitySeconds: 13,
   },
 };
 
-// durabilitySeconds forms a deliberate ladder. The three cheap short ropes
-// (micro/short/compact) are intentionally fragile snap-finale sidegrades; the
-// real power ladder (hemp → steel → braided → tow → titan → magnetic) climbs
-// monotonically so each upgrade buys more live-swing time. Tuned against the
-// post-revamp bob roster (weights 1.0–9.0), so a typical ~weight-3 bob gets a
-// satisfying ~5s on micro-twine up to ~28s on the magnetic tether.
+// durabilitySeconds and loadRating form the material ladder. The three cheap
+// short ropes (micro/short/compact) are intentionally fragile snap-finale
+// sidegrades; the real power ladder climbs so late-game ropes can carry
+// late-game bobs for longer live swings.
 const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
-  "micro-twine": { segmentSpacing: 22, stiffness: 0.9, damping: 0.03, maxStretchRatio: 1.07, durabilitySeconds: 7 },
-  "short-hemp": { segmentSpacing: 24, stiffness: 0.89, damping: 0.028, durabilitySeconds: 9 },
-  "compact-rope": { segmentSpacing: 26, stiffness: 0.88, damping: 0.026, durabilitySeconds: 11 },
+  "micro-twine": { segmentSpacing: 22, stiffness: 0.9, damping: 0.03, maxStretchRatio: 1.07, loadRating: 1.2, durabilitySeconds: 7 },
+  "short-hemp": { segmentSpacing: 24, stiffness: 0.89, damping: 0.028, loadRating: 1.6, durabilitySeconds: 9 },
+  "compact-rope": { segmentSpacing: 26, stiffness: 0.88, damping: 0.026, loadRating: 2, durabilitySeconds: 11 },
   // hemp-rope (the default) intentionally has no override → base rope: 14.
-  "steel-rope": { stiffness: 0.95, damping: 0.018, maxStretchRatio: 1.02, durabilitySeconds: 18 },
-  "braided-rope": { stiffness: 0.86, damping: 0.022, maxStretchRatio: 1.05, durabilitySeconds: 20 },
-  "tow-rope": { segmentSpacing: 30, nodeMassRatio: 0.06, stiffness: 0.84, damping: 0.024, durabilitySeconds: 24 },
-  "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015, durabilitySeconds: 32 },
-  "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04, durabilitySeconds: 38 },
-  "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05, durabilitySeconds: 22 },
+  "steel-rope": { stiffness: 0.95, damping: 0.018, maxStretchRatio: 1.02, loadRating: 4.5, durabilitySeconds: 18 },
+  "braided-rope": { stiffness: 0.86, damping: 0.022, maxStretchRatio: 1.05, loadRating: 5, durabilitySeconds: 20 },
+  "tow-rope": { segmentSpacing: 30, nodeMassRatio: 0.06, stiffness: 0.84, damping: 0.024, loadRating: 6, durabilitySeconds: 24 },
+  "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015, loadRating: 9, durabilitySeconds: 32 },
+  "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04, loadRating: 10, durabilitySeconds: 38 },
+  "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05, loadRating: 7.5, durabilitySeconds: 22 },
   // --- behavior ropes (see data/attachments.ts) ---
   // flux: a mid-tier base — its drain is then churned up and down by the Random
   // Rope behavior, so the effective lifespan swings around this number.
-  "flux-cord": { stiffness: 0.88, damping: 0.024, maxStretchRatio: 1.1, durabilitySeconds: 15 },
+  "flux-cord": { stiffness: 0.88, damping: 0.024, maxStretchRatio: 1.1, loadRating: 3.5, durabilitySeconds: 15 },
   // metronome (Pendulum Line): rigid rod — no rope segments; length oscillation is
   // driven by the metronome behavior, not stretchy links.
   "pendulum-line": {
@@ -94,12 +97,13 @@ const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
     stiffness: 1,
     damping: 0.004,
     maxStretchRatio: 1.001,
+    loadRating: 5,
     durabilitySeconds: 17,
   },
   // belt (legacy): conveyor payout/stress system (retired for the modern Mechanic Belt).
-  "mechanic-belt": { segmentSpacing: 18, stiffness: 0.93, damping: 0.03, maxStretchRatio: 1.05, durabilitySeconds: 8 },
+  "mechanic-belt": { segmentSpacing: 18, stiffness: 0.93, damping: 0.03, maxStretchRatio: 1.05, loadRating: 3, durabilitySeconds: 8 },
   // bulwark: stout, low-stretch weave — the hardening "wall" wants a stiff line.
-  "bulwark-weave": { segmentSpacing: 30, stiffness: 0.9, damping: 0.022, maxStretchRatio: 1.03, durabilitySeconds: 20 },
+  "bulwark-weave": { segmentSpacing: 30, stiffness: 0.9, damping: 0.022, maxStretchRatio: 1.03, loadRating: 6, durabilitySeconds: 20 },
 };
 
 export function resolveRopeMaterial(attachment: AttachmentDef): RopeMaterialProfile {
@@ -113,19 +117,20 @@ export function resolveRopeMaterial(attachment: AttachmentDef): RopeMaterialProf
   };
 }
 
-/** Bob weight that drains a rope in exactly its `durabilitySeconds`. */
+/** Starter bob weight kept for compatibility with older tuning docs. */
 export const DURABILITY_REFERENCE_WEIGHT = 2.2;
 
 /**
  * Durability lost per second of live swing, as a 0..1 fraction. A heavier bob
- * wears the rope proportionally faster; tougher materials wear slower.
+ * wears the rope proportionally faster relative to the material's load rating.
  */
 export function durabilityDrainPerSec(
   profile: RopeMaterialProfile,
   bobWeight: number
 ): number {
   const seconds = Math.max(0.5, profile.durabilitySeconds);
-  return bobWeight / DURABILITY_REFERENCE_WEIGHT / seconds;
+  const ratedWeight = Math.max(0.1, profile.loadRating);
+  return Math.max(0.1, bobWeight) / ratedWeight / seconds;
 }
 
 export function ropeSegmentCount(

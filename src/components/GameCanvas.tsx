@@ -18,8 +18,8 @@ import {
   regenerateWallField,
   findWallByBody,
   damageWall,
+  type BoundarySide,
   type BoundaryWall,
-  type WallSide,
 } from "../game/engine";
 import {
   bobRadius,
@@ -643,14 +643,14 @@ export default function GameCanvas() {
       engineHandle.world,
       VIRTUAL_WIDTH,
       VIRTUAL_HEIGHT,
-      site.walls ?? "none",
+      site.wallShape === "rings" ? "none" : site.walls ?? "none",
       pendulum.weight,
       site.cageScale ?? 1,
       site.wallDurabilityMult ?? 1
     );
     // A wall-less site (the Workshop) keeps its snapped rig on display — empty
     // rope, bobs gone — between runs instead of auto-restoring it.
-    const wallless = wallField.walls.length === 0;
+    let wallless = wallField.walls.length === 0;
 
     // Layers map: concentric ring walls centered on the mount, so the bob's
     // orbit threads through their rotating gaps. Stored on the wall field so
@@ -661,8 +661,12 @@ export default function GameCanvas() {
         ANCHOR,
         site.ringCount ?? 4,
         Math.round(115 * WORLD_SCALE), // ring spacing (design px × world scale)
-        Math.round(12 * WORLD_SCALE) // wall thickness
+        Math.round(12 * WORLD_SCALE),
+        pendulum.weight,
+        site.wallDurabilityMult ?? 1
       );
+      wallField.breakable = site.walls === "breakable";
+      wallless = wallField.walls.length === 0 && wallField.obstacles.length === 0;
     }
 
     const ropeMaterial = resolveRopeMaterial(attachment);
@@ -722,7 +726,7 @@ export default function GameCanvas() {
     // dash, teleport blink, rocket thrust) only fire for this long after the
     // snap so the freed bob still coasts to a natural escape/idle end.
     let snappedAt = 0;
-    const POST_SNAP_BEHAVIOR_MS = 4000;
+    const POST_SNAP_BEHAVIOR_MS = 6000;
     // piercer (Arrow): straight-line dash cadence + per-run count.
     let lastDashAt = 0;
     let dashCount = 0;
@@ -734,6 +738,7 @@ export default function GameCanvas() {
     let frenzyAppliedMult = 1;
     // teleport (TP): cadence of the random blinks.
     let lastTeleportAt = 0;
+    let teleportCount = 0;
     // rocket (Rocket): when the current thrust ramp started.
     let rocketLaunchAt = 0;
     // splitter (Breakable): free-flying shed pieces + how many we've lost.
@@ -907,6 +912,7 @@ export default function GameCanvas() {
       hydraHits = 0;
       frenzyAppliedMult = 1;
       lastTeleportAt = 0;
+      teleportCount = 0;
       rocketLaunchAt = 0;
       resetSplitterProgress();
       chaosSizeCur = chaosSizeTarget = 1;
@@ -1056,6 +1062,10 @@ export default function GameCanvas() {
             isSensor: true,
             frictionAir: 0,
             label: `echo-${echoBobs.length}`,
+            collisionFilter:
+              site.id === "layers"
+                ? { category: COLLISION.BOB, mask: 0 }
+                : { category: COLLISION.BOB },
           }
         );
         Matter.World.add(engineHandle.world, body);
@@ -1364,7 +1374,13 @@ export default function GameCanvas() {
     // heads back into the field, then scale the whole vector by `boost`. A floor
     // on the inward component keeps near-tangent grazes feeling punchy too.
     function bounceBobOffWall(bob: Matter.Body, wall: BoundaryWall, boost: number) {
-      const n = wall.normal;
+      let n = wall.normal;
+      if (wall.side === "ring") {
+        const dx = bob.position.x - wall.body.position.x;
+        const dy = bob.position.y - wall.body.position.y;
+        const len = Math.hypot(dx, dy) || 1;
+        n = { x: dx / len, y: dy / len };
+      }
       let rx = bob.velocity.x;
       let ry = bob.velocity.y;
       const vn = rx * n.x + ry * n.y;
@@ -1429,7 +1445,7 @@ export default function GameCanvas() {
     }
 
     // Standing (unbroken) wall on a given side, or null when that side is open.
-    function wallForSide(side: WallSide): BoundaryWall | null {
+    function wallForSide(side: BoundarySide): BoundaryWall | null {
       for (const w of wallField.walls) {
         if (w.side === side && !w.broken) return w;
       }
@@ -1470,7 +1486,7 @@ export default function GameCanvas() {
     // Which wall sides each kinematic bob was already touching last frame, so a
     // sustained press only counts as a hit on the frame it first makes contact —
     // not on every frame it stays pinned. Cleared per side as the bob pulls away.
-    const kinematicWallContact = new Map<number, Set<WallSide>>();
+    const kinematicWallContact = new Map<number, Set<BoundarySide>>();
 
     // Keep one rope-riding bob (a twin/triple chain link or a Multi-Bob echo)
     // inside the wall cage. These bodies are positioned by hand to track the
@@ -1531,8 +1547,9 @@ export default function GameCanvas() {
       // bob the rope keeps pressed against the wall stays in `prevSides`, so it
       // never re-damages until it pulls off and slams back in.
       const prevSides = kinematicWallContact.get(body.id);
-      const curSides = new Set<WallSide>();
+      const curSides = new Set<BoundarySide>();
       for (const wall of hits) {
+        if (wall.side === "ring") continue;
         curSides.add(wall.side);
         if (!prevSides || !prevSides.has(wall.side)) {
           wearWallFromKinematicBob(wall, { x, y }, speed, now);
@@ -1764,7 +1781,10 @@ export default function GameCanvas() {
     function teleportTick(now: number) {
       if (behavior?.kind !== "teleport") return;
       if (now - lastTeleportAt < (behavior.teleportIntervalMs ?? 1100)) return;
+      const maxPerRun = behavior.teleportMaxPerRun ?? 0;
+      if (maxPerRun > 0 && teleportCount >= maxPerRun) return;
       lastTeleportAt = now;
+      teleportCount += 1;
       const cage = wallField.bounds;
       const tx = cage.minX + Math.random() * (cage.maxX - cage.minX);
       const ty = cage.minY + Math.random() * (cage.maxY - cage.minY);
@@ -2244,8 +2264,13 @@ export default function GameCanvas() {
         // while the freed bobs ricochet after a snap. The dynamic tip/free bobs
         // resolve here via Matter; the kinematic chain/echo bobs that ride the
         // rope are contained separately in containRopeBobsInWalls.
-        if (wallField.walls.length > 0) {
-          const wallBody = a.label === "wall" ? a : b.label === "wall" ? b : null;
+        if (wallField.walls.length > 0 || wallField.obstacles.length > 0) {
+          const wallBody =
+            a.label === "wall" || a.label === "ring-wall"
+              ? a
+              : b.label === "wall" || b.label === "ring-wall"
+                ? b
+                : null;
           if (wallBody) {
             handleWallHit(wallBody, bobBody, now);
             continue;
@@ -2415,6 +2440,14 @@ export default function GameCanvas() {
         if (durability <= 0 && ropeBehavior?.kind !== "belt") {
           durability = 0;
           snappedAt = now;
+          // Refresh burst-style behavior counters for the snap finale. Arrow
+          // and TP may have spent their live-swing quota already; after the
+          // rope breaks, give them a fresh bounded window so their identity
+          // comes back while the bob is free, then still coasts to an end.
+          lastDashAt = 0;
+          dashCount = 0;
+          lastTeleportAt = 0;
+          teleportCount = 0;
           // A Ravager (hunter) keeps its momentum with no random scatter so the
           // homing steering can immediately aim the freed bob at live circles.
           const hunting = behavior?.kind === "hunter";

@@ -135,7 +135,7 @@ export const PENDULUMS: PendulumDef[] = [
       kind: "piercer",
       dashIntervalMs: 1400,
       dashSpeed: V(26),
-      dashMaxPerRun: 0,
+      dashMaxPerRun: 4,
     },
   },
   {
@@ -238,6 +238,7 @@ export const PENDULUMS: PendulumDef[] = [
       kind: "teleport",
       teleportIntervalMs: 1100,
       teleportSpeed: V(14),
+      teleportMaxPerRun: 4,
     },
   },
   {

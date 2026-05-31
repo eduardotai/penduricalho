@@ -102,6 +102,8 @@ export interface BobBehavior {
   teleportIntervalMs?: number;
   /** Tangential speed handed to the bob right after a blink (world units / step). */
   teleportSpeed?: number;
+  /** Max blinks per run (0/undefined = unlimited). */
+  teleportMaxPerRun?: number;
   // --- rocket (Rocket) ---
   /** Thrust added to the bob's speed per second (world units / step per sec). */
   rocketAccel?: number;

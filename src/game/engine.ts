@@ -53,7 +53,8 @@ export function applyAmbientForce(
   }
 }
 
-export type WallSide = "top" | "bottom" | "left" | "right";
+export type BoundarySide = "top" | "bottom" | "left" | "right";
+export type WallSide = BoundarySide | "ring";
 
 export interface BoundaryWall {
   body: Matter.Body;
@@ -89,7 +90,7 @@ export interface WallField {
    * walls). Empty on every ordinary site. These are masked to collide only with
    * BOB-category bodies, so the rope threads through them while bobs bounce off.
    */
-  obstacles: Matter.Body[];
+  obstacles: BoundaryWall[];
 }
 
 /** Baseline hits a breakable wall absorbs (at the lightest rig). */
@@ -149,7 +150,7 @@ export function createWallField(
     friction: 0.05,
     label: "wall",
   };
-  const defs: { side: WallSide; normal: { x: number; y: number }; body: Matter.Body }[] = [
+  const defs: { side: BoundarySide; normal: { x: number; y: number }; body: Matter.Body }[] = [
     {
       side: "top",
       normal: { x: 0, y: 1 },
@@ -197,9 +198,12 @@ export function createRingObstacles(
   center: { x: number; y: number },
   ringCount: number,
   ringSpacing: number,
-  thickness: number
-): Matter.Body[] {
-  const bodies: Matter.Body[] = [];
+  thickness: number,
+  bobWeight = 1,
+  durabilityMult = 1
+): BoundaryWall[] {
+  const walls: BoundaryWall[] = [];
+  const maxHp = wallHpForWeight(bobWeight, durabilityMult);
   const opts = {
     isStatic: true,
     restitution: 0.7,
@@ -232,11 +236,18 @@ export function createRingObstacles(
         thickness,
         { ...opts, angle: a + Math.PI / 2 }
       );
-      bodies.push(seg);
+      walls.push({
+        body: seg,
+        side: "ring",
+        normal: { x: Math.cos(a), y: Math.sin(a) },
+        hp: maxHp,
+        maxHp,
+        broken: false,
+      });
     }
   }
-  Matter.World.add(world, bodies);
-  return bodies;
+  Matter.World.add(world, walls.map((w) => w.body));
+  return walls;
 }
 
 export function destroyWallField(world: Matter.World, field: WallField) {
@@ -244,7 +255,9 @@ export function destroyWallField(world: Matter.World, field: WallField) {
     if (!wall.broken) Matter.World.remove(world, wall.body);
   }
   field.walls = [];
-  for (const obstacle of field.obstacles) Matter.World.remove(world, obstacle);
+  for (const obstacle of field.obstacles) {
+    if (!obstacle.broken) Matter.World.remove(world, obstacle.body);
+  }
   field.obstacles = [];
 }
 
@@ -253,6 +266,9 @@ export function findWallByBody(
   body: Matter.Body
 ): BoundaryWall | null {
   for (const wall of field.walls) {
+    if (wall.body === body) return wall;
+  }
+  for (const wall of field.obstacles) {
     if (wall.body === body) return wall;
   }
   return null;
@@ -284,6 +300,13 @@ export function damageWall(
  */
 export function regenerateWallField(world: Matter.World, field: WallField) {
   for (const wall of field.walls) {
+    if (wall.broken) {
+      Matter.World.add(world, wall.body);
+      wall.broken = false;
+    }
+    wall.hp = wall.maxHp;
+  }
+  for (const wall of field.obstacles) {
     if (wall.broken) {
       Matter.World.add(world, wall.body);
       wall.broken = false;

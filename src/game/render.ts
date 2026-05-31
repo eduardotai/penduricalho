@@ -189,17 +189,20 @@ export function drawObstacles(rc: RenderContext, field: WallField) {
   if (field.obstacles.length === 0) return;
   const ctx = rc.ctx;
   ctx.save();
-  for (const body of field.obstacles) {
+  for (const wall of field.obstacles) {
+    if (wall.broken) continue;
+    const body = wall.body;
     const verts = body.vertices;
     if (!verts || verts.length === 0) continue;
+    const wear = 1 - wall.hp / wall.maxHp;
     ctx.beginPath();
     ctx.moveTo(verts[0].x, verts[0].y);
     for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
     ctx.closePath();
-    ctx.fillStyle = "rgba(125,211,252,0.22)";
+    ctx.fillStyle = withAlpha(mixHex("#7dd3fc", "#ef4444", wear), 0.22 + wear * 0.18);
     ctx.fill();
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(186,230,253,0.55)";
+    ctx.strokeStyle = withAlpha(mixHex("#bae6fd", "#fecaca", wear), 0.55 + wear * 0.25);
     ctx.stroke();
   }
   ctx.restore();
