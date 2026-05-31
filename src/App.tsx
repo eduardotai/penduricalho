@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import GameCanvas from "./components/GameCanvas";
 import HUD, { HUDStats } from "./components/HUD";
 import Customize from "./components/Customize";
@@ -139,6 +140,7 @@ export default function App() {
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} />
+      <Analytics />
     </div>
   );
 }
