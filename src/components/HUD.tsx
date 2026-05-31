@@ -457,7 +457,7 @@ export default function HUD() {
   const comboDecayPct = Math.max(0, Math.min(1, 1 - sinceHit / comboWindow));
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col">
+    <div className="pointer-events-none absolute inset-0 flex flex-col">
       <div className="pointer-events-none flex items-start justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         {comboActive && (
           <div className="rounded-2xl bg-amber-500/20 px-3 py-2 text-right backdrop-blur sm:px-5 sm:py-3">
