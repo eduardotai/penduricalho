@@ -43,6 +43,15 @@ import {
   restoreRope,
   teleportRig,
   rigReach,
+  feedBeltRope,
+  reelBeltRope,
+  beltPayoutRatio,
+  resetBeltPayout,
+  isBeltTunnelAttachment,
+  feedBeltVirtual,
+  reelBeltVirtual,
+  beltVirtualPayoutRatio,
+  resetBeltVirtual,
   type PendulumHandle,
 } from "../game/pendulum";
 import { PENDULUMS } from "../data/pendulums";
@@ -87,9 +96,20 @@ import {
   drawObstacles,
   drawBlackHole,
   drawEchoBobs,
+  drawBeltTunnel,
   type RenderContext,
   type EchoBobRender,
 } from "../game/render";
+import {
+  advanceTunnelProgress,
+  applyBeltLaunchKick,
+  applyBeltTunnelContainment,
+  applyStrictConveyorRail,
+  generateBeltTunnelPath,
+  sampleTunnel,
+  sampleTunnelTangent,
+  type BeltTunnelPath,
+} from "../game/beltTunnel";
 import {
   applyWorldCamera,
   computeViewTransform,
@@ -106,6 +126,11 @@ import {
 const RUN_END_SPEED_THRESHOLD = 0.45;
 const RUN_END_IDLE_MS = 1500;
 const AUTO_RUN_DELAY_MS = 1500;
+// Grace window after a Mechanic Belt ejects its bob at the conveyor exit, during
+// which the escape check can't hard-end the run — lets the thrown bob fly its
+// full arc / bounce around the cage instead of being reset the instant it clips
+// past the field margin.
+const BELT_EJECT_FLY_MS = 2200;
 // Once the pendulum's fastest bob drops below this for STALL_TIME_MS while
 // still in a run, we treat the run as "no more circles reachable" — the
 // pendulum is clearly decelerating and unlikely to land more hits. We use this
@@ -150,6 +175,8 @@ const WALL_BOUNCE_BOOST = 1.22;
 const WALL_BREAK_BOOST = 1.5;
 // Flat momentum bonus for shattering a wall.
 const WALL_BREAK_BONUS = 70;
+// Breakable Bob shed pieces chip walls slowly — ~3 shard slams ≈ one full bob hit.
+const WALL_SHARD_DAMAGE = 1 / 3;
 // How far past the field edge a freed bob must drift to count as "escaped".
 // Once every bob is out (and the rope has snapped), the run is over: there's
 // nothing left to achieve, so we end it and light up Run Again.
@@ -506,9 +533,8 @@ export default function GameCanvas() {
 
     // --- Behavior-rope run-local state (the rope analog of the bob behaviors) ---
     const ropeBehavior = attachment.behavior;
-    // belt (Mechanic) reuses `durability` as its battery (1 = full charge): it
-    // drains on a fixed timer instead of by weight, repair drops recharge it,
-    // and it snaps at 0 just like a worn rope. No separate variable needed.
+    // belt (Mechanic): conveyor tunnel. Ride ends only when grip fades (bob slows down).
+    // Repair drops refuel grip + give short speed boost. Stress retired.
     // flux (Random Rope): current + target length / drain-rate multipliers,
     // lerped toward fresh random targets each reroll (mirrors the Chaos bob).
     let fluxLenCur = 1;
@@ -519,10 +545,57 @@ export default function GameCanvas() {
     // metronome (Pendulum Rope): epoch the length oscillation is measured from,
     // re-zeroed each launch so every run's pump starts from full extension.
     let ropeEpoch = 0;
-    // belt (Mechanic Rope): a random steering bias ("route") rerolled each run
-    // and on every spent token, so the conveyor doesn't always herd the bob the
-    // same way.
-    let beltRouteAngle = Math.random() * Math.PI * 2;
+    // belt (Mechanic Rope): a random tunnel path rerolled each run and on
+    // every spent token; the bob rides it on a conveyor instead of pivot-spin.
+    // The bob is fully unattached (no rope constraints). Stress is tracked virtually.
+    let beltTunnel: BeltTunnelPath | null = null;
+    let beltPathT = 0;
+    // Kept for legacy non-Mechanic-Belt ropes and for any future use.
+    // The true Mechanic Belt no longer uses payout/stress (feature retired).
+    let beltVirtualPayout = 1;
+    const BELT_MAX_PAYOUT = 1.65;
+    let beltGrip = 1; // 1 = full conveyor control, 0 = released into the strict tube (bounce until exit)
+    let beltLowSpeedFrames = 0;
+
+    // When true, the physical tunnel walls remain as a hard multilayer hitbox
+    // even after the conveyor power/grip has failed ("snapped"). The bob
+    // stays constrained inside the tunnel geometry.
+    let beltTunnelWallsActive = false;
+
+    // Prevents the strict rail from automatically re-attaching bobs after they
+    // have ejected at the end of the path. Once a ride has started, we don't
+    // want to loop the bob back onto the conveyor forever.
+    let beltRailRideInitialized = false;
+
+    // The Mechanic Belt bob is a fully FREE body (createPendulum builds no rope
+    // and no constraints for it — see pendulum.ts isBeltTunnelAttachment). So the
+    // conveyor ride is purely `applyStrictConveyorRail` hard-locking the bob onto
+    // the path with setPosition. The exit-eject just STOPS doing that and flings
+    // the bob; there is nothing to detach.
+    //
+    // `beltRideEjected` latches true the moment a bob is thrown out of the exit.
+    // While it's true, beltConveyor returns immediately and never touches the
+    // bob again — it can't re-rail it or snap it back to the conveyor start.
+    // It clears only on the next launch. `beltEjectAt` is when the throw happened
+    // (drives the escape-end grace; 0 = not ejected this run).
+    let beltRideEjected = false;
+    let beltEjectAt = 0;
+
+    function rerollBeltTunnel() {
+      if (ropeBehavior?.kind !== "belt") {
+        beltTunnel = null;
+        beltPathT = 0;
+        beltTunnelWallsActive = false;
+        return;
+      }
+      beltTunnel = generateBeltTunnelPath(
+        cageBounds,
+        ANCHOR,
+        ropeBehavior.beltWaypointCount ?? 9
+      );
+      beltPathT = 0;
+      beltTunnelWallsActive = true;
+    }
     // bulwark (Wall Rope): how many rope segments (from the anchor) are currently
     // hardened into a rigid wall, whether the wall is up, and when a broken wall
     // may re-harden. `bulwarkSaved` keeps each hardened constraint's original
@@ -544,6 +617,12 @@ export default function GameCanvas() {
     function clearShards() {
       for (const b of shards) Matter.World.remove(engineHandle.world, b);
       shards.length = 0;
+    }
+
+    /** Breakable Bob: clear shed pieces and regrow the core to full size/weight/reach. */
+    function resetSplitterProgress() {
+      clearShards();
+      shedCount = 0;
     }
 
     // bulwark: un-harden every wall-hardened rope constraint, restoring the
@@ -597,8 +676,7 @@ export default function GameCanvas() {
       frenzyAppliedMult = 1;
       lastTeleportAt = 0;
       rocketLaunchAt = 0;
-      clearShards();
-      shedCount = 0;
+      resetSplitterProgress();
       chaosSizeCur = chaosSizeTarget = 1;
       chaosWeightCur = chaosWeightTarget = 1;
       chaosCapCur = chaosCapTarget = 1;
@@ -609,7 +687,22 @@ export default function GameCanvas() {
       fluxDrainCur = fluxDrainTarget = 1;
       lastFluxRollAt = 0;
       ropeEpoch = performance.now();
-      beltRouteAngle = Math.random() * Math.PI * 2;
+      rerollBeltTunnel();
+      beltVirtualPayout = resetBeltVirtual();
+      beltGrip = 1;
+      beltLowSpeedFrames = 0;
+      beltTunnelWallsActive = true;
+      beltRailRideInitialized = false;
+
+      // Clear the exit-eject state so the next launch rides the conveyor again
+      // from the start instead of treating the bob as already thrown.
+      beltRideEjected = false;
+      beltEjectAt = 0;
+      for (const bob of pendulumHandle.bobs) {
+        delete (bob as any)._beltEjected;
+        delete (bob as any)._beltRailT;
+      }
+
       restoreBulwarkWall();
       bulwarkActive = false;
       bulwarkBrokenUntil = 0;
@@ -619,7 +712,19 @@ export default function GameCanvas() {
       blackHoleCaptured = false;
     }
 
-    // Seed an initial singularity so the Black Hole map renders one before the
+    // Seed an initial tunnel so the Mechanic Belt route renders before launch.
+    rerollBeltTunnel();
+    beltVirtualPayout = resetBeltVirtual();
+    beltGrip = 1;
+    beltLowSpeedFrames = 0;
+    beltTunnelWallsActive = true;
+    beltRailRideInitialized = false;
+
+    // Clear any previous belt ejection markers so a fresh ride can start cleanly.
+    for (const bob of pendulumHandle.bobs) {
+      delete (bob as any)._beltEjected;
+    }
+
     // very first launch (subsequent runs reroll it via resetBehaviorRunState).
     rerollBlackHole();
 
@@ -923,17 +1028,34 @@ export default function GameCanvas() {
           void bobBody;
           return;
         }
-        // Mechanic Rope (belt) runs on a battery: a repair drop recharges it by
-        // its batteryRecharge fraction instead of patching weight-based wear.
+        // Mechanic Belt (conveyor): Repair drops now act as refuels.
+        // They recover grip and give a short speed boost so the bob can keep riding longer.
         if (ropeBehavior?.kind === "belt") {
-          durability = Math.min(1, durability + (ropeBehavior.batteryRecharge ?? 0.4));
+          if (isBeltTunnelAttachment(attachment)) {
+            // Grip recovery + temporary riding stability
+            beltLowSpeedFrames = Math.max(0, beltLowSpeedFrames - 30);
+            beltGrip = Math.min(1, beltGrip + 0.65);
+
+            // Small forward kick along the current path direction to help it keep momentum
+            const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+            if (beltTunnel && tip) {
+              const tan = sampleTunnelTangent(beltTunnel, beltPathT);
+              const boost = 9 * WORLD_SCALE;
+              Matter.Body.setVelocity(tip, {
+                x: tip.velocity.x + tan.x * boost,
+                y: tip.velocity.y + tan.y * boost,
+              });
+            }
+          } else {
+            reelBeltRope(pendulumHandle, ropeBehavior.beltReelFraction ?? 0.4);
+          }
           playGameSound("token-collect", { variant: def.kind });
           emitHit(effects, handle.token.position, now, {
             color: def.color,
             points: 0,
-            intensity: 1.4,
+            intensity: 1.5,
           });
-          emitManeuver(effects, handle.token.position, "Battery +", now);
+          emitManeuver(effects, handle.token.position, "Conveyor Refueled!", now);
           void bobBody;
           return;
         }
@@ -1040,12 +1162,24 @@ export default function GameCanvas() {
       const speed = Math.hypot(bobBody.velocity.x, bobBody.velocity.y);
       if (speed < WALL_HIT_MIN_SPEED) return;
 
-      const shattered = damageWall(engineHandle.world, wallField, wall);
-      bounceBobOffWall(bobBody, wall, shattered ? WALL_BREAK_BOOST : WALL_BOUNCE_BOOST);
+      const isShard = bobBody.label.startsWith("bob-shard-");
+      const wallDamage = isShard ? WALL_SHARD_DAMAGE : 1;
+      const shattered = damageWall(engineHandle.world, wallField, wall, wallDamage);
+      // A bob thrown free of the conveyor exit is a FREE body with no rope to
+      // bleed energy. The normal wall bounce MULTIPLIES speed (WALL_*_BOOST > 1),
+      // which on a ropeless bob compounds every hit until it exceeds the cage
+      // wall thickness and tunnels straight out of the field (then "escapes" and
+      // the run relaunches it back to the conveyor start). So we DON'T apply the
+      // energy-pumping bounce to it — Matter resolves the hit with the bob's own
+      // restitution (0.5), so it loses energy, settles, and stays in play.
+      const isEjectedBelt = (bobBody as any)._beltEjected === true;
+      if (!isEjectedBelt) {
+        bounceBobOffWall(bobBody, wall, shattered ? WALL_BREAK_BOOST : WALL_BOUNCE_BOOST);
+      }
       emitHit(effects, { x: bobBody.position.x, y: bobBody.position.y }, now, {
         color: shattered ? "#f87171" : "#fbbf24",
         points: 0,
-        intensity: shattered ? 1.8 : 0.9,
+        intensity: shattered ? 1.8 : isShard ? 0.55 : 0.9,
       });
       if (shattered) {
         // Flat reward for breaking a wall, on top of the ricochet impulse.
@@ -1053,7 +1187,7 @@ export default function GameCanvas() {
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
         emitManeuver(effects, bobBody.position, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
       } else {
-        playGameSound("zone-hit", { pitch: 0.7, volume: 0.4 });
+        playGameSound("zone-hit", { pitch: isShard ? 0.85 : 0.7, volume: isShard ? 0.25 : 0.4 });
       }
     }
 
@@ -1562,40 +1696,172 @@ export default function GameCanvas() {
       return 1;
     }
 
-    // belt (Mechanic Rope): a conveyor. While strung it nudges the bob toward the
-    // nearest multiplier circle within range, biased by a per-run random "route"
-    // so it doesn't always herd the same way. The shortest line in the game, run
-    // on a battery (see the durability tick) — this is the steering half.
-    function beltTick(dt: number) {
+    // Legacy belt feed for non-Mechanic-Belt ropes only.
+    // The true Mechanic Belt no longer uses payout/stress — the ride only ends
+    // when the bob naturally loses speed and grip fades.
+    function beltFeed(dt: number) {
       if (ropeBehavior?.kind !== "belt" || pendulumHandle.snapped || dt <= 0) return;
-      const radius = (ropeBehavior.beltSteerRadius ?? 360) * WORLD_SCALE;
-      const accel = ropeBehavior.beltSteerAccel ?? 0.05;
+
+      if (isBeltTunnelAttachment(attachment)) {
+        // Stress retired for Mechanic Belt. No payout accumulation.
+        return;
+      }
+
+      const payoutRate = ropeBehavior.beltPayoutRate ?? 0.07;
+      const delta = payoutRate * (dt / 1000);
+      const baseLen = attachment.length * pendulumHandle.ropeLengthScale;
+      feedBeltRope(pendulumHandle, baseLen * delta);
+    }
+
+    // Helper: reset rest pose but leave bobs that were ejected from a Mechanic Belt
+    // ride completely alone (they should keep flying as free projectiles).
+    function resetPendulumToRestExcludingEjected(handle: PendulumHandle) {
+      const originalBobs = handle.bobs;
+      handle.bobs = originalBobs.filter((b: any) => !(b as any)._beltEjected);
+      resetPendulumToRest(handle);
+      handle.bobs = originalBobs;
+    }
+
+    // belt conveyor + hard walls: the bob is completely unattached.
+    // It gets an initial kick and rides the physical tunnel. The conveyor keeps
+    // pushing as long as speed is maintained. When speed drops, grip fades and
+    // the bob transitions to bouncing inside the strict tube until the exit.
+    function beltConveyor(dt: number, now: number) {
+      if (ropeBehavior?.kind !== "belt" || !beltTunnel || pendulumHandle.snapped || dt <= 0)
+        return;
+      // Once the bob has been thrown out of the exit this run, the conveyor is
+      // done with it — never re-rail it or pull it back to the start. It stays a
+      // free projectile until the next launch (which clears beltRideEjected).
+      if (beltRideEjected) return;
+
+      const trackAccel = ropeBehavior.beltTrackAccel ?? 0.07;
+      const conveyorSpeed = (ropeBehavior.beltConveyorSpeed ?? 22) * WORLD_SCALE;
+      const lookahead = ropeBehavior.beltLookahead ?? 0.035;
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
-      let best: HitZoneHandle | null = null;
-      let bestD = radius * radius;
-      for (const h of field.zones) {
-        const dx = h.zone.position.x - tip.position.x;
-        const dy = h.zone.position.y - tip.position.y;
-        const d = dx * dx + dy * dy;
-        if (d < bestD) {
-          bestD = d;
-          best = h;
+
+      // --- Grip fade: when bob speed is low for a while, the conveyor loses its hold ---
+      const currentSpeed = Math.hypot(tip.velocity.x, tip.velocity.y);
+      const MIN_CONVEYOR_SPEED = conveyorSpeed * 0.35;
+      const LOW_SPEED_FRAMES_TO_RELEASE = 28; // ~0.45s at 60fps physics
+
+      if (currentSpeed < MIN_CONVEYOR_SPEED) {
+        beltLowSpeedFrames++;
+      } else {
+        beltLowSpeedFrames = Math.max(0, beltLowSpeedFrames - 2);
+      }
+
+      // Decay grip when stuck slow; recover quickly when moving well.
+      // Slower decay helps light bobs (wooden etc.) not feel like they
+      // "suddenly snap" off the conveyor.
+      if (beltLowSpeedFrames > LOW_SPEED_FRAMES_TO_RELEASE) {
+        beltGrip = Math.max(0, beltGrip - 0.011);
+      } else if (currentSpeed > MIN_CONVEYOR_SPEED * 1.1) {
+        beltGrip = Math.min(1, beltGrip + 0.09);
+      }
+
+      // When grip is very low, the powered conveyor has mostly failed, but we
+      // still want the physical tunnel walls to constrain the bob (user request).
+      // We switch to "degraded / loose in tunnel" mode: almost no propulsion,
+      // but full multilayer wall containment keeps the bob inside the hitbox.
+      const degraded = beltGrip < 0.18;
+      if (beltGrip < 0.04) {
+        beltGrip = 0;
+      }
+
+      // Golden Token bonus: extra speed along the conveyor while the token-bonus
+      // modifier is active. This is specific to the Mechanic Belt experience.
+      const activeMods = useGameStore.getState().activeModifiers;
+      const hasGoldenBoost = activeMods.some((m) => m.defId === "token-bonus");
+      const goldenSpeedMult = hasGoldenBoost ? 1.58 : 1.0;
+
+      const grip = beltGrip; // 0..1 multiplier on all conveyor effects
+      const effectiveGrip = degraded ? Math.min(0.09, grip) : grip;
+
+      // Advance the "head" of the conveyor ride (extra speed from Golden Token)
+      beltPathT = advanceTunnelProgress(
+        beltTunnel,
+        beltPathT,
+        tip.position.x,
+        tip.position.y,
+        conveyorSpeed * effectiveGrip * goldenSpeedMult * (dt / 1000)
+      );
+
+      // === Strict mid-line conveyor rail (constant speed following) ===
+      // The bobs are hard-locked onto the center of the generated path and step
+      // along it at a constant conveyor speed (driven by `_beltRailT`, not by
+      // velocity). At the exit they're thrown free.
+      const activeConveyorSpeed = conveyorSpeed * goldenSpeedMult * Math.max(1.5, effectiveGrip);
+
+      // Only initialize the strict rail once per conveyor activation (on launch).
+      // After bobs eject at the end, we do NOT want to automatically re-attach them
+      // to the start of the path (that was causing the infinite loop).
+      const anyOnRail = pendulumHandle.bobs.some((b: any) => typeof (b as any)._beltRailT === 'number');
+      if (!anyOnRail && !beltRailRideInitialized) {
+        // Place each bob at the path entry and put it on the rail. Position +
+        // velocity are then owned entirely by applyStrictConveyorRail (called
+        // just below this frame), so we don't apply a launch kick here — that
+        // only fed the old runaway-velocity path.
+        const entry = sampleTunnel(beltTunnel, 0);
+        for (let i = 0; i < pendulumHandle.bobs.length; i++) {
+          const bob = pendulumHandle.bobs[i];
+          // Small negative offset so a chain of bobs looks like a short train entering together
+          (bob as any)._beltRailT = -i * 0.018;
+          Matter.Body.setPosition(bob, entry);
+          Matter.Body.setVelocity(bob, { x: 0, y: 0 });
         }
+        beltPathT = 0;
+        beltRailRideInitialized = true;   // Mark that this conveyor ride has started. No more auto re-attach after ejection.
       }
-      if (!best) return;
-      // Aim a little off the direct line by the route bias so the conveyor sweeps
-      // a wandering path toward the target rather than a dead-straight pull.
-      const dx = best.zone.position.x - tip.position.x;
-      const dy = best.zone.position.y - tip.position.y;
-      const base = Math.atan2(dy, dx);
-      const aim = base + Math.sin(beltRouteAngle) * 0.5;
-      const desired = Math.hypot(tip.velocity.x, tip.velocity.y) || 6 * WORLD_SCALE;
-      for (const bob of pendulumHandle.bobs) {
-        Matter.Body.setVelocity(bob, {
-          x: bob.velocity.x + (Math.cos(aim) * desired - bob.velocity.x) * accel,
-          y: bob.velocity.y + (Math.sin(aim) * desired - bob.velocity.y) * accel,
-        });
+
+      // Apply strict center-line following + constant speed.
+      // When any bob reaches the end of the path, it is released (ejected) with its current
+      // velocity and flies freely into the field like an ejector.
+      const didEject = applyStrictConveyorRail(
+        beltTunnel,
+        pendulumHandle.bobs,
+        activeConveyorSpeed,
+        dt,
+        0.98
+      );
+
+      if (didEject) {
+        // A bob reached the conveyor exit and was flung free (position + velocity
+        // already set on it by applyStrictConveyorRail). The belt bob is a free
+        // body with no rope, so there is nothing to detach — we just latch the
+        // ejected state so beltConveyor never re-rails it, and finalize the
+        // free-projectile physics.
+        beltRideEjected = true;
+        beltEjectAt = now;
+
+        // Clamp to a strong-but-safe throw: a free body faster than the 200-thick
+        // cage wall jumps clean through it in one Matter step (no continuous
+        // collision) and vanishes. Well under that, the thrown bob ricochets and
+        // stays in play (a normal launch is ~60/step, so this still reads hard).
+        const MAX_EJECT_SPEED = 30 * WORLD_SCALE;
+        for (const b of pendulumHandle.bobs) {
+          delete (b as any)._beltRailT;
+          (b as any)._beltEjected = true;
+          const sp = Math.hypot(b.velocity.x, b.velocity.y);
+          if (sp > MAX_EJECT_SPEED) {
+            const k = MAX_EJECT_SPEED / sp;
+            Matter.Body.setVelocity(b, { x: b.velocity.x * k, y: b.velocity.y * k });
+          }
+          b.restitution = 0.5;
+          b.friction = 0.05;
+          b.frictionAir = 0.006;
+          Matter.Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.4);
+        }
+        syncEchoBobs(0);
+        playGameSound("rope-snap");
+        const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+        emitManeuver(effects, tip.position, "EJECTED!", now);
       }
+
+      // IMPORTANT: During active strict rail mode, we do NOT touch the bob with containment/walls.
+      // All behavior (position on the exact mid line + high velocity from the kick) is handled
+      // exclusively by applyStrictConveyorRail on the bob itself.
+      // This prevents anything else from fighting the strong kick and speed the bob needs.
+      // (Containment is only used in the loose/bouncy phase after the conveyor power ends.)
     }
 
     // bulwark: harden a fresh random stretch of rope (from the anchor toward the
@@ -1642,26 +1908,46 @@ export default function GameCanvas() {
       }
     }
 
-    // Black Hole map: drag every bob toward the singularity with an inverse-ish
-    // pull that strengthens near the core, and "capture" the bob when it reaches
-    // the event horizon — killing its motion and lighting Run Again so the player
-    // can relaunch from the brink.
+    // Black Hole map: drag every bob (and Breakable's shed shards) toward the
+    // singularity with an inverse-ish pull that strengthens near the core, and
+    // "capture" the tip bob when it reaches the event horizon — killing its
+    // motion and lighting Run Again so the player can relaunch from the brink.
+    // Shards that cross the core are consumed outright.
+    function blackHolePullBody(body: Matter.Body, seconds: number) {
+      if (!blackHole) return;
+      const dx = blackHole.x - body.position.x;
+      const dy = blackHole.y - body.position.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist > BLACK_HOLE_REACH) return;
+      // Falloff: gentle at the rim, fierce near the core (clamped so it never
+      // explodes into a NaN at dist→0).
+      const norm = 1 - dist / BLACK_HOLE_REACH;
+      const pull = 26 * WORLD_SCALE * (0.25 + norm * norm) * seconds;
+      Matter.Body.setVelocity(body, {
+        x: body.velocity.x + (dx / dist) * pull,
+        y: body.velocity.y + (dy / dist) * pull,
+      });
+    }
+
     function blackHoleTick(dt: number) {
       if (!blackHole || dt <= 0) return;
       const seconds = dt / 1000;
       for (const bob of getOrderedBobBodies(pendulumHandle)) {
-        const dx = blackHole.x - bob.position.x;
-        const dy = blackHole.y - bob.position.y;
-        const dist = Math.hypot(dx, dy) || 1;
-        if (dist > BLACK_HOLE_REACH) continue;
-        // Falloff: gentle at the rim, fierce near the core (clamped so it never
-        // explodes into a NaN at dist→0).
-        const norm = 1 - dist / BLACK_HOLE_REACH;
-        const pull = 26 * WORLD_SCALE * (0.25 + norm * norm) * seconds;
-        Matter.Body.setVelocity(bob, {
-          x: bob.velocity.x + (dx / dist) * pull,
-          y: bob.velocity.y + (dy / dist) * pull,
-        });
+        blackHolePullBody(bob, seconds);
+      }
+      for (const shard of shards) {
+        blackHolePullBody(shard, seconds);
+      }
+      // Consume shed pieces that reach the core.
+      for (let i = shards.length - 1; i >= 0; i--) {
+        const shard = shards[i];
+        if (
+          Math.hypot(blackHole.x - shard.position.x, blackHole.y - shard.position.y) <=
+          BLACK_HOLE_CORE_R
+        ) {
+          Matter.World.remove(engineHandle.world, shard);
+          shards.splice(i, 1);
+        }
       }
       // Capture check on the tip bob (the one the player tracks).
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
@@ -1676,6 +1962,12 @@ export default function GameCanvas() {
         // still close the run if the player doesn't relaunch).
         for (const bob of getOrderedBobBodies(pendulumHandle)) {
           Matter.Body.setVelocity(bob, { x: bob.velocity.x * 0.85, y: bob.velocity.y * 0.85 });
+        }
+        for (const shard of shards) {
+          Matter.Body.setVelocity(shard, {
+            x: shard.velocity.x * 0.85,
+            y: shard.velocity.y * 0.85,
+          });
         }
       }
     }
@@ -1739,6 +2031,9 @@ export default function GameCanvas() {
       // While snapped the bobs are free projectiles, not orbiting the pivot —
       // the angular-velocity clamp assumes an orbit and would mangle them.
       if (pendulumHandle.snapped) return;
+      // Mechanic Belt rides a conveyor tunnel — not a pivot orbit — so the
+      // angular cap would fight the path follower every step.
+      if (ropeBehavior?.kind === "belt") return;
       // Behavior bobs raise their own swing-speed ceiling (Frenzy with combo,
       // Breakable as it sheds, Chaos at random) so their speed scaling isn't
       // immediately clamped back down. behaviorCapMult is 1 for plain bobs.
@@ -1791,14 +2086,14 @@ export default function GameCanvas() {
       // small heavy bob looks distinct from a small light one.
       const bobDensity = weightScaleNow / Math.max(0.15, sizeScaleNow * sizeScaleNow);
 
+      // Conveyor feeds rope before physics reads stretch for this frame.
+      if (store.isRunning && !pendulumHandle.snapped && dt > 0) {
+        beltFeed(dt);
+      }
+
       // --- Rope durability: drain while swinging, snap at zero ---
       if (store.isRunning && !pendulumHandle.snapped && dt > 0) {
-        if (ropeBehavior?.kind === "belt") {
-          // Mechanic Rope: `durability` is a battery that drains on a fixed
-          // timer regardless of bob weight; repair drops recharge it.
-          const secs = ropeBehavior.batterySeconds ?? 12;
-          durability -= (1 / secs) * (dt / 1000);
-        } else {
+        if (ropeBehavior?.kind !== "belt") {
           // Heavier bobs (and the weight-mult modifier) wear the rope faster. A
           // Nitro (glass-cannon) bob multiplies the drain so it snaps early; the
           // Random Rope (flux) multiplies it by its churning drain factor.
@@ -1813,7 +2108,7 @@ export default function GameCanvas() {
               durabilityDrainPerSec(ropeMaterial, wearWeight) * drainMult * (dt / 1000);
           }
         }
-        if (durability <= 0) {
+        if (durability <= 0 && ropeBehavior?.kind !== "belt") {
           durability = 0;
           snappedAt = now;
           // A Ravager (hunter) keeps its momentum with no random scatter so the
@@ -1835,11 +2130,15 @@ export default function GameCanvas() {
           );
         }
       }
-      const snapped = pendulumHandle.snapped;
 
       // While snapped the rope is detached — its constraint forces and the
       // chain-bob repositioning no longer apply to the free-flying bobs.
-      if (!snapped) tickAttachmentPhysics(pendulumHandle);
+      if (!pendulumHandle.snapped) tickAttachmentPhysics(pendulumHandle);
+
+      // Stress-based snap for the Mechanic Belt has been retired.
+      // The conveyor ride now only ends naturally when grip decays (bob loses speed).
+      const snapped = pendulumHandle.snapped;
+
       if (store.isRunning && dt > 0 && !snapped) {
         const targetRampMult = getSpeedRampMultiplier(store.activeModifiers, now);
         if (targetRampMult <= 1) {
@@ -1871,7 +2170,29 @@ export default function GameCanvas() {
         // Rope behaviors: belt conveyor steering + bulwark wall cycle (both
         // self-guard to the strung phase). Black hole pull runs whole-field on
         // its map (strung and freed alike).
-        if (ropeBehavior?.kind === "belt") beltTick(dt);
+        if (ropeBehavior?.kind === "belt") beltConveyor(dt, now);
+
+        // Always keep the bob constrained inside the conveyor tunnel walls
+        // (the physical "tube" hitbox). After the conveyor snaps we switch to
+        // bouncy mode so the bob ricochets energetically off the walls instead
+        // of sliding gently.
+        if (ropeBehavior?.kind === "belt" && beltTunnel && beltTunnelWallsActive) {
+          const corridor = (ropeBehavior.beltCorridorWidth ?? 39) * WORLD_SCALE;
+          const isLoose = beltGrip < 0.22; // after conveyor snap / loose phase
+
+          // Only keep walls for bobs still on the conveyor rail.
+          // Once a bob reaches the end of the path it is ejected and should fly free.
+          const activeBobs = pendulumHandle.bobs.filter((b: any) => typeof b._beltRailT === 'number');
+
+          for (const bob of activeBobs) {
+            applyBeltTunnelContainment(beltTunnel, [bob], corridor * 0.5, {
+              restitution: isLoose ? 0.72 : 0.32,
+              bouncy: isLoose,
+              strict: isLoose,
+            });
+          }
+        }
+
         if (ropeBehavior?.kind === "bulwark") bulwarkTick(now);
         blackHoleTick(dt);
         if (reenergize) {
@@ -1919,6 +2240,13 @@ export default function GameCanvas() {
         // A snapped rig (e.g. Run Again pressed mid-finale) must be re-strung
         // before it can swing again, and the fresh run starts at full durability.
         if (pendulumHandle.snapped) restoreRope(pendulumHandle);
+        if (ropeBehavior?.kind === "belt") {
+          if (isBeltTunnelAttachment(attachment)) {
+            beltVirtualPayout = resetBeltVirtual();
+          } else {
+            resetBeltPayout(pendulumHandle);
+          }
+        }
         durability = 1;
         // Every fresh run starts against a pristine arena: rebuild any walls
         // shattered last run and top all durability back up. This runs on every
@@ -1937,12 +2265,22 @@ export default function GameCanvas() {
           spawnClearance
         );
         destroyTokenField(engineHandle.world, tokenField);
-        launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+        resetBehaviorRunState();
+        if (ropeBehavior?.kind === "belt" && beltTunnel) {
+          resetPendulumToRest(pendulumHandle);
+          beltVirtualPayout = resetBeltVirtual();
+          applyBeltLaunchKick(
+            pendulumHandle,
+            beltTunnel,
+            ropeBehavior.beltKickSpeed ?? 20
+          );
+        } else {
+          launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+        }
         store.registerSwing();
         runIdleMs = 0;
         runStallLowMs = 0;
         speedRampAppliedMult = 1;
-        resetBehaviorRunState();
         syncEchoBobs(0);
         maneuvers.reset();
         // Rocket has no launch slingshot: bleed the kick down to a seed so the
@@ -1980,11 +2318,18 @@ export default function GameCanvas() {
             // The rig is whole again — a Ravager mid-feast stops hunting.
             homingActive = false;
           }
-          // Mechanic Rope: spending a token re-rolls its conveyor route. Wall
+          // Mechanic Rope: spending a token re-rolls its tunnel route. Wall
           // Rope: the re-strung rope drops any standing wall so it re-cycles.
-          beltRouteAngle = Math.random() * Math.PI * 2;
+          rerollBeltTunnel();
           restoreBulwarkWall();
           bulwarkActive = false;
+          if (ropeBehavior?.kind === "belt") {
+          if (isBeltTunnelAttachment(attachment)) {
+            beltVirtualPayout = resetBeltVirtual();
+          } else {
+            resetBeltPayout(pendulumHandle);
+          }
+        }
           durability = 1;
           // Spending the token also resets the arena: every shattered wall is
           // rebuilt and all durability topped back up to pristine.
@@ -2004,7 +2349,46 @@ export default function GameCanvas() {
             boostedState.activeModifiers,
             boostedState.persistentBonuses
           );
-          relaunchPendulum(pendulumHandle, attachment, boostedEffects);
+          // Breakable Bob: same fresh core as a new launch — full mass, can shed
+          // again on the next zone hits (shards from before the spend are cleared).
+          if (behavior?.kind === "splitter") {
+            resetSplitterProgress();
+            const freshScales = behaviorScales();
+            setBobRadiusScale(
+              pendulumHandle,
+              boostedEffects.bobSizeMult * freshScales.size
+            );
+            setPendulumWeightScale(
+              pendulumHandle,
+              boostedEffects.weightMult * freshScales.weight
+            );
+            setRopeLengthScale(
+              pendulumHandle,
+              boostedEffects.ropeLengthMult *
+                freshScales.rope *
+                ropeBehaviorLenMult(now)
+            );
+          }
+          if (ropeBehavior?.kind === "belt" && beltTunnel) {
+            // Un-eject so a token spent after the bob was thrown out of the exit
+            // puts it back on a fresh conveyor ride from the start, then give it a
+            // much stronger launch kick along the path.
+            beltRideEjected = false;
+            beltEjectAt = 0;
+            for (const b of pendulumHandle.bobs) {
+              delete (b as any)._beltEjected;
+              delete (b as any)._beltRailT;
+            }
+            beltRailRideInitialized = false;
+            resetPendulumToRest(pendulumHandle);
+            applyBeltLaunchKick(
+              pendulumHandle,
+              beltTunnel,
+              (ropeBehavior.beltKickSpeed ?? 20) * 1.75
+            );
+          } else {
+            relaunchPendulum(pendulumHandle, attachment, boostedEffects);
+          }
           useGameStore.getState().registerSwing();
           // The pendulum is alive again — clear stall state so Run Again doesn't
           // stay falsely lit during the boost.
@@ -2065,7 +2449,16 @@ export default function GameCanvas() {
         // Run Again lights up — without this, the accelerating bobs falling
         // into the void never drop below the idle-speed threshold and the run
         // would hang forever (the wall-less Workshop relies entirely on this).
-        if (snapped) {
+        // The Mechanic Belt throws its bob free at the conveyor exit without
+        // entering the global `snapped` state, so the escape check must also
+        // close the run for an ejected belt bob that flies clear of the field
+        // (e.g. a wall-less site) — otherwise it would hang forever. Give the
+        // freshly-thrown bob a grace window first so it flies its arc / bounces
+        // around the cage instead of ending the instant it clips the margin.
+        const beltEjected = beltEjectAt > 0;
+        const beltEjectFlying =
+          beltEjected && now - beltEjectAt < BELT_EJECT_FLY_MS;
+        if ((snapped || beltEjected) && !beltEjectFlying) {
           // Escape is measured against the cage rectangle (which grows with the
           // site's cageScale), so a bob still ricocheting inside a large arena
           // isn't mistaken for one that has flown clear of the field.
@@ -2157,7 +2550,12 @@ export default function GameCanvas() {
           const t = (SETTLE_REST_THRESHOLD - maxSpeed) / SETTLE_REST_THRESHOLD;
           const alpha = 1 - Math.exp(-SETTLE_REST_RATE * t * t * (dt / 1000));
           if (alpha > 1e-4) {
+            // Skip ejected belt bobs so they aren't pulled back toward the platform
+            // while still in their ejector arc.
+            const originalBobs = pendulumHandle.bobs;
+            pendulumHandle.bobs = originalBobs.filter((b: any) => !(b as any)._beltEjected);
             settlePendulumTowardRest(pendulumHandle, alpha);
+            pendulumHandle.bobs = originalBobs;
           }
         }
         if (runIdleMs >= RUN_END_IDLE_MS) {
@@ -2189,7 +2587,10 @@ export default function GameCanvas() {
           // we can simply pin it to its rest pose every idle frame: the residual
           // constraint jitter the runner introduces between frames is overwritten
           // before it's ever rendered.
-          resetPendulumToRest(pendulumHandle);
+          //
+          // For Mechanic Belt ejector bobs, we skip the platform rest pose so they
+          // can enjoy their free-flight ejection arc instead of being yanked back.
+          resetPendulumToRestExcludingEjected(pendulumHandle);
         }
       }
 
@@ -2220,6 +2621,9 @@ export default function GameCanvas() {
         drawWalls(rc, wallField);
         drawObstacles(rc, wallField);
         drawHitZones(rc, field);
+        if (beltTunnel && ropeBehavior?.kind === "belt" && !pendulumHandle.snapped) {
+          drawBeltTunnel(rc, beltTunnel, beltPathT, now);
+        }
         drawTokens(rc, tokenField);
         const echoRender: EchoBobRender[] = [
           ...echoBobs.map((e) => ({

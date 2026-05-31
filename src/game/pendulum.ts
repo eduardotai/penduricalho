@@ -20,6 +20,16 @@ import { COLLISION, WORLD_SCALE } from "./worldConstants";
 const PIVOT_RADIUS = 8;
 const DEFAULT_BOB_RADIUS = Math.round(16 * WORLD_SCALE);
 
+/** Pendulum Line (metronome behavior): one stiff pivot→bob rod, not a segmented rope. */
+export function isRigidPendulumAttachment(attachment: AttachmentDef): boolean {
+  return attachment.behavior?.kind === "metronome";
+}
+
+/** Mechanic Belt: completely unattached bob that rides a random conveyor tunnel with walls + initial kick. */
+export function isBeltTunnelAttachment(attachment: AttachmentDef): boolean {
+  return attachment.behavior?.kind === "belt";
+}
+
 export interface PendulumHandle {
   pivot: Matter.Body;
   /** Lightweight rope nodes between anchor and the bob chain. */
@@ -92,6 +102,27 @@ function buildRopeChain(
   return prev;
 }
 
+function attachRigidRod(
+  composite: Matter.Composite,
+  pivot: Matter.Body,
+  bob: Matter.Body,
+  rodLength: number,
+  stiffness: number,
+  damping: number,
+  constraints: Matter.Constraint[]
+) {
+  const link = Matter.Constraint.create({
+    bodyA: pivot,
+    bodyB: bob,
+    length: rodLength,
+    stiffness,
+    damping,
+    label: "rope-bob",
+  });
+  Matter.Composite.add(composite, link);
+  constraints.push(link);
+}
+
 export function buildPendulum(
   world: Matter.World,
   pendulum: PendulumDef,
@@ -136,7 +167,31 @@ export function buildPendulum(
     gravityY
   );
 
-  if (extraLinks === 0) {
+  if (isBeltTunnelAttachment(attachment)) {
+    // Mechanic Belt: completely unattached free bodies. No rope, no constraints
+    // tying the bob(s) to anything. The tunnel walls + conveyor forces guide it.
+    const startY = anchor.y + 18;
+    const spacing = pendulum.bobSpacing || radius * 1.7;
+    for (let i = 0; i < pendulum.bobCount; i++) {
+      const bob = Matter.Bodies.circle(
+        anchor.x,
+        startY + i * spacing,
+        radius,
+        {
+          label: `bob-${i}`,
+          density: 0.001 * baseMass * weightScale,
+          frictionAir: 0.005,
+          restitution: 0.3,
+          collisionFilter: { category: COLLISION.BOB },
+        }
+      );
+      const mass = (i === pendulum.bobCount - 1 ? pendulum.weight : baseMass) * weightScale + attachMass;
+      Matter.Body.setMass(bob, mass);
+      Matter.Composite.add(composite, bob);
+      bobs.push(bob);
+    }
+    // ropeSegments and constraints stay empty for belt.
+  } else if (extraLinks === 0) {
     const bobLinkLen = Math.max(radius * 0.35, 4);
     const bob = Matter.Bodies.circle(
       anchor.x,
@@ -154,29 +209,41 @@ export function buildPendulum(
     Matter.Composite.add(composite, bob);
     bobs.push(bob);
 
-    const ropeTail = buildRopeChain(
-      composite,
-      pivot,
-      anchor,
-      attachment.length,
-      ropeMaterial,
-      ropeNodeMass,
-      stiffness,
-      damping,
-      constraints,
-      ropeSegments
-    );
+    if (isRigidPendulumAttachment(attachment)) {
+      attachRigidRod(
+        composite,
+        pivot,
+        bob,
+        attachment.length + bobLinkLen,
+        stiffness,
+        damping,
+        constraints
+      );
+    } else {
+      const ropeTail = buildRopeChain(
+        composite,
+        pivot,
+        anchor,
+        attachment.length,
+        ropeMaterial,
+        ropeNodeMass,
+        stiffness,
+        damping,
+        constraints,
+        ropeSegments
+      );
 
-    const bobLink = Matter.Constraint.create({
-      bodyA: ropeTail,
-      bodyB: bob,
-      length: bobLinkLen,
-      stiffness: Math.min(1, stiffness + 0.05),
-      damping,
-      label: "rope-bob",
-    });
-    Matter.Composite.add(composite, bobLink);
-    constraints.push(bobLink);
+      const bobLink = Matter.Constraint.create({
+        bodyA: ropeTail,
+        bodyB: bob,
+        length: bobLinkLen,
+        stiffness: Math.min(1, stiffness + 0.05),
+        damping,
+        label: "rope-bob",
+      });
+      Matter.Composite.add(composite, bobLink);
+      constraints.push(bobLink);
+    }
   } else {
     const chainLen = pendulum.bobSpacing * extraLinks;
     const totalRopeLength = attachment.length + chainLen;
@@ -210,30 +277,42 @@ export function buildPendulum(
     bobs.push(tipBob);
 
     const bobLinkLen = Math.max(radius * 0.35, 4);
-    const ropeTail = buildRopeChain(
-      composite,
-      pivot,
-      anchor,
-      totalRopeLength,
-      ropeMaterial,
-      ropeNodeMass,
-      stiffness,
-      damping,
-      constraints,
-      ropeSegments,
-      extraLinks
-    );
+    if (isRigidPendulumAttachment(attachment)) {
+      attachRigidRod(
+        composite,
+        pivot,
+        tipBob,
+        totalRopeLength + bobLinkLen,
+        stiffness,
+        damping,
+        constraints
+      );
+    } else {
+      const ropeTail = buildRopeChain(
+        composite,
+        pivot,
+        anchor,
+        totalRopeLength,
+        ropeMaterial,
+        ropeNodeMass,
+        stiffness,
+        damping,
+        constraints,
+        ropeSegments,
+        extraLinks
+      );
 
-    const tipLink = Matter.Constraint.create({
-      bodyA: ropeTail,
-      bodyB: tipBob,
-      length: bobLinkLen,
-      stiffness: Math.min(1, stiffness + 0.05),
-      damping,
-      label: "rope-bob",
-    });
-    Matter.Composite.add(composite, tipLink);
-    constraints.push(tipLink);
+      const tipLink = Matter.Constraint.create({
+        bodyA: ropeTail,
+        bodyB: tipBob,
+        length: bobLinkLen,
+        stiffness: Math.min(1, stiffness + 0.05),
+        damping,
+        label: "rope-bob",
+      });
+      Matter.Composite.add(composite, tipLink);
+      constraints.push(tipLink);
+    }
   }
 
   Matter.World.add(world, composite);
@@ -525,6 +604,12 @@ export function syncAttachmentConstraintPhysics(
 }
 
 export function tickAttachmentPhysics(handle: PendulumHandle) {
+  if (isBeltTunnelAttachment(handle.attachment)) {
+    // Belt has no rope and no attachment constraint — physics are driven purely
+    // by the tunnel walls + conveyor velocity forces (or free flight when grip=0).
+    return;
+  }
+
   if (handle.ropeSegments.length > 0) {
     applyRopeMaterialForces(
       handle.ropeSegments,
@@ -594,7 +679,9 @@ export function setRopeLengthScale(handle: PendulumHandle, targetScale: number) 
 
   const link = getMainAttachmentConstraint(handle);
   if (link) {
-    link.length = Math.max(getEffectiveBobRadius(handle) * 0.35, 4);
+    const bobLinkLen = Math.max(getEffectiveBobRadius(handle) * 0.35, 4);
+    // Rigid pendulum rods hold the full reach on the single pivot→bob constraint.
+    link.length = segCount === 0 ? totalRopeLen + bobLinkLen : bobLinkLen;
     handle.physics.restLength = totalRopeLen;
     syncAttachmentConstraintPhysics(
       handle,
@@ -652,8 +739,89 @@ export function resetPendulumToRest(handle: PendulumHandle) {
   }
 
   positionChainBobs(handle);
+  syncRopeConstraintLengths(handle);
   handle.physics.stretchRatio = 1;
   handle.ropePhysics.stretchRatio = 1;
+}
+
+/** Reset every rope link's constraint target to its nominal rest length. */
+export function syncRopeConstraintLengths(handle: PendulumHandle) {
+  for (const c of handle.constraints) {
+    if (!/^rope-\d+$/.test(c.label ?? "")) continue;
+    const rest = handle.ropePhysics.restLengths.get(c);
+    if (rest != null) c.length = rest;
+  }
+}
+
+/**
+ * Conveyor payout — extend rope link targets from the anchor without updating
+ * `restLengths`, so strain accumulates until the line snaps from stress.
+ */
+export function feedBeltRope(handle: PendulumHandle, feedDelta: number) {
+  if (feedDelta <= 0) return;
+  const ropeLinks = handle.constraints.filter((c) => /^rope-\d+$/.test(c.label ?? ""));
+  if (ropeLinks.length === 0) return;
+  const perSeg = feedDelta / ropeLinks.length;
+  for (const c of ropeLinks) {
+    c.length = (c.length ?? 1) + perSeg;
+  }
+}
+
+/** Reel paid-out slack back toward nominal rest lengths (repair pickup). */
+export function reelBeltRope(handle: PendulumHandle, fraction: number) {
+  const t = Math.max(0, Math.min(1, fraction));
+  if (t <= 0) return;
+  for (const c of handle.constraints) {
+    if (!/^rope-\d+$/.test(c.label ?? "")) continue;
+    const rest = handle.ropePhysics.restLengths.get(c) ?? c.length ?? 1;
+    const cur = c.length ?? rest;
+    c.length = rest + (cur - rest) * (1 - t);
+  }
+}
+
+/**
+ * How far the conveyor has paid out relative to nominal rest length (1 = none).
+ * Uses constraint targets, not momentary swing stretch, so launch kicks don't
+ * false-trigger a stress snap.
+ */
+export function beltPayoutRatio(handle: PendulumHandle): number {
+  let max = 1;
+  for (const c of handle.constraints) {
+    if (!/^rope-\d+$/.test(c.label ?? "")) continue;
+    const rest = handle.ropePhysics.restLengths.get(c) ?? c.length ?? 1;
+    const target = c.length ?? rest;
+    max = Math.max(max, target / Math.max(1, rest));
+  }
+  return max;
+}
+
+/** Clear conveyor payout and stretch readouts — call on launch / token spend. */
+export function resetBeltPayout(handle: PendulumHandle) {
+  syncRopeConstraintLengths(handle);
+  handle.physics.stretchRatio = 1;
+  handle.ropePhysics.stretchRatio = 1;
+}
+
+// --- Virtual (no-rope) versions for Mechanic Belt, where the bob is fully detached ---
+
+export function feedBeltVirtual(currentPayout: number, feedDelta: number, maxPayout: number): number {
+  if (feedDelta <= 0) return currentPayout;
+  return Math.min(maxPayout, currentPayout + feedDelta);
+}
+
+export function reelBeltVirtual(currentPayout: number, fraction: number): number {
+  const t = Math.max(0, Math.min(1, fraction));
+  if (t <= 0) return currentPayout;
+  const nominal = 1;
+  return nominal + (currentPayout - nominal) * (1 - t);
+}
+
+export function beltVirtualPayoutRatio(currentPayout: number): number {
+  return Math.max(1, currentPayout);
+}
+
+export function resetBeltVirtual(): number {
+  return 1;
 }
 
 /**

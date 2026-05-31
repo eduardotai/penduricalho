@@ -166,13 +166,14 @@ export interface AttachmentBonuses {
  * and steering). One behavior per rope.
  *   "flux"      — Random Rope: every stat (effective length + durability drain
  *                 speed) churns through the run, mirroring the Chaos bob.
- *   "metronome" — Pendulum Rope: its length oscillates sinusoidally, so the rig
- *                 pumps in and out like a variable-length pendulum on its own.
- *   "belt"      — Mechanic Rope: runs on a battery instead of durability —
- *                 repair drops recharge it, and it snaps when the battery dies.
- *                 The shortest rope in the game; while strung it conveyor-steers
- *                 the bob toward nearby circles along a route re-rolled each run
- *                 (and on every spent token).
+ *   "metronome" — Pendulum Rope: a rigid pivot→bob rod (not a segmented rope) whose
+ *                 length oscillates sinusoidally, pumping a classic pendulum swing.
+ *   "belt"      — Mechanic Rope: a real conveyor — while the run lasts it feeds
+ *                 rope off the anchor, stretching the line until stress snaps it.
+ *                 Repair drops reel slack back in. The shortest rope in the game;
+ *                 while strung the bob rides a random tunnel path (re-rolled each
+ *                 run and on every spent token) with an initial kick and conveyor
+ *                 carry along the route instead of pivot-spin steering.
  *   "bulwark"   — Wall Rope: every half-second it hardens a random stretch from
  *                 the anchor toward the bob into a rigid "wall"; it can't pick up
  *                 repair drops, but when the bob whips hard enough to break the
@@ -194,14 +195,22 @@ export interface RopeBehavior {
   /** Length oscillation amplitude as a ± fraction of base length. */
   swingDepth?: number;
   // --- belt (Mechanic Rope) ---
-  /** Seconds for a full battery to drain to empty (the snap trigger). */
-  batterySeconds?: number;
-  /** Battery refilled per repair drop, as a 0..1 fraction. */
-  batteryRecharge?: number;
-  /** Steering acceleration toward the nearest in-range circle (0..1 / step). */
-  beltSteerAccel?: number;
-  /** Only conveyor toward circles within this range of the bob (world units). */
-  beltSteerRadius?: number;
+  /** Base rope length paid out per second (fraction of nominal length). */
+  beltPayoutRate?: number;
+  /** Slack reeled in per repair drop (0..1 fraction of current overhang). */
+  beltReelFraction?: number;
+  /** Base conveyor speed along the tunnel (world units / sec). */
+  beltConveyorSpeed?: number;
+  /** How hard the bob is pulled back onto the tunnel centerline (0..1 / step). */
+  beltTrackAccel?: number;
+  /** Lookahead along the path as a fraction of total tunnel length. */
+  beltLookahead?: number;
+  /** Initial launch kick along the tunnel tangent (world units / step). */
+  beltKickSpeed?: number;
+  /** Corridor half-width for hard wall containment on the conveyor tunnel (world units). */
+  beltCorridorWidth?: number;
+  /** Waypoints in the randomly generated tunnel route. */
+  beltWaypointCount?: number;
   // --- bulwark (Wall Rope) ---
   /** How often the wall re-hardens over a fresh random stretch (ms). */
   wallIntervalMs?: number;

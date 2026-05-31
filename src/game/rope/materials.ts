@@ -87,11 +87,16 @@ const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
   // flux: a mid-tier base — its drain is then churned up and down by the Random
   // Rope behavior, so the effective lifespan swings around this number.
   "flux-cord": { stiffness: 0.88, damping: 0.024, maxStretchRatio: 1.1, durabilitySeconds: 15 },
-  // metronome: a touch stretchy so the sinusoidal length pump reads clearly.
-  "pendulum-line": { stiffness: 0.86, damping: 0.02, maxStretchRatio: 1.12, durabilitySeconds: 17 },
-  // belt: the shortest, snappiest line; runs on a battery (not weight-based
-  // durability), so durabilitySeconds is only a fallback if the battery code is
-  // ever bypassed. Kept low to match its small, frantic arc.
+  // metronome (Pendulum Line): rigid rod — no rope segments; length oscillation is
+  // driven by the metronome behavior, not stretchy links.
+  "pendulum-line": {
+    segmentSpacing: 9999,
+    stiffness: 1,
+    damping: 0.004,
+    maxStretchRatio: 1.001,
+    durabilitySeconds: 17,
+  },
+  // belt (legacy): conveyor payout/stress system (retired for the modern Mechanic Belt).
   "mechanic-belt": { segmentSpacing: 18, stiffness: 0.93, damping: 0.03, maxStretchRatio: 1.05, durabilitySeconds: 8 },
   // bulwark: stout, low-stretch weave — the hardening "wall" wants a stiff line.
   "bulwark-weave": { segmentSpacing: 30, stiffness: 0.9, damping: 0.022, maxStretchRatio: 1.03, durabilitySeconds: 20 },

@@ -11,6 +11,9 @@ import { getShakeOffset } from "./effects";
 import { drawBobSkinArt } from "./bobSkinArt";
 import { clipBobShape, fillBobShape, strokeBobShape } from "./bobShapePath";
 import { shadeColor, withAlpha } from "./bobRenderUtils";
+import type { BeltTunnelPath } from "./beltTunnel";
+import { sampleTunnel, sampleTunnelTangent } from "./beltTunnel";
+import { WORLD_SCALE } from "./worldConstants";
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
@@ -485,6 +488,7 @@ export function drawPendulum(
   const pivot = handle.pivot.position;
   const defaultRadius = getEffectiveBobRadius(handle);
   const snapped = handle.snapped;
+  const isBeltConveyor = attachment.behavior?.kind === "belt";
 
   // The rope frays, thins, and reddens as durability drains. Near zero it
   // shimmers a danger pulse; once snapped the broken line dangles slack.
@@ -499,86 +503,94 @@ export function drawPendulum(
       : 1;
 
   rc.ctx.save();
-  rc.ctx.globalAlpha = snapped ? 0.4 : dangerShimmer;
-  rc.ctx.strokeStyle = ropeColor;
-  rc.ctx.lineWidth = ropeWidth;
-  rc.ctx.lineCap = "round";
-  rc.ctx.lineJoin = "round";
 
-  rc.ctx.beginPath();
-  rc.ctx.moveTo(pivot.x, pivot.y);
-  let drewSegment = false;
-  for (const node of handle.ropeSegments ?? []) {
-    if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
-    rc.ctx.lineTo(node.position.x, node.position.y);
-    drewSegment = true;
-  }
-  // While snapped the bob chain has torn free of the rope — only the dangling
-  // line from the pivot is still drawn, never a line out to the flying bobs.
-  if (!snapped) {
-    if (handle.chainBobs.length > 0) {
-      // Rope nodes already span the chain — only the short link to the tip remains.
-      const tip = handle.bobs[handle.bobs.length - 1];
-      if (tip && Number.isFinite(tip.position.x) && Number.isFinite(tip.position.y)) {
-        rc.ctx.lineTo(tip.position.x, tip.position.y);
-        drewSegment = true;
-      }
-    } else {
-      for (const bob of ordered) {
-        if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
-        rc.ctx.lineTo(bob.position.x, bob.position.y);
-        drewSegment = true;
-      }
-    }
-  }
-  if (drewSegment) rc.ctx.stroke();
-  rc.ctx.globalAlpha = 1;
-
-  // Loose frayed strands branch off the rope as it nears failure.
-  if (!snapped && dur < 0.35) {
-    drawRopeFray(rc, handle, ropeColor, ropeWidth, dur);
-  }
-
-  // Chain bobs sit on the rope polyline — draw a small crimp so they read as attached.
-  if (!snapped && handle.chainBobs.length > 0) {
-    rc.ctx.save();
+  // Mechanic Belt (conveyor tunnel): no rope exists visually. The bob receives
+  // an initial kick along a random winding tunnel path and rides it via conveyor
+  // behavior. Only the tunnel (drawn earlier in the frame) + bobs are shown.
+  if (!isBeltConveyor) {
+    rc.ctx.globalAlpha = snapped ? 0.4 : dangerShimmer;
     rc.ctx.strokeStyle = ropeColor;
-    rc.ctx.lineWidth = Math.max(2, attachmentLineWidth(attachment, stretch) * 0.85);
+    rc.ctx.lineWidth = ropeWidth;
     rc.ctx.lineCap = "round";
-    for (const bob of handle.chainBobs) {
-      if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
-      const r = bob.circleRadius ?? defaultRadius;
-      const inset = r * 0.42;
-      const ax = bob.position.x - Math.cos(bob.angle) * inset;
-      const ay = bob.position.y - Math.sin(bob.angle) * inset;
-      rc.ctx.beginPath();
-      rc.ctx.moveTo(ax, ay);
-      rc.ctx.lineTo(bob.position.x, bob.position.y);
-      rc.ctx.stroke();
-    }
-    rc.ctx.restore();
-  }
+    rc.ctx.lineJoin = "round";
 
-  for (const node of handle.ropeSegments ?? []) {
-    if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
-    const r = node.circleRadius ?? 3.5;
-    rc.ctx.fillStyle = ropeColor;
-    rc.ctx.globalAlpha = snapped ? 0.3 : 0.65;
     rc.ctx.beginPath();
-    rc.ctx.arc(node.position.x, node.position.y, r, 0, Math.PI * 2);
-    rc.ctx.fill();
+    rc.ctx.moveTo(pivot.x, pivot.y);
+    let drewSegment = false;
+    for (const node of handle.ropeSegments ?? []) {
+      if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
+      rc.ctx.lineTo(node.position.x, node.position.y);
+      drewSegment = true;
+    }
+    // While snapped the bob chain has torn free of the rope — only the dangling
+    // line from the pivot is still drawn, never a line out to the flying bobs.
+    if (!snapped) {
+      if (handle.chainBobs.length > 0) {
+        // Rope nodes already span the chain — only the short link to the tip remains.
+        const tip = handle.bobs[handle.bobs.length - 1];
+        if (tip && Number.isFinite(tip.position.x) && Number.isFinite(tip.position.y)) {
+          rc.ctx.lineTo(tip.position.x, tip.position.y);
+          drewSegment = true;
+        }
+      } else {
+        for (const bob of ordered) {
+          if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
+          rc.ctx.lineTo(bob.position.x, bob.position.y);
+          drewSegment = true;
+        }
+      }
+    }
+    if (drewSegment) rc.ctx.stroke();
     rc.ctx.globalAlpha = 1;
+
+    // Loose frayed strands branch off the rope as it nears failure.
+    if (!snapped && dur < 0.35) {
+      drawRopeFray(rc, handle, ropeColor, ropeWidth, dur);
+    }
+
+    // Chain bobs sit on the rope polyline — draw a small crimp so they read as attached.
+    if (!snapped && handle.chainBobs.length > 0) {
+      rc.ctx.save();
+      rc.ctx.strokeStyle = ropeColor;
+      rc.ctx.lineWidth = Math.max(2, attachmentLineWidth(attachment, stretch) * 0.85);
+      rc.ctx.lineCap = "round";
+      for (const bob of handle.chainBobs) {
+        if (!Number.isFinite(bob.position.x) || !Number.isFinite(bob.position.y)) continue;
+        const r = bob.circleRadius ?? defaultRadius;
+        const inset = r * 0.42;
+        const ax = bob.position.x - Math.cos(bob.angle) * inset;
+        const ay = bob.position.y - Math.sin(bob.angle) * inset;
+        rc.ctx.beginPath();
+        rc.ctx.moveTo(ax, ay);
+        rc.ctx.lineTo(bob.position.x, bob.position.y);
+        rc.ctx.stroke();
+      }
+      rc.ctx.restore();
+    }
+
+    for (const node of handle.ropeSegments ?? []) {
+      if (!Number.isFinite(node.position.x) || !Number.isFinite(node.position.y)) continue;
+      const r = node.circleRadius ?? 3.5;
+      rc.ctx.fillStyle = ropeColor;
+      rc.ctx.globalAlpha = snapped ? 0.3 : 0.65;
+      rc.ctx.beginPath();
+      rc.ctx.arc(node.position.x, node.position.y, r, 0, Math.PI * 2);
+      rc.ctx.fill();
+      rc.ctx.globalAlpha = 1;
+    }
+
+    // Rope pivot indicator dot.
+    rc.ctx.fillStyle = "#94a3b8";
+    rc.ctx.beginPath();
+    rc.ctx.arc(pivot.x, pivot.y, 7, 0, Math.PI * 2);
+    rc.ctx.fill();
+    rc.ctx.fillStyle = "#1e293b";
+    rc.ctx.beginPath();
+    rc.ctx.arc(pivot.x, pivot.y, 3, 0, Math.PI * 2);
+    rc.ctx.fill();
   }
 
-  rc.ctx.fillStyle = "#94a3b8";
-  rc.ctx.beginPath();
-  rc.ctx.arc(pivot.x, pivot.y, 7, 0, Math.PI * 2);
-  rc.ctx.fill();
-  rc.ctx.fillStyle = "#1e293b";
-  rc.ctx.beginPath();
-  rc.ctx.arc(pivot.x, pivot.y, 3, 0, Math.PI * 2);
-  rc.ctx.fill();
-
+  // Bobs are always drawn (they ride the tunnel for Mechanic Belt).
   for (const bob of ordered) {
     const bx = bob.position.x;
     const by = bob.position.y;
@@ -904,6 +916,89 @@ function traceStar(
     else ctx.lineTo(px, py);
   }
   ctx.closePath();
+}
+
+/** Draw the Mechanic Belt tunnel — center rail plus soft corridor edges. */
+export function drawBeltTunnel(
+  rc: RenderContext,
+  path: BeltTunnelPath,
+  progressT: number,
+  now: number
+) {
+  const { ctx } = rc;
+  const corridor = 42 * WORLD_SCALE;
+  const pulse = 0.55 + 0.15 * Math.sin(now * 0.004);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Corridor edges sampled along the path. Much more visible now.
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    const steps = 80;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const p = sampleTunnel(path, t);
+      const tan = sampleTunnelTangent(path, t);
+      const nx = -tan.y * side;
+      const ny = tan.x * side;
+      const px = p.x + nx * corridor;
+      const py = p.y + ny * corridor;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = withAlpha("#fbbf24", 0.38 * pulse);
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+  }
+
+  // Center rail — much brighter and more prominent (the actual path the bob rides).
+  // Draw a solid underpass first for better pop, then the dashed line on top.
+  ctx.beginPath();
+  const steps = 100;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const p = sampleTunnel(path, t);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.strokeStyle = withAlpha("#fef08c", 0.65 * pulse);
+  ctx.lineWidth = 4.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const p = sampleTunnel(path, t);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.strokeStyle = withAlpha("#fcd34d", 0.92 * pulse);
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([10, 14]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Progress marker — chevron at current conveyor head.
+  const head = sampleTunnel(path, progressT);
+  const tan = sampleTunnelTangent(path, progressT);
+  const chev = 16 * WORLD_SCALE;
+  ctx.beginPath();
+  ctx.moveTo(head.x + tan.x * chev, head.y + tan.y * chev);
+  ctx.lineTo(
+    head.x - tan.x * chev * 0.4 + tan.y * chev * 0.55,
+    head.y - tan.y * chev * 0.4 - tan.x * chev * 0.55
+  );
+  ctx.lineTo(
+    head.x - tan.x * chev * 0.4 - tan.y * chev * 0.55,
+    head.y - tan.y * chev * 0.4 + tan.x * chev * 0.55
+  );
+  ctx.closePath();
+  ctx.fillStyle = withAlpha("#fde68a", 0.85);
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function tokenGlyph(kind: string): string {

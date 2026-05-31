@@ -113,7 +113,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     id: "mechanic-belt",
     name: "Mechanic Belt",
     description:
-      "Shortest line in the game. Runs on a battery — repair drops recharge it, and it conveyor-steers the bob toward nearby circles along a route that re-rolls each run.",
+      "A winding conveyor tunnel with solid walls. Each run rolls a fresh random path; the bob gets a strong initial kick and rides inside the physical tunnel (it cannot go through the sides). The conveyor pushes it forward as long as you keep its speed up — when the bob slows too much, grip fades and it transitions to bouncing inside the strict tube until the exit. Repair drops refuel grip and give a short speed boost. No rope ever attaches.",
     type: "rope",
     length: L(50),
     stiffness: 0.93,
@@ -123,10 +123,14 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     unlock: { stat: "totalHits", gte: 60 },
     behavior: {
       kind: "belt",
-      batterySeconds: 12,
-      batteryRecharge: 0.4,
-      beltSteerAccel: 0.05,
-      beltSteerRadius: 360,
+      beltPayoutRate: 0.018,
+      beltReelFraction: 0.82,
+      beltConveyorSpeed: 280,  // EXTREMELY high so the bob blasts through the entire conveyor path in just a couple seconds
+      beltTrackAccel: 0.07,
+      beltLookahead: 0.035,
+      beltKickSpeed: 320,      // INSANE initial kick directly to the BOB at entry so it shoots onto the path with ridiculous speed
+      beltCorridorWidth: 39,     // generous multilayer "second floor" hitbox
+      beltWaypointCount: 9,
     },
   },
   {
@@ -151,7 +155,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     id: "pendulum-line",
     name: "Pendulum Line",
     description:
-      "Pumps itself. Its length swings in and out on a steady beat, driving a self-sustaining pendulum motion.",
+      "A rigid pendulum rod. Its length swings in and out on a steady beat, driving a true pendulum arc — not a flexible rope.",
     type: "rope",
     length: L(250),
     stiffness: 0.86,

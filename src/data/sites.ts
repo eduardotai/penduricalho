@@ -83,7 +83,7 @@ export const SITES: SiteDef[] = [
     hitZoneRadius: [18, 30],
     background: "black-hole",
     walls: "solid",
-    cageScale: 1,
+    cageScale: 1.45,
     blackHole: true,
     cost: 32000,
     unlock: { stat: "totalMomentum", gte: 32000 },

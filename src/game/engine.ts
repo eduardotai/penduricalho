@@ -60,7 +60,7 @@ export interface BoundaryWall {
   side: WallSide;
   /** Inward unit normal — the direction that pushes a bob back into the field. */
   normal: { x: number; y: number };
-  /** Remaining hits before a breakable wall shatters. */
+  /** Remaining durability before a breakable wall shatters (may be fractional). */
   hp: number;
   /** Full durability for this wall — scales with the rig's bob weight. */
   maxHp: number;
@@ -259,16 +259,18 @@ export function findWallByBody(
 }
 
 /**
- * Land one hit on a breakable wall. Returns true if the wall shattered (and was
+ * Land damage on a breakable wall. Returns true if the wall shattered (and was
  * removed from the world). No-op on solid/none fields or an already-broken wall.
+ * `amount` defaults to 1 (a full bob slam); shed shards pass a smaller fraction.
  */
 export function damageWall(
   world: Matter.World,
   field: WallField,
-  wall: BoundaryWall
+  wall: BoundaryWall,
+  amount = 1
 ): boolean {
   if (!field.breakable || wall.broken) return false;
-  wall.hp -= 1;
+  wall.hp -= amount;
   if (wall.hp > 0) return false;
   wall.broken = true;
   Matter.World.remove(world, wall.body);
