@@ -27,6 +27,7 @@ import {
   CAMERA_PAN_Y_DEFAULT,
   CAMERA_ZOOM_DEFAULT,
 } from "../game/worldConstants";
+import { DEFAULT_LANG, type Lang } from "../i18n/lang";
 
 interface Owned {
   pendulums: string[];
@@ -103,6 +104,21 @@ export interface GameState {
   audio: AudioSettingsSnapshot;
   autoRun: boolean;
   autoToken: boolean;
+  // Active UI language. Persisted so the player's choice survives reloads.
+  language: Lang;
+  // --- Idle / background accrual ---------------------------------------------
+  // Smoothed Momentum-per-second earned during live foreground play (an EMA fed
+  // by the idle engine). Drives how much the pendulum "earns" while the tab is
+  // hidden or the page is closed. Persisted so the rate survives a reload.
+  idleRatePerSec: number;
+  // Wall-clock (Date.now) timestamp the idle engine last reconciled. The gap
+  // between this and "now" on the next reconcile is the time to credit (capped
+  // only by reality — earnings are uncapped per the chosen design). Persisted
+  // so offline progress can be granted across full page reloads.
+  lastActiveAt: number;
+  // Transient one-shot payload for the "while you were away" toast. Never
+  // persisted; `seq` bumps each time so the UI can re-trigger the banner.
+  lastIdleReport: { momentum: number; ms: number; seq: number } | null;
 
   addMomentum: (n: number) => void;
   registerHit: (points: number, now: number) => void;
@@ -154,6 +170,7 @@ export interface GameState {
   resetDisplaySettings: () => void;
   toggleAutoRun: () => void;
   toggleAutoToken: () => void;
+  setLanguage: (lang: Lang) => void;
   setAudioMasterVolume: (volume: number) => void;
   setAudioSfxVolume: (volume: number) => void;
   setAudioUiVolume: (volume: number) => void;
@@ -162,6 +179,14 @@ export interface GameState {
   toggleAudioMuted: () => void;
   setAudioMusicEnabled: (enabled: boolean) => void;
   setAudioAmbientEnabled: (enabled: boolean) => void;
+  // Idle engine hooks (see state/idleEngine.ts):
+  // Replace the smoothed earn rate (Momentum/sec) used for background accrual.
+  setIdleRate: (ratePerSec: number) => void;
+  // Anchor the offline clock to `now` without crediting anything.
+  touchActive: (now: number) => void;
+  // Credit `amount` Momentum earned while idle and re-anchor the clock. When
+  // `reportMs > 0` also raises a "while you were away" toast for that span.
+  applyIdleEarnings: (amount: number, reportMs: number) => void;
   reset: () => void;
 }
 
@@ -390,6 +415,10 @@ export const useGameStore = create<GameState>()(
       audio: { ...DEFAULT_AUDIO_SETTINGS },
       autoRun: false,
       autoToken: false,
+      language: DEFAULT_LANG,
+      idleRatePerSec: 0,
+      lastActiveAt: 0,
+      lastIdleReport: null,
 
       addMomentum: (n) =>
         set((s) => ({
@@ -760,6 +789,8 @@ export const useGameStore = create<GameState>()(
       toggleAutoRun: () => set((s) => ({ autoRun: !s.autoRun })),
       toggleAutoToken: () => set((s) => ({ autoToken: !s.autoToken })),
 
+      setLanguage: (lang) => set({ language: lang }),
+
       setAudioMasterVolume: (volume) =>
         set((s) => ({
           audio: { ...s.audio, masterVolume: clampVolume(volume) },
@@ -792,6 +823,34 @@ export const useGameStore = create<GameState>()(
       setAudioAmbientEnabled: (enabled) =>
         set((s) => ({ audio: { ...s.audio, ambientEnabled: enabled } })),
 
+      setIdleRate: (ratePerSec) =>
+        set({ idleRatePerSec: Math.max(0, ratePerSec) }),
+
+      touchActive: (now) => set({ lastActiveAt: now }),
+
+      applyIdleEarnings: (amount, reportMs) =>
+        set((s) => {
+          const gain = Math.max(0, Math.floor(amount));
+          const next: Partial<GameState> = { lastActiveAt: Date.now() };
+          if (gain > 0) {
+            next.momentum = s.momentum + gain;
+            // Crediting mid-run keeps the run's tally honest with the bank.
+            next.runMomentum = s.isRunning ? s.runMomentum + gain : s.runMomentum;
+            next.stats = {
+              ...s.stats,
+              totalMomentum: s.stats.totalMomentum + gain,
+            };
+          }
+          if (reportMs > 0 && gain > 0) {
+            next.lastIdleReport = {
+              momentum: gain,
+              ms: reportMs,
+              seq: (s.lastIdleReport?.seq ?? 0) + 1,
+            };
+          }
+          return next;
+        }),
+
       reset: () =>
         set({
           momentum: 0,
@@ -818,11 +877,14 @@ export const useGameStore = create<GameState>()(
           cameraPanX: CAMERA_PAN_X_DEFAULT,
           cameraPanY: CAMERA_PAN_Y_DEFAULT,
           audio: { ...DEFAULT_AUDIO_SETTINGS },
+          idleRatePerSec: 0,
+          lastActiveAt: 0,
+          lastIdleReport: null,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 17,
+      version: 19,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
@@ -934,6 +996,16 @@ export const useGameStore = create<GameState>()(
           // site if it pointed at one.
           return normalizeCosmeticState({ ...state, audio: mergedAudio });
         }
+        if (version < 18) {
+          // Idle/background accrual fields added — they default safely via the
+          // merge with current state, so this is a pass-through.
+          return normalizeCosmeticState({ ...state, audio: mergedAudio });
+        }
+        if (version < 19) {
+          // UI `language` field added — defaults safely via the merge with the
+          // current state, so this is a pass-through.
+          return normalizeCosmeticState({ ...state, audio: mergedAudio });
+        }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },
       merge: (persistedState, currentState) => {
@@ -965,6 +1037,11 @@ export const useGameStore = create<GameState>()(
         cameraZoom: state.cameraZoom,
         autoRun: state.autoRun,
         autoToken: state.autoToken,
+        language: state.language,
+        // Idle accrual: keep the earn rate and the offline clock across reloads
+        // so progress can be granted for time the page was fully closed.
+        idleRatePerSec: state.idleRatePerSec,
+        lastActiveAt: state.lastActiveAt,
       }),
     }
   )

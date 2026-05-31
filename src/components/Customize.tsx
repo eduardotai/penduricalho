@@ -14,6 +14,8 @@ import {
   formatStretchBudget,
   getMaterialProfile,
 } from "../game/attachmentPhysics";
+import { useT, useLang, locName, locDesc, type Lang } from "../i18n";
+import type { UIStrings } from "../i18n/strings";
 import type {
   AttachmentDef,
   BobShapeDef,
@@ -27,22 +29,23 @@ import type {
 
 type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "stats";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "pendulum", label: "Bobs" },
-  { id: "attachment", label: "Ropes" },
-  { id: "site", label: "Sites" },
-  { id: "skin", label: "Bob Skins" },
-  { id: "shape", label: "Bob Shapes" },
-  { id: "stats", label: "Stats" },
-];
-
 interface CustomizeProps {
   open: boolean;
   onClose: () => void;
 }
 
 export default function Customize({ open, onClose }: CustomizeProps) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("pendulum");
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "pendulum", label: t.customize.tabPendulum },
+    { id: "attachment", label: t.customize.tabAttachment },
+    { id: "site", label: t.customize.tabSite },
+    { id: "skin", label: t.customize.tabSkin },
+    { id: "shape", label: t.customize.tabShape },
+    { id: "stats", label: t.customize.tabStats },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -67,9 +70,9 @@ export default function Customize({ open, onClose }: CustomizeProps) {
       >
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">Shop</h2>
+            <h2 className="font-display text-xl font-bold text-slate-100">{t.customize.shopTitle}</h2>
             <p className="text-xs text-slate-400">
-              Equip what you own and unlock more with momentum.
+              {t.customize.shopSubtitle}
             </p>
           </div>
           <MomentumBadge />
@@ -77,22 +80,22 @@ export default function Customize({ open, onClose }: CustomizeProps) {
             onClick={onClose}
             className="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
           >
-            Close
+            {t.customize.close}
           </button>
         </header>
 
         <nav className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-slate-800 px-3 py-2">
-          {TABS.map((t) => (
+          {tabs.map((tabDef) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tabDef.id}
+              onClick={() => setTab(tabDef.id)}
               className={`shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                tab === t.id
+                tab === tabDef.id
                   ? "bg-brand-600 text-white"
                   : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
               }`}
             >
-              {t.label}
+              {tabDef.label}
             </button>
           ))}
         </nav>
@@ -111,11 +114,12 @@ export default function Customize({ open, onClose }: CustomizeProps) {
 }
 
 function MomentumBadge() {
+  const t = useT();
   const momentum = useGameStore((s) => s.momentum);
   return (
     <div className="rounded-lg bg-slate-900 px-3 py-1.5 text-right">
       <div className="text-[10px] uppercase tracking-widest text-slate-500">
-        Momentum
+        {t.customize.momentum}
       </div>
       <div className="font-display text-sm font-semibold text-brand-300">
         <FormattedNumber
@@ -128,6 +132,7 @@ function MomentumBadge() {
 }
 
 function ItemList({ kind }: { kind: ItemKind }) {
+  const t = useT();
   const stats = useGameStore((s) => s.stats);
   const owned = useGameStore((s) => s.owned);
   const equipped = useGameStore((s) => s.equipped);
@@ -207,13 +212,13 @@ function ItemList({ kind }: { kind: ItemKind }) {
       <div className="flex flex-col gap-4">
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Ropes — short to long
+            {t.customize.ropesShortToLong}
           </h3>
           <div className="flex flex-col gap-2">{renderRows(ropeList)}</div>
         </section>
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Rods, chains &amp; elastic
+            {t.customize.rodsChainsElastic}
           </h3>
           <div className="flex flex-col gap-2">{renderRows(otherAttachments)}</div>
         </section>
@@ -247,8 +252,12 @@ function Row({
   onBuy,
   onEquip,
 }: RowProps) {
+  const t = useT();
+  const lang = useLang();
   const locked = item.unlock ? !meetsUnlock(stats, item.unlock) : false;
   const canAfford = momentum >= item.cost;
+  const name = locName(lang, kind, item.id, item.name);
+  const description = locDesc(lang, kind, item.id, item.description);
 
   return (
     <div
@@ -279,23 +288,23 @@ function Row({
           )}
           <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-100">{item.name}</h3>
+            <h3 className="font-semibold text-slate-100">{name}</h3>
             {"rarity" in item && (
               <span
                 className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${rarityClass(
                   item.rarity
                 )}`}
               >
-                {item.rarity}
+                {t.rarity[item.rarity] ?? item.rarity}
               </span>
             )}
             {isEquipped && (
               <span className="rounded bg-brand-500/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-200">
-                Equipped
+                {t.customize.equipped}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-400">{item.description}</p>
+          <p className="mt-0.5 text-xs text-slate-400">{description}</p>
           <ItemStats kind={kind} item={item} />
           </div>
         </div>
@@ -303,24 +312,24 @@ function Row({
           {isOwned ? (
             isEquipped ? (
               <span className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400">
-                In Use
+                {t.customize.inUse}
               </span>
             ) : (
               <button
                 onClick={onEquip}
                 className="flex min-h-[44px] w-full items-center justify-center rounded-md bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600"
               >
-                Equip
+                {t.customize.equip}
               </button>
             )
           ) : locked ? (
             <span className="text-right text-[11px] text-slate-500">
-              {unlockText(item.unlock!)}
+              {unlockText(t, lang, item.unlock!)}
             </span>
           ) : (
             <>
               <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                Cost
+                {t.customize.cost}
               </div>
               <div className="font-display text-sm font-semibold text-brand-300">
                 <FormattedNumber
@@ -337,7 +346,7 @@ function Row({
                     : "cursor-not-allowed bg-slate-800 text-slate-500"
                 }`}
               >
-                Buy
+                {t.customize.buy}
               </button>
             </>
           )}
@@ -354,12 +363,14 @@ function ItemStats({
   kind: ItemKind;
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
 }) {
+  const t = useT();
+  const c = t.customize;
   if (kind === "skin") {
     const skin = item as BobSkinDef;
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
-        <Stat label="Finish" value={skin.pattern} />
-        <Stat label="Cosmetic" value="bob only" />
+        <Stat label={c.statFinish} value={t.pattern[skin.pattern] ?? skin.pattern} />
+        <Stat label={c.statCosmetic} value={c.bobOnly} />
       </div>
     );
   }
@@ -367,8 +378,8 @@ function ItemStats({
     const shape = item as BobShapeDef;
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
-        <Stat label="Silhouette" value={shape.shape} />
-        <Stat label="Cosmetic" value="bob only" />
+        <Stat label={c.statSilhouette} value={t.shape[shape.shape] ?? shape.shape} />
+        <Stat label={c.statCosmetic} value={c.bobOnly} />
       </div>
     );
   }
@@ -376,11 +387,11 @@ function ItemStats({
     const p = item as PendulumDef;
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
-        <Stat label="Weight" value={p.weight.toFixed(1)} />
-        <Stat label="Size" value={`${p.bobRadius}px`} />
-        <Stat label="Bobs" value={p.bobCount.toString()} />
-        <Stat label="Mult" value={`x${p.basePointMultiplier.toFixed(2)}`} />
-        <Stat label="Spin Cap" value={p.maxAngularVelocity.toFixed(2)} />
+        <Stat label={c.statWeight} value={p.weight.toFixed(1)} />
+        <Stat label={c.statSize} value={`${p.bobRadius}px`} />
+        <Stat label={c.statBobs} value={p.bobCount.toString()} />
+        <Stat label={c.statMult} value={`x${p.basePointMultiplier.toFixed(2)}`} />
+        <Stat label={c.statSpinCap} value={p.maxAngularVelocity.toFixed(2)} />
       </div>
     );
   }
@@ -389,18 +400,18 @@ function ItemStats({
     const profile = getMaterialProfile(a);
     return (
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
-        <Stat label="Type" value={a.type} />
-        <Stat label="Length" value={a.length.toString()} />
-        <Stat label="Stretch" value={formatStretchBudget(profile)} />
-        <Stat label="Damp" value={profile.dampingRatio.toFixed(2)} />
+        <Stat label={c.statType} value={t.attachType[a.type] ?? a.type} />
+        <Stat label={c.statLength} value={a.length.toString()} />
+        <Stat label={c.statStretch} value={formatStretchBudget(profile)} />
+        <Stat label={c.statDamp} value={profile.dampingRatio.toFixed(2)} />
         {a.bonuses.momentumMult && (
-          <Stat label="Pts" value={`x${a.bonuses.momentumMult.toFixed(2)}`} />
+          <Stat label={c.statPts} value={`x${a.bonuses.momentumMult.toFixed(2)}`} />
         )}
         {a.bonuses.twistPowerBonus && (
-          <Stat label="Twist" value={`+${(a.bonuses.twistPowerBonus * 100).toFixed(0)}%`} />
+          <Stat label={c.statTwist} value={`+${(a.bonuses.twistPowerBonus * 100).toFixed(0)}%`} />
         )}
         {a.bonuses.velocityBonus && (
-          <Stat label="Vel" value={`+${(a.bonuses.velocityBonus * 100).toFixed(0)}%`} />
+          <Stat label={c.statVel} value={`+${(a.bonuses.velocityBonus * 100).toFixed(0)}%`} />
         )}
       </div>
     );
@@ -408,25 +419,27 @@ function ItemStats({
   const s = item as SiteDef;
   const wallsLabel =
     s.walls === "breakable"
-      ? "breakable"
+      ? c.wallsBreakable
       : s.walls === "solid"
-        ? "solid"
-        : "open";
+        ? c.wallsSolid
+        : c.wallsOpen;
   const cageScale = s.cageScale ?? 1;
   const cageLabel =
-    cageScale >= 1.75 ? "large" : cageScale >= 1.3 ? "medium" : "small";
+    cageScale >= 1.75 ? c.cageLarge : cageScale >= 1.3 ? c.cageMedium : c.cageSmall;
   return (
     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
-      <Stat label="Gravity" value={s.gravity.toFixed(2)} />
-      <Stat label="Zones" value={s.hitZoneCount.toString()} />
-      <Stat label="Walls" value={wallsLabel} />
-      {s.walls && s.walls !== "none" && <Stat label="Cage" value={cageLabel} />}
-      {s.ambient && <Stat label="Wind" value="yes" />}
+      <Stat label={c.statGravity} value={s.gravity.toFixed(2)} />
+      <Stat label={c.statZones} value={s.hitZoneCount.toString()} />
+      <Stat label={c.statWalls} value={wallsLabel} />
+      {s.walls && s.walls !== "none" && <Stat label={c.statCage} value={cageLabel} />}
+      {s.ambient && <Stat label={c.statWind} value={c.yes} />}
     </div>
   );
 }
 
 function StatsTab() {
+  const t = useT();
+  const c = t.customize;
   const stats = useGameStore((s) => s.stats);
   const momentum = useGameStore((s) => s.momentum);
   const owned = useGameStore((s) => s.owned);
@@ -438,51 +451,51 @@ function StatsTab() {
     <div className="flex flex-col gap-5">
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-          Lifetime
+          {c.statLifetime}
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <StatCard
-            label="Momentum"
+            label={c.momentum}
             value={<FormattedNumber value={momentum} />}
           />
           <StatCard
-            label="All-Time Momentum"
+            label={c.statAllTimeMomentum}
             value={<FormattedNumber value={stats.totalMomentum} />}
           />
-          <StatCard label="Total Runs" value={totalRuns.toLocaleString()} />
+          <StatCard label={c.statTotalRuns} value={totalRuns.toLocaleString()} />
           <StatCard
-            label="Best Run"
+            label={c.statBestRun}
             value={<FormattedNumber value={bestRunMomentum} />}
           />
-          <StatCard label="Total Hits" value={stats.totalHits.toLocaleString()} />
-          <StatCard label="Best Combo" value={`x${stats.bestCombo}`} />
+          <StatCard label={c.statTotalHits} value={stats.totalHits.toLocaleString()} />
+          <StatCard label={c.statBestCombo} value={`x${stats.bestCombo}`} />
         </div>
       </section>
 
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-          Collection
+          {c.statCollection}
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatCard label="Bobs" value={`${owned.pendulums.length}`} />
-          <StatCard label="Ropes" value={`${owned.attachments.length}`} />
-          <StatCard label="Sites" value={`${owned.sites.length}`} />
-          <StatCard label="Bob Skins" value={`${owned.skins?.length ?? 1}`} />
-          <StatCard label="Bob Shapes" value={`${owned.shapes?.length ?? 1}`} />
+          <StatCard label={c.tabPendulum} value={`${owned.pendulums.length}`} />
+          <StatCard label={c.tabAttachment} value={`${owned.attachments.length}`} />
+          <StatCard label={c.tabSite} value={`${owned.sites.length}`} />
+          <StatCard label={c.tabSkin} value={`${owned.skins?.length ?? 1}`} />
+          <StatCard label={c.tabShape} value={`${owned.shapes?.length ?? 1}`} />
         </div>
       </section>
 
       <section>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-          Danger Zone
+          {c.statDangerZone}
         </h3>
         <button
           onClick={() => {
-            if (confirm("Reset all progress? This cannot be undone.")) reset();
+            if (confirm(c.resetConfirm)) reset();
           }}
           className="w-full rounded-lg border border-red-700/40 bg-red-900/30 px-3 py-2 text-sm font-semibold text-red-200 transition-colors hover:bg-red-900/50"
         >
-          Reset Save
+          {c.resetSave}
         </button>
       </section>
     </div>
@@ -520,14 +533,8 @@ function meetsUnlock(stats: StatsT, gate: UnlockGate): boolean {
   return stats[gate.stat] >= gate.gte;
 }
 
-function unlockText(gate: UnlockGate): string {
-  const labels: Record<keyof StatsT, string> = {
-    totalMomentum: "Total Momentum",
-    totalSwings: "Swings",
-    totalHits: "Hits",
-    bestCombo: "Best Combo",
-  };
-  return `Unlocks at ${labels[gate.stat]} >= ${formatNumber(gate.gte)}`;
+function unlockText(t: UIStrings, lang: Lang, gate: UnlockGate): string {
+  return t.customize.unlockText(t.statKey[gate.stat], formatNumber(gate.gte, "short", lang));
 }
 
 /** Reference bob radius for shop thumbnails (brass bob, world-scaled). */

@@ -8,14 +8,9 @@ import {
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { BACKGROUND_MUSIC_CREDIT } from "../audio/backgroundMusic";
+import { useT, LANGUAGES, type Lang } from "../i18n";
 
-type SettingsTab = "audio" | "display" | "controls";
-
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: "audio", label: "Audio" },
-  { id: "display", label: "Display" },
-  { id: "controls", label: "Controls" },
-];
+type SettingsTab = "audio" | "display" | "controls" | "language";
 
 interface SettingsProps {
   open: boolean;
@@ -23,7 +18,15 @@ interface SettingsProps {
 }
 
 export default function Settings({ open, onClose }: SettingsProps) {
+  const t = useT();
   const [tab, setTab] = useState<SettingsTab>("audio");
+
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: "audio", label: t.settings.tabAudio },
+    { id: "display", label: t.settings.tabDisplay },
+    { id: "controls", label: t.settings.tabControls },
+    { id: "language", label: t.settings.tabLanguage },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -48,9 +51,9 @@ export default function Settings({ open, onClose }: SettingsProps) {
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-800 px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">Settings</h2>
+            <h2 className="font-display text-xl font-bold text-slate-100">{t.settings.title}</h2>
             <p className="text-xs text-slate-400">
-              Audio, display, and control preferences.
+              {t.settings.subtitle}
             </p>
           </div>
           <button
@@ -60,25 +63,25 @@ export default function Settings({ open, onClose }: SettingsProps) {
             }}
             className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
           >
-            Close
+            {t.settings.close}
           </button>
         </header>
 
         <nav className="flex gap-1 border-b border-slate-800 px-3 py-2">
-          {TABS.map((t) => (
+          {tabs.map((tabDef) => (
             <button
-              key={t.id}
+              key={tabDef.id}
               onClick={() => {
                 playUiClick();
-                setTab(t.id);
+                setTab(tabDef.id);
               }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                tab === t.id
+                tab === tabDef.id
                   ? "bg-brand-600 text-white"
                   : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
               }`}
             >
-              {t.label}
+              {tabDef.label}
             </button>
           ))}
         </nav>
@@ -87,6 +90,7 @@ export default function Settings({ open, onClose }: SettingsProps) {
           {tab === "audio" && <AudioTab />}
           {tab === "display" && <DisplayTab />}
           {tab === "controls" && <ControlsTab />}
+          {tab === "language" && <LanguageTab />}
         </div>
       </div>
     </div>
@@ -94,6 +98,7 @@ export default function Settings({ open, onClose }: SettingsProps) {
 }
 
 function AudioTab() {
+  const t = useT();
   const audio = useGameStore((s) => s.audio);
   const setAudioMasterVolume = useGameStore((s) => s.setAudioMasterVolume);
   const setAudioSfxVolume = useGameStore((s) => s.setAudioSfxVolume);
@@ -109,51 +114,51 @@ function AudioTab() {
 
   return (
     <div className="space-y-5">
-      <SettingsSection title="Output">
+      <SettingsSection title={t.settings.output}>
         <ToggleRow
-          label="Mute all audio"
-          description="Silences every sound. Press M to toggle anytime."
+          label={t.settings.muteAll}
+          description={t.settings.muteAllDesc}
           checked={audio.muted}
           onChange={setAudioMuted}
         />
       </SettingsSection>
 
-      <SettingsSection title="Volume">
+      <SettingsSection title={t.settings.volume}>
         <SliderRow
-          label="Master"
+          label={t.settings.master}
           value={audio.masterVolume}
           onChange={setAudioMasterVolume}
           disabled={audio.muted}
           format={(v) => `${Math.round(v * 100)}%`}
         />
         <SliderRow
-          label="Gameplay SFX"
+          label={t.settings.gameplaySfx}
           value={audio.sfxVolume}
           onChange={setAudioSfxVolume}
           disabled={audio.muted}
           format={(v) => `${Math.round(v * 100)}%`}
         />
         <SliderRow
-          label="UI sounds"
+          label={t.settings.uiSounds}
           value={audio.uiVolume}
           onChange={setAudioUiVolume}
           disabled={audio.muted}
           format={(v) => `${Math.round(v * 100)}%`}
         />
         <SliderRow
-          label="Background music"
+          label={t.settings.backgroundMusic}
           value={audio.musicVolume}
           onChange={setAudioMusicVolume}
           disabled={audio.muted || !audio.musicEnabled}
           format={(v) => `${Math.round(v * 100)}%`}
-          hint="Kept low by default so gameplay SFX stay clear."
+          hint={t.settings.musicHint}
         />
       </SettingsSection>
 
-      <SettingsSection title="Music">
+      <SettingsSection title={t.settings.music}>
         <ToggleRow
-          label="Background music"
-          description="Soft lofi loop while you play."
+          label={t.settings.backgroundMusic}
+          description={t.settings.musicToggleDesc}
           checked={audio.musicEnabled}
           onChange={setAudioMusicEnabled}
           disabled={audio.muted}
@@ -169,34 +174,33 @@ function AudioTab() {
         disabled={audio.muted}
         className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Preview sound
+        {t.settings.previewSound}
       </button>
     </div>
   );
 }
 
 function DisplayTab() {
+  const t = useT();
   const cameraZoom = useGameStore((s) => s.cameraZoom);
   const setCameraZoom = useGameStore((s) => s.setCameraZoom);
   const resetDisplaySettings = useGameStore((s) => s.resetDisplaySettings);
 
   return (
     <div className="space-y-5">
-      <SettingsSection title="Camera">
+      <SettingsSection title={t.settings.camera}>
         <SliderRow
-          label="Zoom"
+          label={t.settings.zoom}
           value={cameraZoom}
           min={CAMERA_ZOOM_MIN}
           max={CAMERA_ZOOM_MAX}
           step={0.05}
           onChange={setCameraZoom}
           format={(v) => `${Math.round(v * 100)}%`}
-          hint="Scroll the mouse wheel — or pinch with two fingers — over the canvas to zoom."
+          hint={t.settings.zoomHint}
         />
         <p className="text-xs leading-relaxed text-slate-500">
-          Default zoom is {Math.round(CAMERA_ZOOM_DEFAULT * 100)}%. Reset camera restores
-          zoom and the standard playfield framing. Drag with one finger (or hold Space and
-          drag with the mouse) to pan.
+          {t.settings.cameraNote(Math.round(CAMERA_ZOOM_DEFAULT * 100))}
         </p>
       </SettingsSection>
 
@@ -208,25 +212,19 @@ function DisplayTab() {
         }}
         className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
       >
-        Reset camera
+        {t.settings.resetCamera}
       </button>
     </div>
   );
 }
 
 function ControlsTab() {
-  const shortcuts = [
-    { keys: "Start Run / Run Again", action: "Launch the Bob" },
-    { keys: "G", action: "Spend a ready golden token (mid-run)" },
-    { keys: "M", action: "Toggle mute" },
-    { keys: "Scroll / Pinch", action: "Zoom camera in or out" },
-    { keys: "Drag", action: "Pan the camera (one finger, or Space + drag)" },
-    { keys: "Escape", action: "Close open menus" },
-  ];
+  const t = useT();
+  const shortcuts = t.settings.shortcuts;
 
   return (
     <div className="space-y-5">
-      <SettingsSection title="Keyboard & mouse">
+      <SettingsSection title={t.settings.keyboardMouse}>
         <div className="space-y-2">
           {shortcuts.map((s) => (
             <div
@@ -243,8 +241,53 @@ function ControlsTab() {
       </SettingsSection>
 
       <p className="text-xs leading-relaxed text-slate-500">
-        Camera zoom and pan are disabled while a menu is open.
+        {t.settings.controlsNote}
       </p>
+    </div>
+  );
+}
+
+function LanguageTab() {
+  const t = useT();
+  const language = useGameStore((s) => s.language);
+  const setLanguage = useGameStore((s) => s.setLanguage);
+
+  return (
+    <div className="space-y-5">
+      <SettingsSection title={t.settings.languageHeading}>
+        <div className="space-y-2">
+          {LANGUAGES.map((l) => {
+            const active = language === l.id;
+            return (
+              <button
+                key={l.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => {
+                  playUiClick();
+                  setLanguage(l.id as Lang);
+                }}
+                className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                  active
+                    ? "border-brand-500/60 bg-brand-500/10 text-brand-100"
+                    : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-600 hover:bg-slate-800"
+                }`}
+              >
+                <span>{l.label}</span>
+                {active && (
+                  <span className="text-xs uppercase tracking-wide text-brand-300">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-600">
+          {t.settings.languageNote}
+        </p>
+      </SettingsSection>
     </div>
   );
 }

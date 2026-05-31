@@ -4,6 +4,7 @@ import {
   hasAbbrevTier,
   type NumberDisplayStyle,
 } from "../lib/formatNumber";
+import { useLang, useT } from "../i18n";
 
 type FormattedNumberProps = {
   value: number;
@@ -13,14 +14,14 @@ type FormattedNumberProps = {
   style?: NumberDisplayStyle;
 };
 
-const TOGGLE_TITLE = "Click to toggle short / full number name";
-
 export function FormattedNumber({
   value,
   prefix = "",
   className = "",
   style: controlledStyle,
 }: FormattedNumberProps) {
+  const t = useT();
+  const lang = useLang();
   const [internalStyle, setInternalStyle] =
     useState<NumberDisplayStyle>("short");
   const style = controlledStyle ?? internalStyle;
@@ -31,7 +32,7 @@ export function FormattedNumber({
     setInternalStyle((s) => (s === "short" ? "words" : "short"));
   }, [canToggle]);
 
-  const text = prefix + formatNumber(value, style);
+  const text = prefix + formatNumber(value, style, lang);
 
   if (!canToggle) {
     return <span className={className}>{text}</span>;
@@ -41,7 +42,7 @@ export function FormattedNumber({
     <button
       type="button"
       onClick={toggle}
-      title={TOGGLE_TITLE}
+      title={t.formattedNumber.toggleTitle}
       className={`pointer-events-auto cursor-pointer text-left transition-opacity hover:opacity-80 ${className}`}
     >
       {text}

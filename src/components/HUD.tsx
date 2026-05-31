@@ -7,8 +7,10 @@ import {
   sumPersistentRemainingMs,
 } from "../game/modifiers";
 import { FormattedNumber, FormattedNumberInline } from "./FormattedNumber";
+import { useT, useLang, locName, locDesc } from "../i18n";
 
 export function HUDStats() {
+  const t = useT();
   const momentum = useGameStore((s) => s.momentum);
   const runMomentum = useGameStore((s) => s.runMomentum);
   const isRunning = useGameStore((s) => s.isRunning);
@@ -28,7 +30,7 @@ export function HUDStats() {
     <div className="pointer-events-none space-y-3">
       <div className="inline-block rounded-2xl bg-slate-900/70 px-4 py-2 backdrop-blur sm:block sm:px-5 sm:py-3">
         <div className="text-[10px] uppercase tracking-widest text-slate-400 sm:text-xs">
-          Momentum
+          {t.hud.momentum}
         </div>
         <FormattedNumber
           value={momentum}
@@ -48,10 +50,10 @@ export function HUDStats() {
             {isRunning ? (
               <>
                 <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
-                Run in progress
+                {t.hud.runInProgress}
               </>
             ) : (
-              "Last run"
+              t.hud.lastRun
             )}
           </div>
           <FormattedNumber
@@ -60,8 +62,8 @@ export function HUDStats() {
             className="font-display text-xl font-semibold text-amber-200"
           />
           <div className="mt-0.5 text-[10px] text-slate-500">
-            Best <FormattedNumberInline value={bestRunMomentum} /> · Runs{" "}
-            {totalRuns}
+            {t.hud.best} <FormattedNumberInline value={bestRunMomentum} /> ·{" "}
+            {t.hud.runs} {totalRuns}
           </div>
         </div>
       )}
@@ -75,7 +77,7 @@ export function HUDStats() {
                 ? "border-yellow-300/70 bg-yellow-400/15 shadow-[0_0_25px_-5px_rgba(250,204,21,0.7)]"
                 : "border-yellow-700/40 bg-slate-900/70"
           }`}
-          title="Golden Tokens go into your ready slot. Press Use Token (or G) mid-run to re-launch the Bob and gain x3 points."
+          title={t.hud.goldenTokensTitle}
         >
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-yellow-300/90">
             <span
@@ -84,17 +86,17 @@ export function HUDStats() {
               }`}
             />
             {tokenReady
-              ? `${pendingGoldenTokens} READY — press G`
+              ? t.hud.tokensReady(pendingGoldenTokens)
               : goldenActive
-                ? "Token Bonus active"
-                : "Golden Tokens"}
+                ? t.hud.tokenBonusActive
+                : t.hud.goldenTokens}
           </div>
           <div className="font-display text-xl font-semibold text-yellow-200">
             {tokenReady ? (
               <>
                 <span className="text-3xl">{pendingGoldenTokens}</span>
                 <span className="ml-2 text-xs text-yellow-200/80">
-                  / {totalGoldenTokens} caught
+                  {t.hud.tokensCaught(totalGoldenTokens)}
                 </span>
               </>
             ) : (
@@ -102,7 +104,7 @@ export function HUDStats() {
             )}
           </div>
           <div className="mt-0.5 text-[10px] text-slate-500">
-            Bonus duration +{(goldenTokenBonusMs / 1000).toFixed(1)}s
+            {t.hud.bonusDuration((goldenTokenBonusMs / 1000).toFixed(1))}
           </div>
         </div>
       )}
@@ -145,6 +147,8 @@ const BUFF_ROW_HEIGHT_PX = 48;
 const BUFF_ROW_GAP_PX = 8;
 
 function ActiveBuffsPanel() {
+  const t = useT();
+  const lang = useLang();
   const activeModifiers = useGameStore((s) => s.activeModifiers);
   const persistentBonuses = useGameStore((s) => s.persistentBonuses);
   const [rows, setRows] = useState<BuffRow[]>([]);
@@ -390,6 +394,8 @@ function ActiveBuffsPanel() {
         const maxDuration = row.maxDurationMs ?? modifierDurationCapMs(row.defId);
         const pct = Math.max(0, Math.min(1, remaining / maxDuration));
         const isPersistent = row.persistentRemainingMs !== undefined;
+        const defName = locName(lang, "modifier", row.defId, def.name);
+        const defDescription = locDesc(lang, "modifier", row.defId, def.description);
 
         return (
           <div
@@ -402,8 +408,12 @@ function ActiveBuffsPanel() {
             }
             title={
               isPersistent
-                ? `${def.description} Stacks for ${(remaining / 1000).toFixed(1)}s (max ${(modifierDurationCapMs(row.defId) / 1000).toFixed(0)}s).`
-                : def.description
+                ? t.hud.buffStacksTitle(
+                    defDescription,
+                    (remaining / 1000).toFixed(1),
+                    (modifierDurationCapMs(row.defId) / 1000).toFixed(0)
+                  )
+                : defDescription
             }
           >
             <div className="flex h-full items-center gap-2 px-3 pb-1 sm:gap-3 sm:px-4 sm:pb-1.5">
@@ -418,7 +428,7 @@ function ActiveBuffsPanel() {
                 }}
               />
               <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100 sm:text-sm">
-                {def.name}
+                {defName}
               </span>
               <span className="shrink-0 text-xs tabular-nums font-medium text-slate-300 sm:text-sm">
                 {(remaining / 1000).toFixed(1)}s
@@ -442,6 +452,7 @@ export default function HUD({
 }: {
   buffsBottomOffset?: number;
 }) {
+  const t = useT();
   const combo = useGameStore((s) => s.combo);
   const [now, setNow] = useState(() => performance.now());
 
@@ -466,7 +477,7 @@ export default function HUD({
         {comboActive && (
           <div className="rounded-2xl bg-amber-500/20 px-3 py-2 text-right backdrop-blur sm:px-5 sm:py-3">
             <div className="text-[10px] uppercase tracking-widest text-amber-200/80 sm:text-xs">
-              Combo
+              {t.hud.combo}
             </div>
             <div className="font-display text-2xl font-bold text-amber-200 sm:text-3xl">
               x{combo.count}
@@ -496,12 +507,15 @@ export default function HUD({
 }
 
 function Hint() {
+  const t = useT();
   const totalRuns = useGameStore((s) => s.totalRuns);
   const isRunning = useGameStore((s) => s.isRunning);
   if (totalRuns > 0 || isRunning) return null;
   return (
     <div className="pointer-events-none absolute bottom-56 left-1/2 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-center text-sm text-slate-300 backdrop-blur md:bottom-44 md:w-auto">
-      Tap <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
+      {t.hud.hintBefore}
+      <span className="font-semibold text-brand-300">{t.controls.startRun}</span>
+      {t.hud.hintAfter}
     </div>
   );
 }

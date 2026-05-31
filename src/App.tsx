@@ -5,9 +5,11 @@ import HUD, { HUDStats } from "./components/HUD";
 import Customize from "./components/Customize";
 import Settings from "./components/Settings";
 import ControlPanel from "./components/ControlPanel";
+import IdleToast from "./components/IdleToast";
 import { AudioManager } from "./audio/AudioManager";
 import { playGameSound } from "./audio/soundMap";
 import { useGameStore } from "./state/store";
+import { startIdleEngine } from "./state/idleEngine";
 
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -45,6 +47,12 @@ export default function App() {
       mq.removeEventListener("change", update);
     };
   }, []);
+
+  // Keep the core idle gameplay running while the tab is hidden / the page is
+  // closed: a worker-driven heartbeat banks Momentum at the recent earn rate,
+  // and a wall-clock reconcile grants offline progress on return. See
+  // state/idleEngine.ts.
+  useEffect(() => startIdleEngine(), []);
 
   useEffect(() => {
     const unlock = () => {
@@ -140,6 +148,7 @@ export default function App() {
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} />
+      <IdleToast />
       <Analytics />
     </div>
   );

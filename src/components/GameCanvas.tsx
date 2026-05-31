@@ -113,6 +113,7 @@ import {
 import {
   applyWorldCamera,
   computeViewTransform,
+  screenToWorld,
   type ViewTransform,
 } from "../game/viewTransform";
 import {
@@ -129,10 +130,20 @@ import {
   emitManeuver,
   tickEffects,
 } from "../game/effects";
+import { useT, useLang, locName } from "../i18n";
 
 const RUN_END_SPEED_THRESHOLD = 0.45;
 const RUN_END_IDLE_MS = 1500;
 const AUTO_RUN_DELAY_MS = 1500;
+// Hand-swing grab zone: how forgiving the press target is around the rig. You
+// don't aim at the bob — pressing anywhere in a soft zone near the rope+bob
+// grabs it. `GRAB_PAD_PX` pads every body on the rig (bob, chain bobs, rope
+// nodes); `GRAB_ROPE_CORRIDOR_PX` is the half-width of a corridor running the
+// length of the pivot→bob line, so a press alongside the rope (not just on a
+// node) still catches. Both are CSS pixels, converted to world units at the
+// live zoom so the on-screen feel stays constant at any camera distance.
+const GRAB_PAD_PX = 46;
+const GRAB_ROPE_CORRIDOR_PX = 40;
 // Grace window after a Mechanic Belt ejects its bob at the conveyor exit, during
 // which the escape check can't hard-end the run — lets the thrown bob fly its
 // full arc / bounce around the cage instead of being reset the instant it clips
@@ -197,6 +208,8 @@ function bonusZonesPerGolden(hitZoneCount: number): number {
 }
 
 export default function GameCanvas() {
+  const t = useT();
+  const lang = useLang();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<ViewTransform>({
@@ -214,6 +227,14 @@ export default function GameCanvas() {
   const lastAutoZoomRef = useRef<number | null>(null);
   const pendulumHandleRef = useRef<PendulumHandle | null>(null);
   const launchPendingRef = useRef(false);
+  // Direct manipulation: while the player is grabbing the bob (mouse or touch)
+  // this holds the captured pointer id and its current target position in world
+  // coordinates. The simulation effect springs the grabbed bob toward this
+  // point each frame, so the rope can be swung by hand. `null` when not held.
+  const dragRef = useRef<{ pointerId: number; worldX: number; worldY: number } | null>(null);
+  // Set when a manual grab starts a fresh run, so the launch handler skips its
+  // automatic slingshot impulse and lets the player's drag drive the swing.
+  const suppressLaunchImpulseRef = useRef(false);
   // Counts how many Golden Token spends are queued up waiting for the frame
   // loop to apply them. We process at most one per frame so back-to-back
   // spends each produce their own visible re-launch impulse, but rapid
@@ -233,6 +254,7 @@ export default function GameCanvas() {
   const autoRun = useGameStore((s) => s.autoRun);
   const autoToken = useGameStore((s) => s.autoToken);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
+  const effectText = t.effects;
 
   useEffect(() => {
     if (runStartId === 0) return;
@@ -337,10 +359,84 @@ export default function GameCanvas() {
       setPanCursor(false);
     }
 
+    // Try to grab the bob/rope at this screen point. On success the pointer is
+    // captured to drive a manual swing and we skip the camera pan/pinch path.
+    function tryGrabBob(e: PointerEvent, pt: { x: number; y: number }) {
+      const handle = pendulumHandleRef.current;
+      // Can't hand-swing a snapped (flying) rig or the unattached belt bob.
+      if (!handle || handle.snapped) return false;
+      if (isBeltTunnelAttachment(handle.attachment)) return false;
+      const tip = handle.bobs[handle.bobs.length - 1];
+      if (!tip) return false;
+
+      const view = viewRef.current;
+      const store = useGameStore.getState();
+      const world = screenToWorld(
+        pt.x,
+        pt.y,
+        view,
+        ANCHOR,
+        store.cameraZoom,
+        store.cameraPanX,
+        store.cameraPanY
+      );
+      // World units per CSS pixel — keeps the grab zone's on-screen size
+      // constant (forgiving for fat fingers) at any zoom level.
+      const worldPerPx = 1 / (view.coverScale * store.cameraZoom);
+      const pad = GRAB_PAD_PX * worldPerPx;
+      const corridor = GRAB_ROPE_CORRIDOR_PX * worldPerPx;
+      const bobR = getEffectiveBobRadius(handle);
+
+      // Grabbable along the whole line: the tip bob, every rope node, and any
+      // chain bobs. All hand to the same tip-bob spring.
+      const grabbable: Matter.Body[] = [
+        ...handle.bobs,
+        ...handle.chainBobs,
+        ...handle.ropeSegments,
+      ];
+      let near = false;
+      for (const b of grabbable) {
+        const r = (b.circleRadius ?? bobR) + pad;
+        if (Math.hypot(world.x - b.position.x, world.y - b.position.y) <= r) {
+          near = true;
+          break;
+        }
+      }
+
+      // Beyond the per-body checks, accept a press anywhere inside a soft
+      // corridor that runs the full length of the rope line (pivot → tip). The
+      // rope nodes above already cover the line, but this fills the gaps
+      // between sparse nodes and pads the whole line outward, so you can grab
+      // the swing by pressing *alongside* the rope, not only on it.
+      if (!near) {
+        const pivot = handle.pivot.position;
+        const abx = tip.position.x - pivot.x;
+        const aby = tip.position.y - pivot.y;
+        const abLen2 = abx * abx + aby * aby || 1;
+        let t = ((world.x - pivot.x) * abx + (world.y - pivot.y) * aby) / abLen2;
+        t = Math.max(0, Math.min(1, t));
+        const cx = pivot.x + abx * t;
+        const cy = pivot.y + aby * t;
+        if (Math.hypot(world.x - cx, world.y - cy) <= corridor + bobR) {
+          near = true;
+        }
+      }
+      if (!near) return false;
+
+      dragRef.current = { pointerId: e.pointerId, worldX: world.x, worldY: world.y };
+      container!.setPointerCapture?.(e.pointerId);
+      container!.style.cursor = "grabbing";
+      e.preventDefault();
+      return true;
+    }
+
     function onPointerDown(e: PointerEvent) {
       if (blockedTarget(e.target)) return;
       const pt = cssPoint(e.clientX, e.clientY);
       if (!pt) return;
+      // Grabbing the bob takes priority over camera control, so a hand-swing
+      // works with a plain mouse press (no Space) and with a single touch.
+      if (tryGrabBob(e, pt)) return;
       const touch = e.pointerType === "touch";
       // Mouse/pen only pan while Space is held (preserve desktop behavior);
       // touch always drives the camera since the canvas has no tap action.
@@ -367,6 +463,27 @@ export default function GameCanvas() {
     }
 
     function onPointerMove(e: PointerEvent) {
+      // A manual bob grab owns its pointer — track it to the swing, never the
+      // camera. Updated in world units so the spring target follows the finger
+      // even as the bob's own motion shifts the view.
+      const drag = dragRef.current;
+      if (drag && drag.pointerId === e.pointerId) {
+        const pt = cssPoint(e.clientX, e.clientY);
+        if (!pt) return;
+        const store = useGameStore.getState();
+        const world = screenToWorld(
+          pt.x,
+          pt.y,
+          viewRef.current,
+          ANCHOR,
+          store.cameraZoom,
+          store.cameraPanX,
+          store.cameraPanY
+        );
+        drag.worldX = world.x;
+        drag.worldY = world.y;
+        return;
+      }
       if (!pointers.has(e.pointerId)) return;
       const pt = cssPoint(e.clientX, e.clientY);
       if (!pt) return;
@@ -413,6 +530,14 @@ export default function GameCanvas() {
     }
 
     function endPointer(e: PointerEvent) {
+      // Releasing a bob grab hands the swing back to physics — the bob keeps the
+      // velocity the player flung it with. The spring is torn down next frame.
+      if (dragRef.current?.pointerId === e.pointerId) {
+        dragRef.current = null;
+        container!.releasePointerCapture?.(e.pointerId);
+        setPanCursor(spaceHeld.current);
+        return;
+      }
       if (!pointers.has(e.pointerId)) return;
       pointers.delete(e.pointerId);
       container!.releasePointerCapture?.(e.pointerId);
@@ -438,6 +563,7 @@ export default function GameCanvas() {
       panStarted = false;
       pointers.clear();
       pinchPrevDist = 0;
+      dragRef.current = null;
       setPanCursor(false);
     }
 
@@ -1043,7 +1169,7 @@ export default function GameCanvas() {
             emitManeuver(
               effects,
               bobBody.position,
-              `MUTATION! ${hydraBonusEcho} head${hydraBonusEcho === 1 ? "" : "s"}`,
+              effectText.mutation(hydraBonusEcho),
               now
             );
           }
@@ -1075,7 +1201,7 @@ export default function GameCanvas() {
           emitManeuver(
             effects,
             bobBody.position,
-            `Combo x${comboStacks} +${bonus}`,
+            effectText.comboBonus(comboStacks, bonus),
             now
           );
         }
@@ -1105,12 +1231,12 @@ export default function GameCanvas() {
             effects,
             z.position,
             buffGuaranteed
-              ? "GUARANTEED BUFF!"
+              ? effectText.guaranteedBuff
               : guaranteed
-                ? "LUCKY DROP!"
+                ? effectText.luckyDrop
                 : def.kind === "golden"
-                  ? "GOLDEN TOKEN!"
-                  : `${def.name} appeared`,
+                  ? effectText.goldenToken
+                  : effectText.tokenAppeared(locName(lang, "token", def.kind, def.name)),
             now
           );
         }
@@ -1130,7 +1256,7 @@ export default function GameCanvas() {
         // only by whipping through its own hardened wall. The drop is consumed
         // but does nothing.
         if (ropeBehavior?.kind === "bulwark") {
-          emitManeuver(effects, handle.token.position, "No Patch", now);
+          emitManeuver(effects, handle.token.position, effectText.noPatch, now);
           void bobBody;
           return;
         }
@@ -1161,7 +1287,7 @@ export default function GameCanvas() {
             points: 0,
             intensity: 1.5,
           });
-          emitManeuver(effects, handle.token.position, "Conveyor Refueled!", now);
+          emitManeuver(effects, handle.token.position, effectText.conveyorRefueled, now);
           void bobBody;
           return;
         }
@@ -1173,7 +1299,7 @@ export default function GameCanvas() {
           points: 0,
           intensity: 1.4,
         });
-        emitManeuver(effects, handle.token.position, "Rope Patched", now);
+        emitManeuver(effects, handle.token.position, effectText.ropePatched, now);
         void bobBody;
         return;
       }
@@ -1189,7 +1315,7 @@ export default function GameCanvas() {
         emitManeuver(
           effects,
           handle.token.position,
-          "GOLDEN TOKEN READY!",
+          effectText.goldenTokenReady,
           now
         );
         void bobBody;
@@ -1223,7 +1349,12 @@ export default function GameCanvas() {
         points: 0,
         intensity: 1.4,
       });
-      emitManeuver(effects, handle.token.position, `+ ${def.name}`, now);
+      emitManeuver(
+        effects,
+        handle.token.position,
+        effectText.tokenCollected(locName(lang, "token", def.kind, def.name)),
+        now
+      );
 
       void bobBody;
     }
@@ -1291,7 +1422,7 @@ export default function GameCanvas() {
         // Flat reward for breaking a wall, on top of the ricochet impulse.
         useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
-        emitManeuver(effects, bobBody.position, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
+        emitManeuver(effects, bobBody.position, effectText.wallBreakBonus(WALL_BREAK_BONUS), now);
       } else {
         playGameSound("zone-hit", { pitch: isShard ? 0.85 : 0.7, volume: isShard ? 0.25 : 0.4 });
       }
@@ -1329,7 +1460,7 @@ export default function GameCanvas() {
       if (shattered) {
         useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
-        emitManeuver(effects, bobPos, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
+        emitManeuver(effects, bobPos, effectText.wallBreakBonus(WALL_BREAK_BONUS), now);
       }
     }
 
@@ -1510,7 +1641,7 @@ export default function GameCanvas() {
       lastDashAt = now;
       dashCount += 1;
       playGameSound("maneuver", { variant: "pierce" });
-      emitManeuver(effects, tip.position, "PIERCE!", now);
+      emitManeuver(effects, tip.position, effectText.pierce, now);
     }
 
     // magnet (Lodestone): drag nearby circles and loose tokens toward the tip
@@ -1659,7 +1790,7 @@ export default function GameCanvas() {
         points: 0,
         intensity: 1,
       });
-      emitManeuver(effects, { x: at.x, y: at.y }, "BLINK!", now);
+      emitManeuver(effects, { x: at.x, y: at.y }, effectText.blink, now);
     }
 
     // rocket (Rocket): continuous thrust along the bob's heading that ramps up
@@ -1960,7 +2091,7 @@ export default function GameCanvas() {
         syncEchoBobs(0);
         playGameSound("rope-snap");
         const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
-        emitManeuver(effects, tip.position, "EJECTED!", now);
+        emitManeuver(effects, tip.position, effectText.ejected, now);
       }
 
       // IMPORTANT: During active strict rail mode, we do NOT touch the bob with containment/walls.
@@ -2005,7 +2136,7 @@ export default function GameCanvas() {
         bulwarkActive = false;
         bulwarkBrokenUntil = now + repairMs;
         playGameSound("rope-snap", { volume: 0.4, pitch: 1.5 });
-        emitManeuver(effects, tip.position, "WALL BREAK!", now);
+        emitManeuver(effects, tip.position, effectText.wallBreak, now);
         return;
       }
       if (!bulwarkActive && now >= bulwarkBrokenUntil && now - lastBulwarkRollAt > interval) {
@@ -2061,7 +2192,7 @@ export default function GameCanvas() {
         if (!blackHoleCaptured) {
           blackHoleCaptured = true;
           playGameSound("token-spawn", { pitch: 0.6, volume: 0.6 });
-          emitManeuver(effects, { x: blackHole.x, y: blackHole.y }, "EVENT HORIZON!", performance.now());
+          emitManeuver(effects, { x: blackHole.x, y: blackHole.y }, effectText.eventHorizon, performance.now());
           useGameStore.getState().markRunStalled();
         }
         // Drain its motion so it settles into the core (and the idle timer can
@@ -2093,7 +2224,7 @@ export default function GameCanvas() {
       restoreBulwarkWall();
       bulwarkActive = false;
       playGameSound("run-complete");
-      emitManeuver(effects, at, "Run Complete", now);
+      emitManeuver(effects, at, effectText.runComplete, now);
     }
 
     function handleCollision(evt: Matter.IEventCollision<Matter.Engine>) {
@@ -2152,6 +2283,11 @@ export default function GameCanvas() {
     let raf = 0;
     const ctx = canvas.getContext("2d")!;
 
+    // The live spring that pulls the bob toward the player's pointer during a
+    // hand-swing. Created lazily on the first dragging frame, torn down on
+    // release. Kept here so it survives across frames within this run's effect.
+    let dragConstraint: Matter.Constraint | null = null;
+
     function frame(now: number) {
       const inHitStop = now < hitStopUntil;
       // During hit-stop we still keep `lastT` moving forward so we don't
@@ -2163,6 +2299,68 @@ export default function GameCanvas() {
       const store = useGameStore.getState();
       store.expireModifiers(now);
       store.decayCombo(now, 1800);
+
+      // --- Manual swing: spring the grabbed bob toward the pointer ----------
+      // A live grab (mouse or touch) pulls the tip bob toward the world point
+      // under the player's finger, so the rope swings by hand. Disabled for a
+      // snapped/flying rig and the unattached belt bob.
+      const drag = dragRef.current;
+      const dragging =
+        drag != null &&
+        !pendulumHandle.snapped &&
+        !isBeltTunnelAttachment(attachment);
+      if (dragging) {
+        const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+        if (tip) {
+          // The rope can never be stretched by the hand: the player only sets
+          // the swing ANGLE. Clamp the grab target onto the pivot-centered reach
+          // circle (full rope + bob-link length) so pulling outward just rotates
+          // the taut line, never extends it — the same fixed length the running
+          // physics enforce. Pulling inward is allowed (the line goes slack and
+          // gravity drops the bob), exactly like a real rope.
+          const pivot = pendulumHandle.pivot.position;
+          const bobLinkLen = Math.max(4, getEffectiveBobRadius(pendulumHandle) * 0.35);
+          const maxReach = rigReach(pendulumHandle) + bobLinkLen;
+          let tx = drag!.worldX - pivot.x;
+          let ty = drag!.worldY - pivot.y;
+          const d = Math.hypot(tx, ty);
+          if (d > maxReach && d > 1e-3) {
+            const s = maxReach / d;
+            tx *= s;
+            ty *= s;
+          }
+          const targetX = pivot.x + tx;
+          const targetY = pivot.y + ty;
+
+          if (!dragConstraint) {
+            dragConstraint = Matter.Constraint.create({
+              pointA: { x: targetX, y: targetY },
+              bodyB: tip,
+              pointB: { x: 0, y: 0 },
+              stiffness: 0.2,
+              damping: 0.12,
+              length: 0,
+              label: "manual-drag",
+            });
+            Matter.Composite.add(engineHandle.world, dragConstraint);
+            // Grabbing an idle pendulum begins a run so the released swing
+            // scores and persists. Suppress the launch slingshot — the player's
+            // own drag is the launch.
+            if (!store.isRunning) {
+              suppressLaunchImpulseRef.current = true;
+              store.startRun();
+            } else if (store.runStalled) {
+              useGameStore.setState({ runStalled: false });
+            }
+            runIdleMs = 0;
+            runStallLowMs = 0;
+          }
+          dragConstraint.pointA = { x: targetX, y: targetY };
+        }
+      } else if (dragConstraint) {
+        Matter.Composite.remove(engineHandle.world, dragConstraint);
+        dragConstraint = null;
+      }
 
       const effects$ = aggregateEffects(store.activeModifiers, store.persistentBonuses);
       // Behavior bobs scale their rig on top of modifier effects: Frenzy grows
@@ -2231,7 +2429,7 @@ export default function GameCanvas() {
           emitManeuver(
             effects,
             pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position,
-            hunting ? "FEAST!" : "SNAP!",
+            hunting ? effectText.feast : effectText.snap,
             now
           );
         }
@@ -2372,7 +2570,11 @@ export default function GameCanvas() {
         );
         destroyTokenField(engineHandle.world, tokenField);
         resetBehaviorRunState();
-        if (ropeBehavior?.kind === "belt" && beltTunnel) {
+        if (suppressLaunchImpulseRef.current) {
+          // A hand-swing started this run: no slingshot, no reset-to-rest. The
+          // bob stays under the player's grip and their drag drives the swing.
+          suppressLaunchImpulseRef.current = false;
+        } else if (ropeBehavior?.kind === "belt" && beltTunnel) {
           resetPendulumToRest(pendulumHandle);
           beltVirtualPayout = resetBeltVirtual();
           applyBeltLaunchKick(
@@ -2403,7 +2605,7 @@ export default function GameCanvas() {
           rocketLaunchAt = now;
         }
         playGameSound("launch");
-        emitManeuver(effects, pendulumHandle.bobs[0].position, "LAUNCH!", now);
+        emitManeuver(effects, pendulumHandle.bobs[0].position, effectText.launch, now);
       }
 
       if (tokenLaunchPendingRef.current > 0) {
@@ -2528,7 +2730,7 @@ export default function GameCanvas() {
           emitManeuver(
             effects,
             pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position,
-            "TOKEN RE-LAUNCH!",
+            effectText.tokenRelaunch,
             now
           );
         }
@@ -2591,7 +2793,11 @@ export default function GameCanvas() {
         // jitter that lingers as the swing dies. Without the hysteresis a single
         // jitter spike above 0.45 would keep resetting the timer and the run
         // would never auto-end.
-        if (maxSpeed < RUN_END_SPEED_THRESHOLD) {
+        if (dragging) {
+          // Held in hand — the run must not idle-out while the player is still
+          // grabbing the bob, even if they're holding it nearly still.
+          runIdleMs = 0;
+        } else if (maxSpeed < RUN_END_SPEED_THRESHOLD) {
           runIdleMs += dt;
         } else if (maxSpeed > STALL_SPEED_THRESHOLD) {
           runIdleMs = 0;
@@ -2600,7 +2806,7 @@ export default function GameCanvas() {
         // can no longer reasonably reach a hit zone. This flips the launch
         // button into a clickable "Run Again" state before the harder auto
         // end-of-run condition fires.
-        if (maxSpeed < STALL_SPEED_THRESHOLD) {
+        if (!dragging && maxSpeed < STALL_SPEED_THRESHOLD) {
           runStallLowMs += dt;
         } else {
           runStallLowMs = 0;
@@ -2626,7 +2832,15 @@ export default function GameCanvas() {
           for (const ev of events) {
             useGameStore.getState().addMomentum(ev.def.bonus);
             playGameSound("maneuver", { variant: ev.def.id });
-            emitManeuver(effects, last.position, `${ev.def.name} +${ev.def.bonus}`, now);
+            emitManeuver(
+              effects,
+              last.position,
+              effectText.maneuverBonus(
+                locName(lang, "maneuver", ev.def.id, ev.def.name),
+                ev.def.bonus
+              ),
+              now
+            );
           }
         }
 
@@ -2639,7 +2853,7 @@ export default function GameCanvas() {
         // register phantom Double Swings on the way down.
         // Skip all rest-settling while snapped: it pulls bodies toward the rope
         // rest pose, which would teleport the free-flying bobs back to the line.
-        if (!snapped && dt > 0 && maxSpeed < SETTLE_REF_SPEED) {
+        if (!snapped && !dragging && dt > 0 && maxSpeed < SETTLE_REF_SPEED) {
           const t = (SETTLE_REF_SPEED - maxSpeed) / SETTLE_REF_SPEED;
           const rate = SETTLE_PEAK_RATE * t * t;
           if (rate > 1e-4) {
@@ -2652,7 +2866,7 @@ export default function GameCanvas() {
         // constraint solver keeps re-injecting it from the bob's weight. The
         // pull strength fades with speed so it's invisible above the rest
         // threshold and feels like the rig naturally settling, not snapping.
-        if (!snapped && dt > 0 && maxSpeed < SETTLE_REST_THRESHOLD) {
+        if (!snapped && !dragging && dt > 0 && maxSpeed < SETTLE_REST_THRESHOLD) {
           const t = (SETTLE_REST_THRESHOLD - maxSpeed) / SETTLE_REST_THRESHOLD;
           const alpha = 1 - Math.exp(-SETTLE_REST_RATE * t * t * (dt / 1000));
           if (alpha > 1e-4) {
@@ -2668,6 +2882,13 @@ export default function GameCanvas() {
           runIdleMs = 0;
           hardEndRun(last.position, now);
         }
+      } else if (dragging) {
+        // Hand-swinging an idle rig (the grab's startRun hasn't propagated to
+        // this frame's store snapshot yet): let the drag spring move the bob
+        // freely instead of pinning it back to the hanging rest pose.
+        maneuvers.reset();
+        runIdleMs = 0;
+        runStallLowMs = 0;
       } else {
         maneuvers.reset();
         runIdleMs = 0;
@@ -2784,10 +3005,13 @@ export default function GameCanvas() {
       destroyPendulum(engineHandle.world, pendulumHandle);
       destroyEngine(engineHandle);
       pendulumHandleRef.current = null;
+      dragConstraint = null;
+      dragRef.current = null;
+      suppressLaunchImpulseRef.current = false;
     };
-    // Rebuild whenever equipped items change or worldVersion bumps.
+    // Rebuild whenever equipped items, worldVersion, or localized canvas labels change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendulum.id, attachment.id, site.id, worldVersion]);
+  }, [pendulum.id, attachment.id, site.id, worldVersion, lang]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
