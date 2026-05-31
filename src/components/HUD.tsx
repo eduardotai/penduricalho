@@ -456,7 +456,7 @@ export default function HUD() {
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
-      <div className="pointer-events-none flex items-start justify-end p-5">
+      <div className="pointer-events-none flex items-start justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         {comboActive && (
           <div className="rounded-2xl bg-amber-500/20 px-5 py-3 text-right backdrop-blur">
             <div className="text-xs uppercase tracking-widest text-amber-200/80">
@@ -475,7 +475,7 @@ export default function HUD() {
         )}
       </div>
 
-      <div className="pointer-events-none flex flex-1 items-end justify-end p-5">
+      <div className="pointer-events-none flex flex-1 items-end justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pb-44 md:pb-5">
         <ActiveBuffsPanel />
       </div>
 
@@ -489,8 +489,8 @@ function Hint() {
   const isRunning = useGameStore((s) => s.isRunning);
   if (totalRuns > 0 || isRunning) return null;
   return (
-    <div className="pointer-events-none absolute bottom-44 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-sm text-slate-300 backdrop-blur">
-      Press <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
+    <div className="pointer-events-none absolute bottom-56 left-1/2 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-center text-sm text-slate-300 backdrop-blur md:bottom-44 md:w-auto">
+      Tap <span className="font-semibold text-brand-300">Start Run</span> to launch the Bob. Hit the glowing orbs to earn momentum.
     </div>
   );
 }

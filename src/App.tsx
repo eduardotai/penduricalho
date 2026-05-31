@@ -82,14 +82,25 @@ export default function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
-      <aside className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-80 max-w-[min(20rem,calc(100%-2rem))] flex-col p-5 sm:p-6">
-        <div className="pointer-events-none min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
+      {/* On mobile the overlay spans the screen: stats pinned top, controls as a
+          bottom action bar. At md+ it collapses back to the left sidebar. */}
+      <aside
+        className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between
+          p-3 pl-[max(0.75rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))]
+          pb-[max(0.75rem,env(safe-area-inset-bottom))]
+          md:inset-y-0 md:right-auto md:w-80 md:max-w-[min(20rem,calc(100%-2rem))] md:justify-start md:p-6"
+      >
+        <div className="pointer-events-none max-h-[42dvh] max-w-[min(20rem,calc(100%-1rem))] min-h-0 overflow-y-auto overscroll-contain md:max-h-none md:max-w-none md:flex-1 md:pb-4">
           <HUDStats />
         </div>
-        <ControlPanel
-          onOpenCustomize={openCustomize}
-          onOpenSettings={openSettings}
-        />
+        <div className="pointer-events-none flex justify-center md:block">
+          <div className="pointer-events-auto w-full max-w-md md:max-w-none">
+            <ControlPanel
+              onOpenCustomize={openCustomize}
+              onOpenSettings={openSettings}
+            />
+          </div>
+        </div>
       </aside>
       <HUD />
       <Customize open={customizeOpen} onClose={closeCustomize} />
