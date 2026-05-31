@@ -118,6 +118,15 @@ export const ATTACHMENT_MATERIALS: Record<string, AttachmentMaterialProfile> = {
     maxStretchRatio: 1.012,
     equilibriumStretchFraction: 0.5,
   },
+  "pendulum-line": {
+    youngsModulus: 210,
+    crossSection: 2.0,
+    linearDensity: 0.004,
+    dampingRatio: 0.006,
+    maxStretchRatio: 1.001,
+    equilibriumStretchFraction: 0.15,
+    rigid: true,
+  },
 };
 
 export function getMaterialProfile(attachment: AttachmentDef): AttachmentMaterialProfile {

@@ -4,6 +4,8 @@ import { WORLD_SCALE } from "../game/worldConstants";
 const S = (spacing: number) => Math.round(spacing * WORLD_SCALE);
 /** Bob collision/render radius in virtual world units (design px × world scale). */
 const R = (radius: number) => Math.round(radius * WORLD_SCALE);
+/** A behavior speed/distance in virtual world units (design px × world scale). */
+const V = (v: number) => Math.round(v * WORLD_SCALE);
 
 export const PENDULUMS: PendulumDef[] = [
   {
@@ -87,6 +89,223 @@ export const PENDULUMS: PendulumDef[] = [
     rarity: "legendary",
     cost: 60000,
     unlock: { stat: "bestCombo", gte: 25 },
+  },
+
+  // ------------------------------------------------------------------
+  // Behavior bobs — each carries a `behavior` that rewires the gameplay
+  // loop at a specific hook point (snap finale, durability, scoring, …).
+  // ------------------------------------------------------------------
+  {
+    id: "ravager-bob",
+    name: "Ravager Bob",
+    description:
+      "When the rope snaps, it doesn't scatter — it hunts. The freed bob homes onto the nearest multiplier circles and devours them one after another, Pac-Man style, until it's sated.",
+    weight: 3.5,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(24),
+    maxAngularVelocity: 0.5,
+    basePointMultiplier: 2.4,
+    rarity: "epic",
+    cost: 14000,
+    unlock: { stat: "bestCombo", gte: 15 },
+    behavior: {
+      kind: "hunter",
+      chaseAccel: 0.09,
+      chaseMaxSpeed: V(22),
+      satiationEats: 16,
+      satiationMs: 3500,
+    },
+  },
+  {
+    id: "piercer-bob",
+    name: "Piercer Bob",
+    description:
+      "Whips faster than anything on a line and, every beat, fires a dead-straight dash that spears clean through a whole row of circles instead of just grazing the arc.",
+    weight: 1.6,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(14),
+    maxAngularVelocity: 0.85,
+    basePointMultiplier: 1.6,
+    rarity: "rare",
+    cost: 3200,
+    unlock: { stat: "totalHits", gte: 150 },
+    behavior: {
+      kind: "piercer",
+      dashIntervalMs: 1400,
+      dashSpeed: V(26),
+      dashMaxPerRun: 0,
+    },
+  },
+  {
+    id: "hydra-bob",
+    name: "Hydra Bob",
+    description:
+      "A mutant that grows as it feeds. Every combo milestone sprouts a new scoring head for the rest of the run — keep the chain alive and one bob becomes a swarm.",
+    weight: 3,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(16),
+    maxAngularVelocity: 0.56,
+    basePointMultiplier: 2.0,
+    rarity: "epic",
+    cost: 16000,
+    unlock: { stat: "totalMomentum", gte: 25000 },
+    behavior: {
+      kind: "hydra",
+      milestoneHits: 8,
+      echoPerMilestone: 1,
+      maxBonusEchoes: 5,
+    },
+  },
+  {
+    id: "nitro-bob",
+    name: "Nitro Bob",
+    description:
+      "Glass cannon. Enormous reach and payout, but the rope burns through fast and snaps early — get in, score huge, and ride the finale. Rope Patches are your lifeline.",
+    weight: 5,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(34),
+    maxAngularVelocity: 0.45,
+    basePointMultiplier: 3.6,
+    rarity: "rare",
+    cost: 5000,
+    unlock: { stat: "bestCombo", gte: 10 },
+    behavior: {
+      kind: "nitro",
+      durabilityDrainMult: 3.5,
+    },
+  },
+  {
+    id: "lodestone-bob",
+    name: "Lodestone Bob",
+    description:
+      "A magnet on a string. Nearby multiplier circles and loose tokens drift toward its arc — it bends the whole field into its path and never misses a drop.",
+    weight: 3.2,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(22),
+    maxAngularVelocity: 0.52,
+    basePointMultiplier: 2.2,
+    rarity: "epic",
+    cost: 20000,
+    unlock: { stat: "totalMomentum", gte: 60000 },
+    behavior: {
+      kind: "magnet",
+      pullRadius: S(260),
+      pullStrength: 2.4,
+      tokenPullStrength: 4,
+    },
+  },
+  {
+    id: "frenzy-bob",
+    name: "Frenzy Bob",
+    description:
+      "Berserker. The longer your combo runs, the faster and bigger it swings — a wrecking ball at full tilt. Break the chain and it snaps back to size.",
+    weight: 4,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(26),
+    maxAngularVelocity: 0.5,
+    basePointMultiplier: 2.8,
+    rarity: "legendary",
+    cost: 70000,
+    unlock: { stat: "bestCombo", gte: 25 },
+    behavior: {
+      kind: "frenzy",
+      comboSpeedPerStack: 0.015,
+      comboSizePerStack: 0.015,
+      maxComboStacks: 20,
+    },
+  },
+  {
+    id: "tp-bob",
+    name: "TP Bob",
+    description:
+      "Refuses to stay put. It blinks to random corners of the field mid-swing — and the rope snaps it back to within reach, so a short line yanks it home hard while a long one lets it roam.",
+    weight: 2.5,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(20),
+    maxAngularVelocity: 0.6,
+    basePointMultiplier: 2.0,
+    rarity: "epic",
+    cost: 8000,
+    unlock: { stat: "totalHits", gte: 200 },
+    behavior: {
+      kind: "teleport",
+      teleportIntervalMs: 1100,
+      teleportSpeed: V(14),
+    },
+  },
+  {
+    id: "rocket-bob",
+    name: "Rocket Bob",
+    description:
+      "No launch slingshot — it lights the engine and builds speed the whole run, screaming when a Speed Ramp hits. The rope only frays while it's flung out at the very edge of its reach.",
+    weight: 2,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(18),
+    maxAngularVelocity: 1.0,
+    basePointMultiplier: 1.8,
+    rarity: "epic",
+    cost: 18000,
+    unlock: { stat: "totalMomentum", gte: 30000 },
+    behavior: {
+      kind: "rocket",
+      rocketAccel: V(40),
+      rocketMaxSpeed: V(46),
+      rocketRampMs: 3500,
+      rampSynergy: 3,
+      limitDrainFraction: 0.95,
+    },
+  },
+  {
+    id: "breakable-bob",
+    name: "Breakable Bob",
+    description:
+      "Starts huge and ponderous, but every circle it strikes chips off a free-flying shard that scores on its own. The more it sheds, the shorter, lighter, and faster the core becomes.",
+    weight: 6,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(38),
+    maxAngularVelocity: 0.42,
+    basePointMultiplier: 3.0,
+    rarity: "epic",
+    cost: 22000,
+    unlock: { stat: "bestCombo", gte: 15 },
+    behavior: {
+      kind: "splitter",
+      shedSpeed: V(16),
+      maxShards: 10,
+      shrinkPerShard: 0.06,
+      speedupPerShard: 0.12,
+      weightDropPerShard: 0.07,
+      shardRadiusFraction: 0.45,
+    },
+  },
+  {
+    id: "chaos-bob",
+    name: "Chaos Bob",
+    description:
+      "Never the same bob twice. Size, weight, speed, and reach churn nonstop through the run — bounded only by the lightest and heaviest rigs that exist. Pure gamble, pure spectacle.",
+    weight: 3,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(22),
+    maxAngularVelocity: 0.6,
+    basePointMultiplier: 2.6,
+    rarity: "legendary",
+    cost: 80000,
+    unlock: { stat: "totalMomentum", gte: 200000 },
+    behavior: {
+      kind: "chaos",
+      chaosRerollMs: 900,
+      chaosLerpRate: 3,
+    },
   },
 ];
 

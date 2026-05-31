@@ -29,7 +29,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.06,
     nonlinearGain: 0,
     frictionAir: 0.012,
-    durabilitySeconds: 15,
+    durabilitySeconds: 14,
   },
   rod: {
     segmentSpacing: 100,
@@ -40,7 +40,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.002,
     nonlinearGain: 0,
     frictionAir: 0.004,
-    durabilitySeconds: 90,
+    durabilitySeconds: 70,
   },
   chain: {
     segmentSpacing: 36,
@@ -51,7 +51,7 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.02,
     nonlinearGain: 0,
     frictionAir: 0.018,
-    durabilitySeconds: 24,
+    durabilitySeconds: 22,
   },
   elastic: {
     segmentSpacing: 22,
@@ -62,20 +62,44 @@ const BASE: Record<AttachmentType, RopeMaterialProfile> = {
     maxStretchRatio: 1.35,
     nonlinearGain: 2.4,
     frictionAir: 0.01,
-    durabilitySeconds: 14,
+    durabilitySeconds: 13,
   },
 };
 
+// durabilitySeconds forms a deliberate ladder. The three cheap short ropes
+// (micro/short/compact) are intentionally fragile snap-finale sidegrades; the
+// real power ladder (hemp → steel → braided → tow → titan → magnetic) climbs
+// monotonically so each upgrade buys more live-swing time. Tuned against the
+// post-revamp bob roster (weights 1.0–9.0), so a typical ~weight-3 bob gets a
+// satisfying ~5s on micro-twine up to ~28s on the magnetic tether.
 const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
-  "micro-twine": { segmentSpacing: 22, stiffness: 0.9, damping: 0.03, maxStretchRatio: 1.07, durabilitySeconds: 9 },
-  "short-hemp": { segmentSpacing: 24, stiffness: 0.89, damping: 0.028, durabilitySeconds: 11 },
-  "compact-rope": { segmentSpacing: 26, stiffness: 0.88, damping: 0.026, durabilitySeconds: 13 },
-  "steel-rope": { stiffness: 0.95, damping: 0.018, maxStretchRatio: 1.02, durabilitySeconds: 34 },
-  "braided-rope": { stiffness: 0.86, damping: 0.022, maxStretchRatio: 1.05, durabilitySeconds: 17 },
-  "tow-rope": { segmentSpacing: 30, nodeMassRatio: 0.06, stiffness: 0.84, damping: 0.024, durabilitySeconds: 20 },
-  "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015, durabilitySeconds: 46 },
-  "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05, durabilitySeconds: 24 },
-  "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04, durabilitySeconds: 40 },
+  "micro-twine": { segmentSpacing: 22, stiffness: 0.9, damping: 0.03, maxStretchRatio: 1.07, durabilitySeconds: 7 },
+  "short-hemp": { segmentSpacing: 24, stiffness: 0.89, damping: 0.028, durabilitySeconds: 9 },
+  "compact-rope": { segmentSpacing: 26, stiffness: 0.88, damping: 0.026, durabilitySeconds: 11 },
+  // hemp-rope (the default) intentionally has no override → base rope: 14.
+  "steel-rope": { stiffness: 0.95, damping: 0.018, maxStretchRatio: 1.02, durabilitySeconds: 18 },
+  "braided-rope": { stiffness: 0.86, damping: 0.022, maxStretchRatio: 1.05, durabilitySeconds: 20 },
+  "tow-rope": { segmentSpacing: 30, nodeMassRatio: 0.06, stiffness: 0.84, damping: 0.024, durabilitySeconds: 24 },
+  "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015, durabilitySeconds: 32 },
+  "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04, durabilitySeconds: 38 },
+  "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05, durabilitySeconds: 22 },
+  // --- behavior ropes (see data/attachments.ts) ---
+  // flux: a mid-tier base — its drain is then churned up and down by the Random
+  // Rope behavior, so the effective lifespan swings around this number.
+  "flux-cord": { stiffness: 0.88, damping: 0.024, maxStretchRatio: 1.1, durabilitySeconds: 15 },
+  // metronome (Pendulum Line): rigid rod — no rope segments; length oscillation is
+  // driven by the metronome behavior, not stretchy links.
+  "pendulum-line": {
+    segmentSpacing: 9999,
+    stiffness: 1,
+    damping: 0.004,
+    maxStretchRatio: 1.001,
+    durabilitySeconds: 17,
+  },
+  // belt (legacy): conveyor payout/stress system (retired for the modern Mechanic Belt).
+  "mechanic-belt": { segmentSpacing: 18, stiffness: 0.93, damping: 0.03, maxStretchRatio: 1.05, durabilitySeconds: 8 },
+  // bulwark: stout, low-stretch weave — the hardening "wall" wants a stiff line.
+  "bulwark-weave": { segmentSpacing: 30, stiffness: 0.9, damping: 0.022, maxStretchRatio: 1.03, durabilitySeconds: 20 },
 };
 
 export function resolveRopeMaterial(attachment: AttachmentDef): RopeMaterialProfile {

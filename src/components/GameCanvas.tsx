@@ -13,6 +13,7 @@ import {
   setGravity,
   applyAmbientForce,
   createWallField,
+  createRingObstacles,
   destroyWallField,
   regenerateWallField,
   findWallByBody,
@@ -40,8 +41,20 @@ import {
   clampAngularVelocity,
   snapRope,
   restoreRope,
+  teleportRig,
+  rigReach,
+  feedBeltRope,
+  reelBeltRope,
+  beltPayoutRatio,
+  resetBeltPayout,
+  isBeltTunnelAttachment,
+  feedBeltVirtual,
+  reelBeltVirtual,
+  beltVirtualPayoutRatio,
+  resetBeltVirtual,
   type PendulumHandle,
 } from "../game/pendulum";
+import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
   destroyHitZones,
@@ -80,16 +93,29 @@ import {
   drawSiteAnchor,
   drawTokens,
   drawWalls,
+  drawObstacles,
+  drawBlackHole,
   drawEchoBobs,
+  drawBeltTunnel,
   type RenderContext,
   type EchoBobRender,
 } from "../game/render";
+import {
+  advanceTunnelProgress,
+  applyBeltLaunchKick,
+  applyBeltTunnelContainment,
+  applyStrictConveyorRail,
+  generateBeltTunnelPath,
+  sampleTunnel,
+  sampleTunnelTangent,
+  type BeltTunnelPath,
+} from "../game/beltTunnel";
 import {
   applyWorldCamera,
   computeViewTransform,
   type ViewTransform,
 } from "../game/viewTransform";
-import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../game/worldConstants";
+import { ANCHOR, COLLISION, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../game/worldConstants";
 import {
   createEffectsState,
   emitHit,
@@ -100,6 +126,11 @@ import {
 const RUN_END_SPEED_THRESHOLD = 0.45;
 const RUN_END_IDLE_MS = 1500;
 const AUTO_RUN_DELAY_MS = 1500;
+// Grace window after a Mechanic Belt ejects its bob at the conveyor exit, during
+// which the escape check can't hard-end the run — lets the thrown bob fly its
+// full arc / bounce around the cage instead of being reset the instant it clips
+// past the field margin.
+const BELT_EJECT_FLY_MS = 2200;
 // Once the pendulum's fastest bob drops below this for STALL_TIME_MS while
 // still in a run, we treat the run as "no more circles reachable" — the
 // pendulum is clearly decelerating and unlikely to land more hits. We use this
@@ -144,6 +175,8 @@ const WALL_BOUNCE_BOOST = 1.22;
 const WALL_BREAK_BOOST = 1.5;
 // Flat momentum bonus for shattering a wall.
 const WALL_BREAK_BONUS = 70;
+// Breakable Bob shed pieces chip walls slowly — ~3 shard slams ≈ one full bob hit.
+const WALL_SHARD_DAMAGE = 1 / 3;
 // How far past the field edge a freed bob must drift to count as "escaped".
 // Once every bob is out (and the rope has snapped), the run is over: there's
 // nothing left to achieve, so we end it and light up Run Again.
@@ -386,6 +419,20 @@ export default function GameCanvas() {
     // A wall-less site (the Workshop) keeps its snapped rig on display — empty
     // rope, bobs gone — between runs instead of auto-restoring it.
     const wallless = wallField.walls.length === 0;
+
+    // Layers map: concentric ring walls centered on the mount, so the bob's
+    // orbit threads through their rotating gaps. Stored on the wall field so
+    // they're drawn each frame and torn down with everything else on unmount.
+    if (site.wallShape === "rings") {
+      wallField.obstacles = createRingObstacles(
+        engineHandle.world,
+        ANCHOR,
+        site.ringCount ?? 4,
+        Math.round(115 * WORLD_SCALE), // ring spacing (design px × world scale)
+        Math.round(12 * WORLD_SCALE) // wall thickness
+      );
+    }
+
     const ropeMaterial = resolveRopeMaterial(attachment);
 
     const pendulumHandle: PendulumHandle = buildPendulum(
@@ -432,6 +479,255 @@ export default function GameCanvas() {
     // at 0 the rope snaps. Per-run only — reset to full at every fresh launch.
     let durability = 1;
 
+    // --- Behavior-bob run-local state (all reset on every fresh launch) ---
+    const behavior = pendulum.behavior;
+    // hunter (Ravager): the freed bob is actively homing onto live circles.
+    let homingActive = false;
+    let homingEats = 0;
+    let homingStartedAt = 0;
+    // When the rope last snapped (0 = currently strung). Behavior bobs keep
+    // their identity through the finale; the re-energizing effects (piercer
+    // dash, teleport blink, rocket thrust) only fire for this long after the
+    // snap so the freed bob still coasts to a natural escape/idle end.
+    let snappedAt = 0;
+    const POST_SNAP_BEHAVIOR_MS = 4000;
+    // piercer (Arrow): straight-line dash cadence + per-run count.
+    let lastDashAt = 0;
+    let dashCount = 0;
+    // hydra (Mutant): heads grown this run + the hit counter that feeds them.
+    let hydraBonusEcho = 0;
+    let hydraHits = 0;
+    // frenzy (Berserker): the velocity multiplier we've currently applied, so
+    // combo-driven scaling ramps up and bleeds back down without compounding.
+    let frenzyAppliedMult = 1;
+    // teleport (TP): cadence of the random blinks.
+    let lastTeleportAt = 0;
+    // rocket (Rocket): when the current thrust ramp started.
+    let rocketLaunchAt = 0;
+    // splitter (Breakable): free-flying shed pieces + how many we've lost.
+    const shards: Matter.Body[] = [];
+    let shedCount = 0;
+    // chaos (Random): current + target stat multipliers (relative to this bob's
+    // own base stats), lerped toward fresh random targets each reroll.
+    let chaosSizeCur = 1;
+    let chaosSizeTarget = 1;
+    let chaosWeightCur = 1;
+    let chaosWeightTarget = 1;
+    let chaosCapCur = 1;
+    let chaosCapTarget = 1;
+    let chaosRopeCur = 1;
+    let chaosRopeTarget = 1;
+    let lastChaosRollAt = 0;
+
+    // Roster-wide stat extremes — the Chaos Bob's random churn is bounded by
+    // the lightest/heaviest, smallest/largest, slowest/fastest rigs that exist.
+    const rosterRadii = PENDULUMS.map((p) => p.bobRadius);
+    const rosterWeights = PENDULUMS.map((p) => p.weight);
+    const rosterAngVels = PENDULUMS.map((p) => p.maxAngularVelocity);
+    const minRosterRadius = Math.min(...rosterRadii);
+    const maxRosterRadius = Math.max(...rosterRadii);
+    const minRosterWeight = Math.min(...rosterWeights);
+    const maxRosterWeight = Math.max(...rosterWeights);
+    const minRosterAngVel = Math.min(...rosterAngVels);
+    const maxRosterAngVel = Math.max(...rosterAngVels);
+
+    // --- Behavior-rope run-local state (the rope analog of the bob behaviors) ---
+    const ropeBehavior = attachment.behavior;
+    // belt (Mechanic): conveyor tunnel. Ride ends only when grip fades (bob slows down).
+    // Repair drops refuel grip + give short speed boost. Stress retired.
+    // flux (Random Rope): current + target length / drain-rate multipliers,
+    // lerped toward fresh random targets each reroll (mirrors the Chaos bob).
+    let fluxLenCur = 1;
+    let fluxLenTarget = 1;
+    let fluxDrainCur = 1;
+    let fluxDrainTarget = 1;
+    let lastFluxRollAt = 0;
+    // metronome (Pendulum Rope): epoch the length oscillation is measured from,
+    // re-zeroed each launch so every run's pump starts from full extension.
+    let ropeEpoch = 0;
+    // belt (Mechanic Rope): a random tunnel path rerolled each run and on
+    // every spent token; the bob rides it on a conveyor instead of pivot-spin.
+    // The bob is fully unattached (no rope constraints). Stress is tracked virtually.
+    let beltTunnel: BeltTunnelPath | null = null;
+    let beltPathT = 0;
+    // Kept for legacy non-Mechanic-Belt ropes and for any future use.
+    // The true Mechanic Belt no longer uses payout/stress (feature retired).
+    let beltVirtualPayout = 1;
+    const BELT_MAX_PAYOUT = 1.65;
+    let beltGrip = 1; // 1 = full conveyor control, 0 = released into the strict tube (bounce until exit)
+    let beltLowSpeedFrames = 0;
+
+    // When true, the physical tunnel walls remain as a hard multilayer hitbox
+    // even after the conveyor power/grip has failed ("snapped"). The bob
+    // stays constrained inside the tunnel geometry.
+    let beltTunnelWallsActive = false;
+
+    // Prevents the strict rail from automatically re-attaching bobs after they
+    // have ejected at the end of the path. Once a ride has started, we don't
+    // want to loop the bob back onto the conveyor forever.
+    let beltRailRideInitialized = false;
+
+    // The Mechanic Belt bob is a fully FREE body (createPendulum builds no rope
+    // and no constraints for it — see pendulum.ts isBeltTunnelAttachment). So the
+    // conveyor ride is purely `applyStrictConveyorRail` hard-locking the bob onto
+    // the path with setPosition. The exit-eject just STOPS doing that and flings
+    // the bob; there is nothing to detach.
+    //
+    // `beltRideEjected` latches true the moment a bob is thrown out of the exit.
+    // While it's true, beltConveyor returns immediately and never touches the
+    // bob again — it can't re-rail it or snap it back to the conveyor start.
+    // It clears only on the next launch. `beltEjectAt` is when the throw happened
+    // (drives the escape-end grace; 0 = not ejected this run).
+    let beltRideEjected = false;
+    let beltEjectAt = 0;
+
+    function rerollBeltTunnel() {
+      if (ropeBehavior?.kind !== "belt") {
+        beltTunnel = null;
+        beltPathT = 0;
+        beltTunnelWallsActive = false;
+        return;
+      }
+      beltTunnel = generateBeltTunnelPath(
+        cageBounds,
+        ANCHOR,
+        ropeBehavior.beltWaypointCount ?? 9
+      );
+      beltPathT = 0;
+      beltTunnelWallsActive = true;
+    }
+    // bulwark (Wall Rope): how many rope segments (from the anchor) are currently
+    // hardened into a rigid wall, whether the wall is up, and when a broken wall
+    // may re-harden. `bulwarkSaved` keeps each hardened constraint's original
+    // softness so breaking the wall restores (repairs) exactly that stretch.
+    let bulwarkActive = false;
+    let bulwarkBrokenUntil = 0;
+    let lastBulwarkRollAt = 0;
+    const bulwarkSaved = new Map<Matter.Constraint, { stiffness: number; damping: number }>();
+
+    // --- Black Hole map run-local state ---
+    // The singularity's position (random + off-center, rerolled each launch) and
+    // whether the bob has been captured by its core this run (which lights up
+    // Run Again). `null` on every non-black-hole site.
+    const BLACK_HOLE_CORE_R = Math.round(70 * WORLD_SCALE);
+    const BLACK_HOLE_REACH = Math.round(620 * WORLD_SCALE);
+    let blackHole: { x: number; y: number } | null = null;
+    let blackHoleCaptured = false;
+
+    function clearShards() {
+      for (const b of shards) Matter.World.remove(engineHandle.world, b);
+      shards.length = 0;
+    }
+
+    /** Breakable Bob: clear shed pieces and regrow the core to full size/weight/reach. */
+    function resetSplitterProgress() {
+      clearShards();
+      shedCount = 0;
+    }
+
+    // bulwark: un-harden every wall-hardened rope constraint, restoring the
+    // softness saved when it was hardened. This is the "repair" — the broken
+    // stretch goes back to a normal flexible rope.
+    function restoreBulwarkWall() {
+      for (const [c, saved] of bulwarkSaved) {
+        c.stiffness = saved.stiffness;
+        c.damping = saved.damping;
+      }
+      bulwarkSaved.clear();
+    }
+
+    // Black Hole: pick a fresh singularity position for this run — anywhere in
+    // the cage except a wide central exclusion zone, so it never sits on top of
+    // the mount ("never spawns close to middle area").
+    function rerollBlackHole() {
+      if (!site.blackHole) {
+        blackHole = null;
+        return;
+      }
+      const { minX, minY, maxX, maxY } = wallField.bounds;
+      const pad = BLACK_HOLE_CORE_R + 40 * WORLD_SCALE;
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const exclude = Math.min(maxX - minX, maxY - minY) * 0.26;
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const x = minX + pad + Math.random() * (maxX - minX - pad * 2);
+        const y = minY + pad + Math.random() * (maxY - minY - pad * 2);
+        if (Math.hypot(x - cx, y - cy) >= exclude) {
+          blackHole = { x, y };
+          return;
+        }
+      }
+      // Fallback: shove it into a random corner well off-center.
+      blackHole = {
+        x: Math.random() < 0.5 ? minX + pad : maxX - pad,
+        y: Math.random() < 0.5 ? minY + pad : maxY - pad,
+      };
+    }
+
+    function resetBehaviorRunState() {
+      homingActive = false;
+      homingEats = 0;
+      homingStartedAt = 0;
+      snappedAt = 0;
+      lastDashAt = 0;
+      dashCount = 0;
+      hydraBonusEcho = 0;
+      hydraHits = 0;
+      frenzyAppliedMult = 1;
+      lastTeleportAt = 0;
+      rocketLaunchAt = 0;
+      resetSplitterProgress();
+      chaosSizeCur = chaosSizeTarget = 1;
+      chaosWeightCur = chaosWeightTarget = 1;
+      chaosCapCur = chaosCapTarget = 1;
+      chaosRopeCur = chaosRopeTarget = 1;
+      lastChaosRollAt = 0;
+      // Rope behaviors.
+      fluxLenCur = fluxLenTarget = 1;
+      fluxDrainCur = fluxDrainTarget = 1;
+      lastFluxRollAt = 0;
+      ropeEpoch = performance.now();
+      rerollBeltTunnel();
+      beltVirtualPayout = resetBeltVirtual();
+      beltGrip = 1;
+      beltLowSpeedFrames = 0;
+      beltTunnelWallsActive = true;
+      beltRailRideInitialized = false;
+
+      // Clear the exit-eject state so the next launch rides the conveyor again
+      // from the start instead of treating the bob as already thrown.
+      beltRideEjected = false;
+      beltEjectAt = 0;
+      for (const bob of pendulumHandle.bobs) {
+        delete (bob as any)._beltEjected;
+        delete (bob as any)._beltRailT;
+      }
+
+      restoreBulwarkWall();
+      bulwarkActive = false;
+      bulwarkBrokenUntil = 0;
+      lastBulwarkRollAt = 0;
+      // Black hole: fresh singularity + clear capture.
+      rerollBlackHole();
+      blackHoleCaptured = false;
+    }
+
+    // Seed an initial tunnel so the Mechanic Belt route renders before launch.
+    rerollBeltTunnel();
+    beltVirtualPayout = resetBeltVirtual();
+    beltGrip = 1;
+    beltLowSpeedFrames = 0;
+    beltTunnelWallsActive = true;
+    beltRailRideInitialized = false;
+
+    // Clear any previous belt ejection markers so a fresh ride can start cleanly.
+    for (const bob of pendulumHandle.bobs) {
+      delete (bob as any)._beltEjected;
+    }
+
+    // very first launch (subsequent runs reroll it via resetBehaviorRunState).
+    rerollBlackHole();
+
     // While `now` is below this timestamp the engine is frozen for hit-stop.
     let hitStopUntil = 0;
     let lastHitStopAt = -Infinity;
@@ -473,12 +769,20 @@ export default function GameCanvas() {
       }[] = [];
       const bobRadius = getEffectiveBobRadius(pendulumHandle);
 
-      const hitters: { body: Matter.Body; isEcho: boolean }[] = [
+      // Breakable's shed pieces score too, at half value (isEcho) so a swarm of
+      // shards doesn't snowball combos/drops. Each carries its own radius.
+      const hitters: { body: Matter.Body; isEcho: boolean; radius: number }[] = [
         ...getOrderedBobBodies(pendulumHandle).map((body) => ({
           body,
           isEcho: false,
+          radius: bobRadius,
         })),
-        ...echoBobs.map((e) => ({ body: e.body, isEcho: true })),
+        ...echoBobs.map((e) => ({ body: e.body, isEcho: true, radius: bobRadius })),
+        ...shards.map((body) => ({
+          body,
+          isEcho: true,
+          radius: body.circleRadius ?? bobRadius,
+        })),
       ];
 
       for (const hitter of hitters) {
@@ -486,7 +790,7 @@ export default function GameCanvas() {
           const z = handle.zone;
           const dx = hitter.body.position.x - z.position.x;
           const dy = hitter.body.position.y - z.position.y;
-          if (Math.hypot(dx, dy) > bobRadius + z.radius) continue;
+          if (Math.hypot(dx, dy) > hitter.radius + z.radius) continue;
           const key = zoneOverlapKey(hitter.body.id, z.id);
           nextOverlaps.add(key);
           if (!zoneOverlapKeys.has(key)) {
@@ -620,6 +924,44 @@ export default function GameCanvas() {
       if (!isEcho) {
         requestHitStop(now, HIT_STOP_MS);
 
+        // Hydra (Mutant): every milestone of real hits this run sprouts a new
+        // scoring head (echo), snowballing coverage until the per-run cap.
+        if (behavior?.kind === "hydra") {
+          hydraHits += 1;
+          const milestone = behavior.milestoneHits ?? 8;
+          const per = behavior.echoPerMilestone ?? 1;
+          const max = behavior.maxBonusEchoes ?? 5;
+          if (hydraHits % milestone === 0 && hydraBonusEcho < max) {
+            hydraBonusEcho = Math.min(max, hydraBonusEcho + per);
+            playGameSound("token-spawn");
+            emitManeuver(
+              effects,
+              bobBody.position,
+              `MUTATION! ${hydraBonusEcho} head${hydraBonusEcho === 1 ? "" : "s"}`,
+              now
+            );
+          }
+        }
+
+        // Ravager (hunter): each circle the freed bob devours counts toward
+        // satiation and re-energizes the chase so the hunt keeps its pace.
+        if (homingActive && behavior?.kind === "hunter") {
+          homingEats += 1;
+          const maxSpeed = behavior.chaseMaxSpeed ?? 60;
+          const sp = Math.hypot(bobBody.velocity.x, bobBody.velocity.y) || 1;
+          Matter.Body.setVelocity(bobBody, {
+            x: (bobBody.velocity.x / sp) * maxSpeed,
+            y: (bobBody.velocity.y / sp) * maxSpeed,
+          });
+        }
+
+        // Breakable (splitter): chip off a free-flying scoring piece on each
+        // real hit; the core shrinks/speeds up as it loses mass (via the
+        // per-frame scale factors keyed on shedCount).
+        if (behavior?.kind === "splitter") {
+          shedShard(now, { x: bobBody.position.x, y: bobBody.position.y });
+        }
+
         if (comboStacks > 1 && comboStacks % 5 === 0) {
           const bonus = 5 * comboStacks;
           state.addMomentum(bonus);
@@ -678,6 +1020,45 @@ export default function GameCanvas() {
       const state = useGameStore.getState();
 
       if (def.kind === "repair") {
+        // Wall Rope (bulwark) can't pick up repair drops — its rope is repaired
+        // only by whipping through its own hardened wall. The drop is consumed
+        // but does nothing.
+        if (ropeBehavior?.kind === "bulwark") {
+          emitManeuver(effects, handle.token.position, "No Patch", now);
+          void bobBody;
+          return;
+        }
+        // Mechanic Belt (conveyor): Repair drops now act as refuels.
+        // They recover grip and give a short speed boost so the bob can keep riding longer.
+        if (ropeBehavior?.kind === "belt") {
+          if (isBeltTunnelAttachment(attachment)) {
+            // Grip recovery + temporary riding stability
+            beltLowSpeedFrames = Math.max(0, beltLowSpeedFrames - 30);
+            beltGrip = Math.min(1, beltGrip + 0.65);
+
+            // Small forward kick along the current path direction to help it keep momentum
+            const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+            if (beltTunnel && tip) {
+              const tan = sampleTunnelTangent(beltTunnel, beltPathT);
+              const boost = 9 * WORLD_SCALE;
+              Matter.Body.setVelocity(tip, {
+                x: tip.velocity.x + tan.x * boost,
+                y: tip.velocity.y + tan.y * boost,
+              });
+            }
+          } else {
+            reelBeltRope(pendulumHandle, ropeBehavior.beltReelFraction ?? 0.4);
+          }
+          playGameSound("token-collect", { variant: def.kind });
+          emitHit(effects, handle.token.position, now, {
+            color: def.color,
+            points: 0,
+            intensity: 1.5,
+          });
+          emitManeuver(effects, handle.token.position, "Conveyor Refueled!", now);
+          void bobBody;
+          return;
+        }
         // Rope Patch: top the current rope's durability back up, capped at full.
         durability = Math.min(1, durability + REPAIR_AMOUNT);
         playGameSound("token-collect", { variant: def.kind });
@@ -781,12 +1162,24 @@ export default function GameCanvas() {
       const speed = Math.hypot(bobBody.velocity.x, bobBody.velocity.y);
       if (speed < WALL_HIT_MIN_SPEED) return;
 
-      const shattered = damageWall(engineHandle.world, wallField, wall);
-      bounceBobOffWall(bobBody, wall, shattered ? WALL_BREAK_BOOST : WALL_BOUNCE_BOOST);
+      const isShard = bobBody.label.startsWith("bob-shard-");
+      const wallDamage = isShard ? WALL_SHARD_DAMAGE : 1;
+      const shattered = damageWall(engineHandle.world, wallField, wall, wallDamage);
+      // A bob thrown free of the conveyor exit is a FREE body with no rope to
+      // bleed energy. The normal wall bounce MULTIPLIES speed (WALL_*_BOOST > 1),
+      // which on a ropeless bob compounds every hit until it exceeds the cage
+      // wall thickness and tunnels straight out of the field (then "escapes" and
+      // the run relaunches it back to the conveyor start). So we DON'T apply the
+      // energy-pumping bounce to it — Matter resolves the hit with the bob's own
+      // restitution (0.5), so it loses energy, settles, and stays in play.
+      const isEjectedBelt = (bobBody as any)._beltEjected === true;
+      if (!isEjectedBelt) {
+        bounceBobOffWall(bobBody, wall, shattered ? WALL_BREAK_BOOST : WALL_BOUNCE_BOOST);
+      }
       emitHit(effects, { x: bobBody.position.x, y: bobBody.position.y }, now, {
         color: shattered ? "#f87171" : "#fbbf24",
         points: 0,
-        intensity: shattered ? 1.8 : 0.9,
+        intensity: shattered ? 1.8 : isShard ? 0.55 : 0.9,
       });
       if (shattered) {
         // Flat reward for breaking a wall, on top of the ricochet impulse.
@@ -794,7 +1187,7 @@ export default function GameCanvas() {
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
         emitManeuver(effects, bobBody.position, `WALL BREAK! +${WALL_BREAK_BONUS}`, now);
       } else {
-        playGameSound("zone-hit", { pitch: 0.7, volume: 0.4 });
+        playGameSound("zone-hit", { pitch: isShard ? 0.85 : 0.7, volume: isShard ? 0.25 : 0.4 });
       }
     }
 
@@ -936,6 +1329,649 @@ export default function GameCanvas() {
       }
     }
 
+    // --- Behavior bobs ---------------------------------------------------
+
+    // hunter (Ravager): steer every freed bob toward the nearest live circle so
+    // a snapped Ravager devours zones Pac-Man style. Runs only while snapped and
+    // homing; ends after `satiationEats` eats or `satiationMs`, after which the
+    // freed bobs coast and the normal escape/idle end-of-run logic takes over.
+    function steerHomingBobs(now: number) {
+      if (!homingActive || !behavior) return;
+      const satEats = behavior.satiationEats ?? 16;
+      const satMs = behavior.satiationMs ?? 3500;
+      if (homingEats >= satEats || now - homingStartedAt > satMs) {
+        homingActive = false;
+        return;
+      }
+      const accel = behavior.chaseAccel ?? 0.09;
+      const maxSpeed = behavior.chaseMaxSpeed ?? 60;
+      for (const bob of getOrderedBobBodies(pendulumHandle)) {
+        let best: HitZoneHandle | null = null;
+        let bestD = Infinity;
+        for (const h of field.zones) {
+          const dx = h.zone.position.x - bob.position.x;
+          const dy = h.zone.position.y - bob.position.y;
+          const d = dx * dx + dy * dy;
+          if (d < bestD) {
+            bestD = d;
+            best = h;
+          }
+        }
+        if (!best) {
+          homingActive = false;
+          return;
+        }
+        const dx = best.zone.position.x - bob.position.x;
+        const dy = best.zone.position.y - bob.position.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const desiredX = (dx / len) * maxSpeed;
+        const desiredY = (dy / len) * maxSpeed;
+        Matter.Body.setVelocity(bob, {
+          x: bob.velocity.x + (desiredX - bob.velocity.x) * accel,
+          y: bob.velocity.y + (desiredY - bob.velocity.y) * accel,
+        });
+      }
+    }
+
+    // piercer (Arrow): every `dashIntervalMs` of live swing, fire a straight-
+    // line burst along the bob's current heading so it spears through a row of
+    // circles instead of only grazing the arc. The rope reels it back after.
+    function dashPiercer(now: number) {
+      if (!behavior) return;
+      const interval = behavior.dashIntervalMs ?? 1400;
+      const maxPerRun = behavior.dashMaxPerRun ?? 0;
+      if (now - lastDashAt < interval) return;
+      if (maxPerRun > 0 && dashCount >= maxPerRun) return;
+      const dashSpeed = behavior.dashSpeed ?? 78;
+      const cap = 72 * WORLD_SCALE;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const sp = Math.hypot(tip.velocity.x, tip.velocity.y);
+      // Only fire when there's a real swing to spear along.
+      if (sp < 2) return;
+      const ux = tip.velocity.x / sp;
+      const uy = tip.velocity.y / sp;
+      for (const bob of pendulumHandle.bobs) {
+        const nx = bob.velocity.x + ux * dashSpeed;
+        const ny = bob.velocity.y + uy * dashSpeed;
+        Matter.Body.setVelocity(bob, {
+          x: Math.max(-cap, Math.min(cap, nx)),
+          y: Math.max(-cap, Math.min(cap, ny)),
+        });
+      }
+      // Post-snap the rope is detached, so there's nothing to whip — the dash
+      // just flings the freed bob along its heading.
+      if (!pendulumHandle.snapped) propagateRopeWhip(pendulumHandle, tip.velocity, 0.05);
+      lastDashAt = now;
+      dashCount += 1;
+      playGameSound("maneuver", { variant: "pierce" });
+      emitManeuver(effects, tip.position, "PIERCE!", now);
+    }
+
+    // magnet (Lodestone): drag nearby circles and loose tokens toward the tip
+    // bob's arc. Circles relocate when hit (so they never permanently collapse
+    // onto the bob); tokens just get easier to scoop. Pull eases with distance.
+    function magnetPull(dt: number) {
+      if (!behavior || dt <= 0) return;
+      const radius = behavior.pullRadius ?? 780;
+      const zoneStrength = (behavior.pullStrength ?? 2.4) * (dt / 1000);
+      const tokenStrength = (behavior.tokenPullStrength ?? 4) * (dt / 1000);
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const radiusSq = radius * radius;
+
+      for (const h of field.zones) {
+        const dx = tip.position.x - h.zone.position.x;
+        const dy = tip.position.y - h.zone.position.y;
+        const dSq = dx * dx + dy * dy;
+        if (dSq > radiusSq || dSq < 1) continue;
+        const d = Math.sqrt(dSq);
+        const k = Math.min(0.5, zoneStrength * (1 - d / radius));
+        const nx = h.zone.position.x + dx * k;
+        const ny = h.zone.position.y + dy * k;
+        h.zone.position = { x: nx, y: ny };
+        Matter.Body.setPosition(h.body, { x: nx, y: ny });
+      }
+
+      // Tokens: nudge the canonical base position; tickTokens re-syncs the body
+      // (and its idle bob) from it later this frame.
+      for (const t of tokenField.tokens) {
+        if (t.token.consumed) continue;
+        const dx = tip.position.x - t.token.position.x;
+        const dy = tip.position.y - t.token.position.y;
+        const dSq = dx * dx + dy * dy;
+        if (dSq > radiusSq || dSq < 1) continue;
+        const d = Math.sqrt(dSq);
+        const k = Math.min(0.6, tokenStrength * (1 - d / radius));
+        t.token.position.x += dx * k;
+        t.token.position.y += dy * k;
+      }
+    }
+
+    // frenzy (Berserker): scale swing speed with the live combo, ramping up as
+    // the chain grows and bleeding back down when it drops. Returns nothing —
+    // size scaling is applied separately via setBobRadiusScale. Bidirectional
+    // (unlike Speed Ramp) so a broken combo visibly cools the bob back off.
+    function applyFrenzyScale(targetMult: number) {
+      if (Math.abs(targetMult - frenzyAppliedMult) < 0.001) return;
+      const delta = targetMult / frenzyAppliedMult;
+      const cap = 60 * WORLD_SCALE;
+      for (const bob of pendulumHandle.bobs) {
+        let vx = bob.velocity.x * delta;
+        let vy = bob.velocity.y * delta;
+        const speed = Math.hypot(vx, vy);
+        if (speed > cap) {
+          const s = cap / speed;
+          vx *= s;
+          vy *= s;
+        }
+        Matter.Body.setVelocity(bob, { x: vx, y: vy });
+      }
+      frenzyAppliedMult = targetMult;
+    }
+
+    // frenzy combo stacks → (speedMult, sizeMult). Shared by the speed scaler
+    // and the per-frame bob-size scaling so both track the same combo count.
+    function frenzyMultipliers(): { speed: number; size: number } {
+      if (behavior?.kind !== "frenzy") return { speed: 1, size: 1 };
+      const maxStacks = behavior.maxComboStacks ?? 20;
+      const stacks = Math.min(useGameStore.getState().combo.count, maxStacks);
+      return {
+        speed: 1 + stacks * (behavior.comboSpeedPerStack ?? 0.015),
+        size: 1 + stacks * (behavior.comboSizePerStack ?? 0.015),
+      };
+    }
+
+    // splitter (Breakable): the more pieces it has shed, the smaller, shorter,
+    // lighter, and faster the core becomes. Identity (all 1) for other bobs.
+    function splitterFactors(): {
+      size: number;
+      rope: number;
+      weight: number;
+      cap: number;
+    } {
+      if (behavior?.kind !== "splitter") {
+        return { size: 1, rope: 1, weight: 1, cap: 1 };
+      }
+      const shed = shedCount;
+      const shrink = behavior.shrinkPerShard ?? 0.06;
+      return {
+        size: Math.max(0.4, 1 - shed * shrink),
+        rope: Math.max(0.45, 1 - shed * shrink),
+        weight: Math.max(0.3, 1 - shed * (behavior.weightDropPerShard ?? 0.07)),
+        cap: 1 + shed * (behavior.speedupPerShard ?? 0.12),
+      };
+    }
+
+    // Combined per-frame stat multipliers from every active scaling behavior
+    // (frenzy size, splitter shed-down, chaos churn). Applied on top of modifier
+    // effects when scaling the rig each frame.
+    function behaviorScales(): { size: number; rope: number; weight: number } {
+      const f = frenzyMultipliers();
+      const s = splitterFactors();
+      return {
+        size: f.size * s.size * chaosSizeCur,
+        rope: s.rope * chaosRopeCur,
+        weight: s.weight * chaosWeightCur,
+      };
+    }
+
+    // Angular-speed-cap multiplier from the same behaviors. Kept separate so the
+    // afterUpdate clamp can read it without recomputing the frame's full scales.
+    function behaviorCapMult(): number {
+      return frenzyMultipliers().speed * splitterFactors().cap * chaosCapCur;
+    }
+
+    // teleport (TP): blink the rig to a random spot in the cage on a cadence.
+    // teleportRig drops the bob at that spot — out past the rope's reach, in
+    // open field — and the stretched rope reels it back in, so a short rope
+    // hauls it home hard and a long rope lets it roam.
+    function teleportTick(now: number) {
+      if (behavior?.kind !== "teleport") return;
+      if (now - lastTeleportAt < (behavior.teleportIntervalMs ?? 1100)) return;
+      lastTeleportAt = now;
+      const cage = wallField.bounds;
+      const tx = cage.minX + Math.random() * (cage.maxX - cage.minX);
+      const ty = cage.minY + Math.random() * (cage.maxY - cage.minY);
+      const speed = behavior.teleportSpeed ?? 42;
+      if (pendulumHandle.snapped) {
+        // No rope to re-lay — blink the freed bob straight to the spot and fling
+        // it off in a random direction so it keeps ricocheting and scoring.
+        for (const bob of getOrderedBobBodies(pendulumHandle)) {
+          Matter.Body.setPosition(bob, { x: tx, y: ty });
+          const ang = Math.random() * Math.PI * 2;
+          Matter.Body.setVelocity(bob, {
+            x: Math.cos(ang) * speed,
+            y: Math.sin(ang) * speed,
+          });
+        }
+      } else {
+        teleportRig(pendulumHandle, tx, ty, speed);
+      }
+      const at = pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position;
+      playGameSound("token-spawn", { pitch: 1.4, volume: 0.4 });
+      emitHit(effects, { x: at.x, y: at.y }, now, {
+        color: "#a78bfa",
+        points: 0,
+        intensity: 1,
+      });
+      emitManeuver(effects, { x: at.x, y: at.y }, "BLINK!", now);
+    }
+
+    // rocket (Rocket): continuous thrust along the bob's heading that ramps up
+    // from launch and stacks hard with an active Speed Ramp. No launch kick —
+    // the bob starts near-still (see the launch handler) and builds speed here.
+    function rocketTick(now: number, dt: number) {
+      if (behavior?.kind !== "rocket" || dt <= 0) return;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const pivot = pendulumHandle.pivot.position;
+      const sp = Math.hypot(tip.velocity.x, tip.velocity.y);
+      let tx: number;
+      let ty: number;
+      if (sp > 0.5) {
+        tx = tip.velocity.x / sp;
+        ty = tip.velocity.y / sp;
+      } else {
+        // Stalled: thrust along the orbital tangent so it spins back up.
+        const rx = tip.position.x - pivot.x;
+        const ry = tip.position.y - pivot.y;
+        const r = Math.hypot(rx, ry) || 1;
+        tx = -ry / r;
+        ty = rx / r;
+      }
+      const ramp = Math.min(1, (now - rocketLaunchAt) / (behavior.rocketRampMs ?? 3500));
+      let thrust = (behavior.rocketAccel ?? 120) * (dt / 1000) * ramp;
+      const rampMult = getSpeedRampMultiplier(useGameStore.getState().activeModifiers, now);
+      if (rampMult > 1) thrust *= 1 + (rampMult - 1) * (behavior.rampSynergy ?? 3);
+      const cap = behavior.rocketMaxSpeed ?? 138;
+      for (const bob of pendulumHandle.bobs) {
+        let nx = bob.velocity.x + tx * thrust;
+        let ny = bob.velocity.y + ty * thrust;
+        const mag = Math.hypot(nx, ny);
+        if (mag > cap) {
+          const s = cap / mag;
+          nx *= s;
+          ny *= s;
+        }
+        Matter.Body.setVelocity(bob, { x: nx, y: ny });
+      }
+    }
+
+    // rocket durability: the rope only frays while the bob is flung out at the
+    // very edge of its reach. Returns true when wear should accrue this frame.
+    function rocketRopeAtLimit(): boolean {
+      if (behavior?.kind !== "rocket") return true;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const pivot = pendulumHandle.pivot.position;
+      const dist = Math.hypot(tip.position.x - pivot.x, tip.position.y - pivot.y);
+      const reach =
+        rigReach(pendulumHandle) + Math.max(4, getEffectiveBobRadius(pendulumHandle) * 0.35);
+      return dist >= reach * (behavior.limitDrainFraction ?? 0.95);
+    }
+
+    // splitter: chip a free-flying piece off the core, flung in a random
+    // direction. Pieces carry a `bob-shard-*` label so the existing wall/token
+    // collision paths treat them as bobs, and they're added to the zone-hit
+    // sweep as half-value (echo) hitters so they score without snowballing.
+    function shedShard(now: number, fromPos: { x: number; y: number }) {
+      if (behavior?.kind !== "splitter") return;
+      if (shedCount >= (behavior.maxShards ?? 10)) return;
+      shedCount += 1;
+      const baseR = getEffectiveBobRadius(pendulumHandle);
+      const r = Math.max(6, baseR * (behavior.shardRadiusFraction ?? 0.45));
+      const ang = Math.random() * Math.PI * 2;
+      const speed = behavior.shedSpeed ?? 48;
+      const body = Matter.Bodies.circle(fromPos.x, fromPos.y, r, {
+        label: `bob-shard-${shedCount}`,
+        frictionAir: 0.006,
+        restitution: 0.5,
+        friction: 0.05,
+        // Shed pieces are scoring bobs, so they bounce off in-field ring walls.
+        collisionFilter: { category: COLLISION.BOB },
+      });
+      const mass = Math.max(0.5, pendulumHandle.baseMass * 0.5);
+      Matter.Body.setMass(body, mass);
+      Matter.Body.setInertia(body, Math.max(1, mass * r * r));
+      Matter.World.add(engineHandle.world, body);
+      Matter.Body.setVelocity(body, {
+        x: Math.cos(ang) * speed,
+        y: Math.sin(ang) * speed,
+      });
+      Matter.Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.4);
+      shards.push(body);
+      playGameSound("rope-snap", { volume: 0.35, pitch: 1.3 });
+      emitHit(effects, fromPos, now, { color: "#fca5a5", points: 0, intensity: 1.1 });
+    }
+
+    // chaos (Random): every reroll, pick fresh random targets bounded by the
+    // roster's stat extremes (relative to this bob's own base), then smoothly
+    // blend the current multipliers toward them so the rig is in constant flux.
+    function chaosTick(now: number, dt: number) {
+      if (behavior?.kind !== "chaos") return;
+      const baseR = bobRadius(pendulum);
+      const baseW = pendulum.weight;
+      const baseAV = pendulum.maxAngularVelocity;
+      const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+      if (now - lastChaosRollAt > (behavior.chaosRerollMs ?? 900)) {
+        lastChaosRollAt = now;
+        chaosSizeTarget = rand(minRosterRadius, maxRosterRadius) / baseR;
+        chaosWeightTarget = rand(minRosterWeight, maxRosterWeight) / baseW;
+        chaosCapTarget = rand(minRosterAngVel, maxRosterAngVel) / baseAV;
+        chaosRopeTarget = rand(0.6, 1.5);
+      }
+      const a = 1 - Math.exp(-(behavior.chaosLerpRate ?? 3) * (dt / 1000));
+      chaosSizeCur += (chaosSizeTarget - chaosSizeCur) * a;
+      chaosWeightCur += (chaosWeightTarget - chaosWeightCur) * a;
+      chaosCapCur += (chaosCapTarget - chaosCapCur) * a;
+      chaosRopeCur += (chaosRopeTarget - chaosRopeCur) * a;
+    }
+
+    // --- Behavior ropes --------------------------------------------------
+
+    // flux (Random Rope): churn the length + durability-drain multipliers toward
+    // fresh random targets, mirroring the Chaos bob but for the line. The drain
+    // multiplier feeds the durability tick; the length feeds ropeBehaviorLenMult.
+    function fluxTick(now: number, dt: number) {
+      if (ropeBehavior?.kind !== "flux" || dt <= 0) return;
+      if (now - lastFluxRollAt > (ropeBehavior.fluxRerollMs ?? 850)) {
+        lastFluxRollAt = now;
+        fluxLenTarget = 0.55 + Math.random() * 1.15; // 0.55× … 1.7× reach
+        fluxDrainTarget = 0.5 + Math.random() * 2.5; // 0.5× … 3× wear speed
+      }
+      const a = 1 - Math.exp(-(ropeBehavior.fluxLerpRate ?? 3) * (dt / 1000));
+      fluxLenCur += (fluxLenTarget - fluxLenCur) * a;
+      fluxDrainCur += (fluxDrainTarget - fluxDrainCur) * a;
+    }
+
+    // The per-frame length multiplier contributed by the rope's own behavior,
+    // multiplied into setRopeLengthScale alongside the modifier + bob factors.
+    //   metronome — sinusoidal pump in/out on a steady beat (self-pumping rig).
+    //   flux      — the random length churn above.
+    // 1 (a no-op) for every other rope.
+    function ropeBehaviorLenMult(now: number): number {
+      if (ropeBehavior?.kind === "metronome") {
+        const period = ropeBehavior.swingPeriodMs ?? 2600;
+        const depth = ropeBehavior.swingDepth ?? 0.28;
+        return 1 + depth * Math.sin((2 * Math.PI * (now - ropeEpoch)) / period);
+      }
+      if (ropeBehavior?.kind === "flux") return fluxLenCur;
+      return 1;
+    }
+
+    // Legacy belt feed for non-Mechanic-Belt ropes only.
+    // The true Mechanic Belt no longer uses payout/stress — the ride only ends
+    // when the bob naturally loses speed and grip fades.
+    function beltFeed(dt: number) {
+      if (ropeBehavior?.kind !== "belt" || pendulumHandle.snapped || dt <= 0) return;
+
+      if (isBeltTunnelAttachment(attachment)) {
+        // Stress retired for Mechanic Belt. No payout accumulation.
+        return;
+      }
+
+      const payoutRate = ropeBehavior.beltPayoutRate ?? 0.07;
+      const delta = payoutRate * (dt / 1000);
+      const baseLen = attachment.length * pendulumHandle.ropeLengthScale;
+      feedBeltRope(pendulumHandle, baseLen * delta);
+    }
+
+    // Helper: reset rest pose but leave bobs that were ejected from a Mechanic Belt
+    // ride completely alone (they should keep flying as free projectiles).
+    function resetPendulumToRestExcludingEjected(handle: PendulumHandle) {
+      const originalBobs = handle.bobs;
+      handle.bobs = originalBobs.filter((b: any) => !(b as any)._beltEjected);
+      resetPendulumToRest(handle);
+      handle.bobs = originalBobs;
+    }
+
+    // belt conveyor + hard walls: the bob is completely unattached.
+    // It gets an initial kick and rides the physical tunnel. The conveyor keeps
+    // pushing as long as speed is maintained. When speed drops, grip fades and
+    // the bob transitions to bouncing inside the strict tube until the exit.
+    function beltConveyor(dt: number, now: number) {
+      if (ropeBehavior?.kind !== "belt" || !beltTunnel || pendulumHandle.snapped || dt <= 0)
+        return;
+      // Once the bob has been thrown out of the exit this run, the conveyor is
+      // done with it — never re-rail it or pull it back to the start. It stays a
+      // free projectile until the next launch (which clears beltRideEjected).
+      if (beltRideEjected) return;
+
+      const trackAccel = ropeBehavior.beltTrackAccel ?? 0.07;
+      const conveyorSpeed = (ropeBehavior.beltConveyorSpeed ?? 22) * WORLD_SCALE;
+      const lookahead = ropeBehavior.beltLookahead ?? 0.035;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+
+      // --- Grip fade: when bob speed is low for a while, the conveyor loses its hold ---
+      const currentSpeed = Math.hypot(tip.velocity.x, tip.velocity.y);
+      const MIN_CONVEYOR_SPEED = conveyorSpeed * 0.35;
+      const LOW_SPEED_FRAMES_TO_RELEASE = 28; // ~0.45s at 60fps physics
+
+      if (currentSpeed < MIN_CONVEYOR_SPEED) {
+        beltLowSpeedFrames++;
+      } else {
+        beltLowSpeedFrames = Math.max(0, beltLowSpeedFrames - 2);
+      }
+
+      // Decay grip when stuck slow; recover quickly when moving well.
+      // Slower decay helps light bobs (wooden etc.) not feel like they
+      // "suddenly snap" off the conveyor.
+      if (beltLowSpeedFrames > LOW_SPEED_FRAMES_TO_RELEASE) {
+        beltGrip = Math.max(0, beltGrip - 0.011);
+      } else if (currentSpeed > MIN_CONVEYOR_SPEED * 1.1) {
+        beltGrip = Math.min(1, beltGrip + 0.09);
+      }
+
+      // When grip is very low, the powered conveyor has mostly failed, but we
+      // still want the physical tunnel walls to constrain the bob (user request).
+      // We switch to "degraded / loose in tunnel" mode: almost no propulsion,
+      // but full multilayer wall containment keeps the bob inside the hitbox.
+      const degraded = beltGrip < 0.18;
+      if (beltGrip < 0.04) {
+        beltGrip = 0;
+      }
+
+      // Golden Token bonus: extra speed along the conveyor while the token-bonus
+      // modifier is active. This is specific to the Mechanic Belt experience.
+      const activeMods = useGameStore.getState().activeModifiers;
+      const hasGoldenBoost = activeMods.some((m) => m.defId === "token-bonus");
+      const goldenSpeedMult = hasGoldenBoost ? 1.58 : 1.0;
+
+      const grip = beltGrip; // 0..1 multiplier on all conveyor effects
+      const effectiveGrip = degraded ? Math.min(0.09, grip) : grip;
+
+      // Advance the "head" of the conveyor ride (extra speed from Golden Token)
+      beltPathT = advanceTunnelProgress(
+        beltTunnel,
+        beltPathT,
+        tip.position.x,
+        tip.position.y,
+        conveyorSpeed * effectiveGrip * goldenSpeedMult * (dt / 1000)
+      );
+
+      // === Strict mid-line conveyor rail (constant speed following) ===
+      // The bobs are hard-locked onto the center of the generated path and step
+      // along it at a constant conveyor speed (driven by `_beltRailT`, not by
+      // velocity). At the exit they're thrown free.
+      const activeConveyorSpeed = conveyorSpeed * goldenSpeedMult * Math.max(1.5, effectiveGrip);
+
+      // Only initialize the strict rail once per conveyor activation (on launch).
+      // After bobs eject at the end, we do NOT want to automatically re-attach them
+      // to the start of the path (that was causing the infinite loop).
+      const anyOnRail = pendulumHandle.bobs.some((b: any) => typeof (b as any)._beltRailT === 'number');
+      if (!anyOnRail && !beltRailRideInitialized) {
+        // Place each bob at the path entry and put it on the rail. Position +
+        // velocity are then owned entirely by applyStrictConveyorRail (called
+        // just below this frame), so we don't apply a launch kick here — that
+        // only fed the old runaway-velocity path.
+        const entry = sampleTunnel(beltTunnel, 0);
+        for (let i = 0; i < pendulumHandle.bobs.length; i++) {
+          const bob = pendulumHandle.bobs[i];
+          // Small negative offset so a chain of bobs looks like a short train entering together
+          (bob as any)._beltRailT = -i * 0.018;
+          Matter.Body.setPosition(bob, entry);
+          Matter.Body.setVelocity(bob, { x: 0, y: 0 });
+        }
+        beltPathT = 0;
+        beltRailRideInitialized = true;   // Mark that this conveyor ride has started. No more auto re-attach after ejection.
+      }
+
+      // Apply strict center-line following + constant speed.
+      // When any bob reaches the end of the path, it is released (ejected) with its current
+      // velocity and flies freely into the field like an ejector.
+      const didEject = applyStrictConveyorRail(
+        beltTunnel,
+        pendulumHandle.bobs,
+        activeConveyorSpeed,
+        dt,
+        0.98
+      );
+
+      if (didEject) {
+        // A bob reached the conveyor exit and was flung free (position + velocity
+        // already set on it by applyStrictConveyorRail). The belt bob is a free
+        // body with no rope, so there is nothing to detach — we just latch the
+        // ejected state so beltConveyor never re-rails it, and finalize the
+        // free-projectile physics.
+        beltRideEjected = true;
+        beltEjectAt = now;
+
+        // Clamp to a strong-but-safe throw: a free body faster than the 200-thick
+        // cage wall jumps clean through it in one Matter step (no continuous
+        // collision) and vanishes. Well under that, the thrown bob ricochets and
+        // stays in play (a normal launch is ~60/step, so this still reads hard).
+        const MAX_EJECT_SPEED = 30 * WORLD_SCALE;
+        for (const b of pendulumHandle.bobs) {
+          delete (b as any)._beltRailT;
+          (b as any)._beltEjected = true;
+          const sp = Math.hypot(b.velocity.x, b.velocity.y);
+          if (sp > MAX_EJECT_SPEED) {
+            const k = MAX_EJECT_SPEED / sp;
+            Matter.Body.setVelocity(b, { x: b.velocity.x * k, y: b.velocity.y * k });
+          }
+          b.restitution = 0.5;
+          b.friction = 0.05;
+          b.frictionAir = 0.006;
+          Matter.Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.4);
+        }
+        syncEchoBobs(0);
+        playGameSound("rope-snap");
+        const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+        emitManeuver(effects, tip.position, "EJECTED!", now);
+      }
+
+      // IMPORTANT: During active strict rail mode, we do NOT touch the bob with containment/walls.
+      // All behavior (position on the exact mid line + high velocity from the kick) is handled
+      // exclusively by applyStrictConveyorRail on the bob itself.
+      // This prevents anything else from fighting the strong kick and speed the bob needs.
+      // (Containment is only used in the loose/bouncy phase after the conveyor power ends.)
+    }
+
+    // bulwark: harden a fresh random stretch of rope (from the anchor toward the
+    // bob) into a rigid wall by stiffening that many leading rope constraints.
+    function bulwarkHardenRandomStretch() {
+      const ropeLinks = pendulumHandle.constraints.filter(
+        (c) => /^rope-\d+$/.test(c.label ?? "")
+      );
+      if (ropeLinks.length === 0) return;
+      const count = 1 + Math.floor(Math.random() * ropeLinks.length);
+      for (let i = 0; i < count; i++) {
+        const c = ropeLinks[i];
+        if (!bulwarkSaved.has(c)) {
+          bulwarkSaved.set(c, { stiffness: c.stiffness ?? 0.9, damping: c.damping ?? 0.02 });
+        }
+        c.stiffness = 1;
+        c.damping = 0.18;
+      }
+      bulwarkActive = true;
+    }
+
+    // bulwark (Wall Rope): every wallIntervalMs it hardens a random stretch into
+    // a wall; it can't pick up repair drops (handled in collectToken). When the
+    // bob whips fast enough it "breaks" the wall — the hardened stretch is
+    // repaired (re-softened) and, after a short cooldown, a new wall forms.
+    function bulwarkTick(now: number) {
+      if (ropeBehavior?.kind !== "bulwark" || pendulumHandle.snapped) return;
+      const interval = ropeBehavior.wallIntervalMs ?? 500;
+      const breakSpeed = (ropeBehavior.wallBreakSpeed ?? 30) * WORLD_SCALE;
+      const repairMs = ropeBehavior.wallRepairMs ?? 700;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const tipSpeed = Math.hypot(tip.velocity.x, tip.velocity.y);
+      if (bulwarkActive && tipSpeed >= breakSpeed) {
+        restoreBulwarkWall();
+        bulwarkActive = false;
+        bulwarkBrokenUntil = now + repairMs;
+        playGameSound("rope-snap", { volume: 0.4, pitch: 1.5 });
+        emitManeuver(effects, tip.position, "WALL BREAK!", now);
+        return;
+      }
+      if (!bulwarkActive && now >= bulwarkBrokenUntil && now - lastBulwarkRollAt > interval) {
+        lastBulwarkRollAt = now;
+        bulwarkHardenRandomStretch();
+      }
+    }
+
+    // Black Hole map: drag every bob (and Breakable's shed shards) toward the
+    // singularity with an inverse-ish pull that strengthens near the core, and
+    // "capture" the tip bob when it reaches the event horizon — killing its
+    // motion and lighting Run Again so the player can relaunch from the brink.
+    // Shards that cross the core are consumed outright.
+    function blackHolePullBody(body: Matter.Body, seconds: number) {
+      if (!blackHole) return;
+      const dx = blackHole.x - body.position.x;
+      const dy = blackHole.y - body.position.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist > BLACK_HOLE_REACH) return;
+      // Falloff: gentle at the rim, fierce near the core (clamped so it never
+      // explodes into a NaN at dist→0).
+      const norm = 1 - dist / BLACK_HOLE_REACH;
+      const pull = 26 * WORLD_SCALE * (0.25 + norm * norm) * seconds;
+      Matter.Body.setVelocity(body, {
+        x: body.velocity.x + (dx / dist) * pull,
+        y: body.velocity.y + (dy / dist) * pull,
+      });
+    }
+
+    function blackHoleTick(dt: number) {
+      if (!blackHole || dt <= 0) return;
+      const seconds = dt / 1000;
+      for (const bob of getOrderedBobBodies(pendulumHandle)) {
+        blackHolePullBody(bob, seconds);
+      }
+      for (const shard of shards) {
+        blackHolePullBody(shard, seconds);
+      }
+      // Consume shed pieces that reach the core.
+      for (let i = shards.length - 1; i >= 0; i--) {
+        const shard = shards[i];
+        if (
+          Math.hypot(blackHole.x - shard.position.x, blackHole.y - shard.position.y) <=
+          BLACK_HOLE_CORE_R
+        ) {
+          Matter.World.remove(engineHandle.world, shard);
+          shards.splice(i, 1);
+        }
+      }
+      // Capture check on the tip bob (the one the player tracks).
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      if (Math.hypot(blackHole.x - tip.position.x, blackHole.y - tip.position.y) <= BLACK_HOLE_CORE_R) {
+        if (!blackHoleCaptured) {
+          blackHoleCaptured = true;
+          playGameSound("token-spawn", { pitch: 0.6, volume: 0.6 });
+          emitManeuver(effects, { x: blackHole.x, y: blackHole.y }, "EVENT HORIZON!", performance.now());
+          useGameStore.getState().markRunStalled();
+        }
+        // Drain its motion so it settles into the core (and the idle timer can
+        // still close the run if the player doesn't relaunch).
+        for (const bob of getOrderedBobBodies(pendulumHandle)) {
+          Matter.Body.setVelocity(bob, { x: bob.velocity.x * 0.85, y: bob.velocity.y * 0.85 });
+        }
+        for (const shard of shards) {
+          Matter.Body.setVelocity(shard, {
+            x: shard.velocity.x * 0.85,
+            y: shard.velocity.y * 0.85,
+          });
+        }
+      }
+    }
+
     // Auto end-of-run (the "hard end" — idle timeout or every freed bob having
     // escaped the cage). On top of stopping the run, this rebuilds the arena:
     // every shattered wall is restored and all durability topped back to
@@ -945,6 +1981,11 @@ export default function GameCanvas() {
       if (wallField.breakable) {
         regenerateWallField(engineHandle.world, wallField);
       }
+      // Sweep up any of Breakable's shed pieces still bouncing around.
+      clearShards();
+      // Drop any standing Wall Rope wall so the rig hangs soft between runs.
+      restoreBulwarkWall();
+      bulwarkActive = false;
       playGameSound("run-complete");
       emitManeuver(effects, at, "Run Complete", now);
     }
@@ -990,7 +2031,14 @@ export default function GameCanvas() {
       // While snapped the bobs are free projectiles, not orbiting the pivot —
       // the angular-velocity clamp assumes an orbit and would mangle them.
       if (pendulumHandle.snapped) return;
-      clampAngularVelocity(pendulumHandle, pendulum.maxAngularVelocity);
+      // Mechanic Belt rides a conveyor tunnel — not a pivot orbit — so the
+      // angular cap would fight the path follower every step.
+      if (ropeBehavior?.kind === "belt") return;
+      // Behavior bobs raise their own swing-speed ceiling (Frenzy with combo,
+      // Breakable as it sheds, Chaos at random) so their speed scaling isn't
+      // immediately clamped back down. behaviorCapMult is 1 for plain bobs.
+      const cap = pendulum.maxAngularVelocity * behaviorCapMult();
+      clampAngularVelocity(pendulumHandle, cap);
     };
     Matter.Events.on(engineHandle.engine, "afterUpdate", clampSwingSpeed);
 
@@ -1011,34 +2059,86 @@ export default function GameCanvas() {
       store.decayCombo(now, 1800);
 
       const effects$ = aggregateEffects(store.activeModifiers, store.persistentBonuses);
-      setPendulumWeightScale(pendulumHandle, effects$.weightMult);
-      setBobRadiusScale(pendulumHandle, effects$.bobSizeMult);
-      setRopeLengthScale(pendulumHandle, effects$.ropeLengthMult);
+      // Behavior bobs scale their rig on top of modifier effects: Frenzy grows
+      // with the combo, Breakable shrinks as it sheds, Chaos churns everything.
+      // For a plain bob every factor is 1 (a no-op).
+      const scales = behaviorScales();
+      const sizeScaleNow = effects$.bobSizeMult * scales.size;
+      const weightScaleNow = effects$.weightMult * scales.weight;
+      // Apply the radius scale BEFORE the weight scale: Matter.Body.scale()
+      // recomputes mass from area, so if it ran last it would drag the bob's
+      // mass with its size and the two could never diverge. Setting weight last
+      // makes mass = baseMass * weightScale the final authority (inertia stays
+      // geometry-consistent), so the Chaos Bob can roll a tiny-but-heavy
+      // wrecking ball or a huge-but-light balloon independently.
+      // Rope behaviors churn the effective length too: flux randomly, metronome
+      // sinusoidally. `ropeBehaviorLenMult` is 1 for ordinary ropes.
+      fluxTick(now, dt);
+      setBobRadiusScale(pendulumHandle, sizeScaleNow);
+      setPendulumWeightScale(pendulumHandle, weightScaleNow);
+      setRopeLengthScale(
+        pendulumHandle,
+        effects$.ropeLengthMult * scales.rope * ropeBehaviorLenMult(now)
+      );
       setGravity(engineHandle, site.gravity * effects$.accelerationMult);
+      // Mass-per-area: how dense the bob currently is relative to a plain rig.
+      // >1 reads heavy (dark core), <1 reads hollow. Drives the render cue so a
+      // small heavy bob looks distinct from a small light one.
+      const bobDensity = weightScaleNow / Math.max(0.15, sizeScaleNow * sizeScaleNow);
+
+      // Conveyor feeds rope before physics reads stretch for this frame.
+      if (store.isRunning && !pendulumHandle.snapped && dt > 0) {
+        beltFeed(dt);
+      }
 
       // --- Rope durability: drain while swinging, snap at zero ---
       if (store.isRunning && !pendulumHandle.snapped && dt > 0) {
-        // Heavier bobs (and the weight-mult modifier) wear the rope faster.
-        const wearWeight = pendulum.weight * effects$.weightMult;
-        durability -= durabilityDrainPerSec(ropeMaterial, wearWeight) * (dt / 1000);
-        if (durability <= 0) {
+        if (ropeBehavior?.kind !== "belt") {
+          // Heavier bobs (and the weight-mult modifier) wear the rope faster. A
+          // Nitro (glass-cannon) bob multiplies the drain so it snaps early; the
+          // Random Rope (flux) multiplies it by its churning drain factor.
+          const wearWeight = pendulum.weight * effects$.weightMult;
+          const drainMult =
+            (behavior?.durabilityDrainMult ?? 1) *
+            (ropeBehavior?.kind === "flux" ? fluxDrainCur : 1);
+          // Rocket's rope only wears while the bob is flung out at the very edge
+          // of its reach — gentle near the pivot, frays hard at full extension.
+          if (rocketRopeAtLimit()) {
+            durability -=
+              durabilityDrainPerSec(ropeMaterial, wearWeight) * drainMult * (dt / 1000);
+          }
+        }
+        if (durability <= 0 && ropeBehavior?.kind !== "belt") {
           durability = 0;
-          snapRope(pendulumHandle);
+          snappedAt = now;
+          // A Ravager (hunter) keeps its momentum with no random scatter so the
+          // homing steering can immediately aim the freed bob at live circles.
+          const hunting = behavior?.kind === "hunter";
+          snapRope(pendulumHandle, { scatter: !hunting });
+          if (hunting) {
+            homingActive = true;
+            homingEats = 0;
+            homingStartedAt = now;
+          }
           syncEchoBobs(0);
           playGameSound("rope-snap");
           emitManeuver(
             effects,
             pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position,
-            "SNAP!",
+            hunting ? "FEAST!" : "SNAP!",
             now
           );
         }
       }
-      const snapped = pendulumHandle.snapped;
 
       // While snapped the rope is detached — its constraint forces and the
       // chain-bob repositioning no longer apply to the free-flying bobs.
-      if (!snapped) tickAttachmentPhysics(pendulumHandle);
+      if (!pendulumHandle.snapped) tickAttachmentPhysics(pendulumHandle);
+
+      // Stress-based snap for the Mechanic Belt has been retired.
+      // The conveyor ride now only ends naturally when grip decays (bob loses speed).
+      const snapped = pendulumHandle.snapped;
+
       if (store.isRunning && dt > 0 && !snapped) {
         const targetRampMult = getSpeedRampMultiplier(store.activeModifiers, now);
         if (targetRampMult <= 1) {
@@ -1049,6 +2149,58 @@ export default function GameCanvas() {
             targetRampMult,
             speedRampAppliedMult
           );
+        }
+      }
+      // Behavior identity carries through the snap finale: these keep driving
+      // the freed bob (or the field around it) after a snap too, not just while
+      // strung. The passive churns (frenzy speed-bleed, magnet pull, chaos
+      // stat-churn) run for the whole finale; the re-energizing effects
+      // (piercer dash, teleport blink, rocket thrust) re-add speed, so they only
+      // fire within POST_SNAP_BEHAVIOR_MS of the snap — past that the freed bob
+      // coasts so the normal escape/idle end-of-run logic can still close it.
+      if (store.isRunning && dt > 0) {
+        const reenergize = !snapped || now - snappedAt < POST_SNAP_BEHAVIOR_MS;
+        // Frenzy: ramp swing speed with the combo (bidirectional — bleeds back
+        // down when the chain breaks). No-op (target 1) for non-frenzy bobs.
+        applyFrenzyScale(frenzyMultipliers().speed);
+        // Lodestone: drag nearby circles + loose tokens toward the bob.
+        if (behavior?.kind === "magnet") magnetPull(dt);
+        // Chaos: stat churn (size/weight/cap), applied via the per-frame scales.
+        if (behavior?.kind === "chaos") chaosTick(now, dt);
+        // Rope behaviors: belt conveyor steering + bulwark wall cycle (both
+        // self-guard to the strung phase). Black hole pull runs whole-field on
+        // its map (strung and freed alike).
+        if (ropeBehavior?.kind === "belt") beltConveyor(dt, now);
+
+        // Always keep the bob constrained inside the conveyor tunnel walls
+        // (the physical "tube" hitbox). After the conveyor snaps we switch to
+        // bouncy mode so the bob ricochets energetically off the walls instead
+        // of sliding gently.
+        if (ropeBehavior?.kind === "belt" && beltTunnel && beltTunnelWallsActive) {
+          const corridor = (ropeBehavior.beltCorridorWidth ?? 39) * WORLD_SCALE;
+          const isLoose = beltGrip < 0.22; // after conveyor snap / loose phase
+
+          // Only keep walls for bobs still on the conveyor rail.
+          // Once a bob reaches the end of the path it is ejected and should fly free.
+          const activeBobs = pendulumHandle.bobs.filter((b: any) => typeof b._beltRailT === 'number');
+
+          for (const bob of activeBobs) {
+            applyBeltTunnelContainment(beltTunnel, [bob], corridor * 0.5, {
+              restitution: isLoose ? 0.72 : 0.32,
+              bouncy: isLoose,
+              strict: isLoose,
+            });
+          }
+        }
+
+        if (ropeBehavior?.kind === "bulwark") bulwarkTick(now);
+        blackHoleTick(dt);
+        if (reenergize) {
+          // Piercer: periodic straight-line dash through a row of circles.
+          if (behavior?.kind === "piercer") dashPiercer(now);
+          // TP: random blinks. Rocket: continuous thrust.
+          if (behavior?.kind === "teleport") teleportTick(now);
+          if (behavior?.kind === "rocket") rocketTick(now, dt);
         }
       }
       if (site.ambient && store.isRunning) {
@@ -1064,7 +2216,9 @@ export default function GameCanvas() {
       // Spawn / despawn echo sensor bodies to match the active Multi-Bob
       // modifier, then snap them onto the rope line trailing the real bob.
       // Echoes are rope-relative, so they're suppressed during a free-fly.
-      syncEchoBobs(snapped ? 0 : effects$.echoCount);
+      // Hydra grows its own scoring "heads" (echoes) as it hits, on top of any
+      // Multi-Bob echoes. `hydraBonusEcho` is 0 for every other bob.
+      syncEchoBobs(snapped ? 0 : effects$.echoCount + hydraBonusEcho);
       syncEchoBobScales();
       if (!snapped) {
         positionChainBobs(pendulumHandle);
@@ -1086,6 +2240,13 @@ export default function GameCanvas() {
         // A snapped rig (e.g. Run Again pressed mid-finale) must be re-strung
         // before it can swing again, and the fresh run starts at full durability.
         if (pendulumHandle.snapped) restoreRope(pendulumHandle);
+        if (ropeBehavior?.kind === "belt") {
+          if (isBeltTunnelAttachment(attachment)) {
+            beltVirtualPayout = resetBeltVirtual();
+          } else {
+            resetBeltPayout(pendulumHandle);
+          }
+        }
         durability = 1;
         // Every fresh run starts against a pristine arena: rebuild any walls
         // shattered last run and top all durability back up. This runs on every
@@ -1104,12 +2265,37 @@ export default function GameCanvas() {
           spawnClearance
         );
         destroyTokenField(engineHandle.world, tokenField);
-        launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+        resetBehaviorRunState();
+        if (ropeBehavior?.kind === "belt" && beltTunnel) {
+          resetPendulumToRest(pendulumHandle);
+          beltVirtualPayout = resetBeltVirtual();
+          applyBeltLaunchKick(
+            pendulumHandle,
+            beltTunnel,
+            ropeBehavior.beltKickSpeed ?? 20
+          );
+        } else {
+          launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+        }
         store.registerSwing();
         runIdleMs = 0;
         runStallLowMs = 0;
         speedRampAppliedMult = 1;
+        syncEchoBobs(0);
         maneuvers.reset();
+        // Rocket has no launch slingshot: bleed the kick down to a seed so the
+        // continuous thrust (rocketTick) builds the swing from near-still. We
+        // keep a sliver of the launch direction so the first thrust has a
+        // tangent to push along.
+        if (behavior?.kind === "rocket") {
+          for (const bob of pendulumHandle.bobs) {
+            Matter.Body.setVelocity(bob, {
+              x: bob.velocity.x * 0.1,
+              y: bob.velocity.y * 0.1,
+            });
+          }
+          rocketLaunchAt = now;
+        }
         playGameSound("launch");
         emitManeuver(effects, pendulumHandle.bobs[0].position, "LAUNCH!", now);
       }
@@ -1129,7 +2315,21 @@ export default function GameCanvas() {
           // bonus below.
           if (pendulumHandle.snapped) {
             restoreRope(pendulumHandle);
+            // The rig is whole again — a Ravager mid-feast stops hunting.
+            homingActive = false;
           }
+          // Mechanic Rope: spending a token re-rolls its tunnel route. Wall
+          // Rope: the re-strung rope drops any standing wall so it re-cycles.
+          rerollBeltTunnel();
+          restoreBulwarkWall();
+          bulwarkActive = false;
+          if (ropeBehavior?.kind === "belt") {
+          if (isBeltTunnelAttachment(attachment)) {
+            beltVirtualPayout = resetBeltVirtual();
+          } else {
+            resetBeltPayout(pendulumHandle);
+          }
+        }
           durability = 1;
           // Spending the token also resets the arena: every shattered wall is
           // rebuilt and all durability topped back up to pristine.
@@ -1149,7 +2349,46 @@ export default function GameCanvas() {
             boostedState.activeModifiers,
             boostedState.persistentBonuses
           );
-          relaunchPendulum(pendulumHandle, attachment, boostedEffects);
+          // Breakable Bob: same fresh core as a new launch — full mass, can shed
+          // again on the next zone hits (shards from before the spend are cleared).
+          if (behavior?.kind === "splitter") {
+            resetSplitterProgress();
+            const freshScales = behaviorScales();
+            setBobRadiusScale(
+              pendulumHandle,
+              boostedEffects.bobSizeMult * freshScales.size
+            );
+            setPendulumWeightScale(
+              pendulumHandle,
+              boostedEffects.weightMult * freshScales.weight
+            );
+            setRopeLengthScale(
+              pendulumHandle,
+              boostedEffects.ropeLengthMult *
+                freshScales.rope *
+                ropeBehaviorLenMult(now)
+            );
+          }
+          if (ropeBehavior?.kind === "belt" && beltTunnel) {
+            // Un-eject so a token spent after the bob was thrown out of the exit
+            // puts it back on a fresh conveyor ride from the start, then give it a
+            // much stronger launch kick along the path.
+            beltRideEjected = false;
+            beltEjectAt = 0;
+            for (const b of pendulumHandle.bobs) {
+              delete (b as any)._beltEjected;
+              delete (b as any)._beltRailT;
+            }
+            beltRailRideInitialized = false;
+            resetPendulumToRest(pendulumHandle);
+            applyBeltLaunchKick(
+              pendulumHandle,
+              beltTunnel,
+              (ropeBehavior.beltKickSpeed ?? 20) * 1.75
+            );
+          } else {
+            relaunchPendulum(pendulumHandle, attachment, boostedEffects);
+          }
           useGameStore.getState().registerSwing();
           // The pendulum is alive again — clear stall state so Run Again doesn't
           // stay falsely lit during the boost.
@@ -1192,6 +2431,11 @@ export default function GameCanvas() {
       const last = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
 
       if (store.isRunning) {
+        // Ravager: while the freed bob is still hunting, steer it onto live
+        // circles before measuring speed / escape so the homing actually
+        // counts toward this frame's motion.
+        if (snapped && homingActive) steerHomingBobs(now);
+
         let maxSpeed = 0;
         // Include the freed chain bobs while snapped so the run only ends once
         // every flying bob has settled, not just the tip.
@@ -1205,7 +2449,16 @@ export default function GameCanvas() {
         // Run Again lights up — without this, the accelerating bobs falling
         // into the void never drop below the idle-speed threshold and the run
         // would hang forever (the wall-less Workshop relies entirely on this).
-        if (snapped) {
+        // The Mechanic Belt throws its bob free at the conveyor exit without
+        // entering the global `snapped` state, so the escape check must also
+        // close the run for an ejected belt bob that flies clear of the field
+        // (e.g. a wall-less site) — otherwise it would hang forever. Give the
+        // freshly-thrown bob a grace window first so it flies its arc / bounces
+        // around the cage instead of ending the instant it clips the margin.
+        const beltEjected = beltEjectAt > 0;
+        const beltEjectFlying =
+          beltEjected && now - beltEjectAt < BELT_EJECT_FLY_MS;
+        if ((snapped || beltEjected) && !beltEjectFlying) {
           // Escape is measured against the cage rectangle (which grows with the
           // site's cageScale), so a bob still ricocheting inside a large arena
           // isn't mistaken for one that has flown clear of the field.
@@ -1297,7 +2550,12 @@ export default function GameCanvas() {
           const t = (SETTLE_REST_THRESHOLD - maxSpeed) / SETTLE_REST_THRESHOLD;
           const alpha = 1 - Math.exp(-SETTLE_REST_RATE * t * t * (dt / 1000));
           if (alpha > 1e-4) {
+            // Skip ejected belt bobs so they aren't pulled back toward the platform
+            // while still in their ejector arc.
+            const originalBobs = pendulumHandle.bobs;
+            pendulumHandle.bobs = originalBobs.filter((b: any) => !(b as any)._beltEjected);
             settlePendulumTowardRest(pendulumHandle, alpha);
+            pendulumHandle.bobs = originalBobs;
           }
         }
         if (runIdleMs >= RUN_END_IDLE_MS) {
@@ -1329,7 +2587,10 @@ export default function GameCanvas() {
           // we can simply pin it to its rest pose every idle frame: the residual
           // constraint jitter the runner introduces between frames is overwritten
           // before it's ever rendered.
-          resetPendulumToRest(pendulumHandle);
+          //
+          // For Mechanic Belt ejector bobs, we skip the platform rest pose so they
+          // can enjoy their free-flight ejection arc instead of being yanked back.
+          resetPendulumToRestExcludingEjected(pendulumHandle);
         }
       }
 
@@ -1354,14 +2615,29 @@ export default function GameCanvas() {
 
         const rc: RenderContext = { ctx, width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT, now };
         drawSiteAnchor(rc, ANCHOR);
+        if (blackHole) {
+          drawBlackHole(rc, blackHole.x, blackHole.y, BLACK_HOLE_CORE_R, BLACK_HOLE_REACH, now);
+        }
         drawWalls(rc, wallField);
+        drawObstacles(rc, wallField);
         drawHitZones(rc, field);
+        if (beltTunnel && ropeBehavior?.kind === "belt" && !pendulumHandle.snapped) {
+          drawBeltTunnel(rc, beltTunnel, beltPathT, now);
+        }
         drawTokens(rc, tokenField);
-        const echoRender: EchoBobRender[] = echoBobs.map((e) => ({
-          x: e.body.position.x,
-          y: e.body.position.y,
-          radius: getEffectiveBobRadius(pendulumHandle),
-        }));
+        const echoRender: EchoBobRender[] = [
+          ...echoBobs.map((e) => ({
+            x: e.body.position.x,
+            y: e.body.position.y,
+            radius: getEffectiveBobRadius(pendulumHandle),
+          })),
+          // Breakable's shed pieces ride along as extra echo-styled circles.
+          ...shards.map((b) => ({
+            x: b.position.x,
+            y: b.position.y,
+            radius: b.circleRadius ?? getEffectiveBobRadius(pendulumHandle),
+          })),
+        ];
         const { skin: activeSkin, shape: activeShape } = resolveEquippedCosmetics(
           store.equipped
         );
@@ -1374,7 +2650,8 @@ export default function GameCanvas() {
           activeSkin,
           pendulumHandle.physics.stretchRatio,
           activeShape.shape,
-          durability
+          durability,
+          bobDensity
         );
         drawEffects(rc, effects);
         ctx.restore();
@@ -1395,6 +2672,7 @@ export default function GameCanvas() {
       destroyHitZones(engineHandle.world, field);
       destroyTokenField(engineHandle.world, tokenField);
       destroyWallField(engineHandle.world, wallField);
+      clearShards();
       for (const e of echoBobs) Matter.World.remove(engineHandle.world, e.body);
       echoBobs.length = 0;
       destroyPendulum(engineHandle.world, pendulumHandle);
