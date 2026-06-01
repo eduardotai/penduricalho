@@ -39,6 +39,7 @@ export const en = {
     off: "OFF",
     shop: "Shop",
     settings: "Settings",
+    achievements: "Achievements",
     howToPlay: "How to Play",
     hardEndConfirmRunning:
       "End this run immediately and stop? Progress from the current swing is lost, and you'll start the next run yourself.",
@@ -274,6 +275,70 @@ export const en = {
     totalHits: "Hits",
     bestCombo: "Best Combo",
   } as Record<StatKey, string>,
+
+  // --- Achievements (Cookie Clicker inspired) --------------------------------
+  achievements: {
+    title: "Achievements",
+    toastTitle: "ACHIEVEMENT UNLOCKED",
+    unlockedBadge: "UNLOCKED",
+    filters: {
+      all: "All",
+      unlocked: "Unlocked",
+      locked: "Locked",
+    },
+    categories: {
+      momentum: "Momentum",
+      combo: "Combo",
+      gold: "Gold",
+      runs: "Runs",
+      collection: "Collection",
+      feats: "Feats",
+      secret: "Secret",
+    },
+
+    // Momentum
+    "first-arc": { name: "First Arc", description: "Earn your first 100 Momentum." },
+    "gaining-momentum": { name: "Gaining Momentum", description: "Reach 1,000 total Momentum." },
+    "arc-welder": { name: "Arc Welder", description: "Reach 10,000 total Momentum." },
+    "perpetual-swing": { name: "Perpetual Swing", description: "Reach 50,000 total Momentum." },
+    "gravity-tyrant": { name: "Gravity Tyrant", description: "Reach 250,000 total Momentum." },
+    "event-horizon-momentum": { name: "Event Horizon", description: "Reach 1,000,000 total Momentum." },
+    "big-bang-bob": { name: "Big Bang Bob", description: "Reach 5,000,000 total Momentum." },
+
+    // Combo
+    "hot-streak": { name: "Hot Streak", description: "Reach a combo of 5." },
+    "combo-king": { name: "Combo King", description: "Reach a combo of 10." },
+    "unbreakable-rhythm": { name: "Unbreakable Rhythm", description: "Reach a combo of 25." },
+    hyperswing: { name: "Hyperswing", description: "Reach a combo of 50." },
+    "zen-pendulum": { name: "Zen Pendulum", description: "Reach a combo of 100. (Secret)", hint: "Master the longest possible chain." },
+
+    // Gold
+    "first-gleam": { name: "First Gleam", description: "Catch your first Golden Token." },
+    "token-hoarder": { name: "Token Hoarder", description: "Catch 5 Golden Tokens." },
+    "golden-age": { name: "Golden Age", description: "Catch 15 Golden Tokens." },
+    "lucky-lode": { name: "Lucky Lode", description: "Catch 30 Golden Tokens." },
+
+    // Runs
+    "maiden-flight": { name: "Maiden Flight", description: "Complete your first run." },
+    "veteran-swinger": { name: "Veteran Swinger", description: "Complete 10 runs." },
+    "endless-arc": { name: "Endless Arc", description: "Complete 50 runs." },
+
+    // Collection
+    "kit-builder": { name: "Kit Builder", description: "Own 3 different pendulums." },
+    "full-workshop": { name: "Full Workshop", description: "Own 8 different pendulums." },
+    "legendary-finder": { name: "Legendary Finder", description: "Own any legendary-rarity item." },
+    "behavior-pioneer": { name: "Behavior Pioneer", description: "Own a bob with a special behavior." },
+
+    // Feats
+    "token-spender": { name: "Token Spender", description: "Spend your first Golden Token." },
+    "black-hole-diver": { name: "Black Hole Diver", description: "Feed a bob into the singularity." },
+    "first-snap": { name: "First Snap", description: "Complete a run that ends with a snap finale." },
+    "arc-reactor": { name: "Arc Reactor", description: "Own a rope with a special behavior." },
+
+    // Secret
+    "zen-master": { name: "Zen Master", description: "Reach a combo of 150. (Secret)", hint: "True mastery of the swing." },
+    "momentum-singularity": { name: "Momentum Singularity", description: "Reach 25,000,000 total Momentum. (Secret)" },
+  },
 };
 
 export type UIStrings = typeof en;
@@ -315,6 +380,7 @@ export const pt: UIStrings = {
     off: "DESL",
     shop: "Loja",
     settings: "Config",
+    achievements: "Conquistas",
     howToPlay: "Como Jogar",
     hardEndConfirmRunning:
       "Encerrar esta rodada agora e parar? O progresso da jogada atual será perdido, e você inicia a próxima rodada quando quiser.",
@@ -549,6 +615,70 @@ export const pt: UIStrings = {
     totalSwings: "Balançadas",
     totalHits: "Acertos",
     bestCombo: "Melhor Combo",
+  },
+
+  // --- Achievements (Cookie Clicker inspired) --------------------------------
+  achievements: {
+    title: "Conquistas",
+    toastTitle: "CONQUISTA DESBLOQUEADA",
+    unlockedBadge: "DESBLOQUEADA",
+    filters: {
+      all: "Todas",
+      unlocked: "Desbloqueadas",
+      locked: "Bloqueadas",
+    },
+    categories: {
+      momentum: "Momentum",
+      combo: "Combo",
+      gold: "Ouro",
+      runs: "Rodadas",
+      collection: "Coleção",
+      feats: "Façanhas",
+      secret: "Secretas",
+    },
+
+    // Momentum
+    "first-arc": { name: "Primeiro Arco", description: "Ganhe seus primeiros 100 de Momentum." },
+    "gaining-momentum": { name: "Ganhando Momentum", description: "Alcance 1.000 de Momentum total." },
+    "arc-welder": { name: "Soldador de Arcos", description: "Alcance 10.000 de Momentum total." },
+    "perpetual-swing": { name: "Balanço Perpétuo", description: "Alcance 50.000 de Momentum total." },
+    "gravity-tyrant": { name: "Tirano da Gravidade", description: "Alcance 250.000 de Momentum total." },
+    "event-horizon-momentum": { name: "Horizonte de Eventos", description: "Alcance 1.000.000 de Momentum total." },
+    "big-bang-bob": { name: "Bob do Big Bang", description: "Alcance 5.000.000 de Momentum total." },
+
+    // Combo
+    "hot-streak": { name: "Sequência Quente", description: "Alcance um combo de 5." },
+    "combo-king": { name: "Rei do Combo", description: "Alcance um combo de 10." },
+    "unbreakable-rhythm": { name: "Ritmo Inquebrável", description: "Alcance um combo de 25." },
+    hyperswing: { name: "Balanço Hiper", description: "Alcance um combo de 50." },
+    "zen-pendulum": { name: "Pêndulo Zen", description: "Alcance um combo de 100. (Secreta)", hint: "Domine a corrente mais longa possível." },
+
+    // Gold
+    "first-gleam": { name: "Primeiro Brilho", description: "Pegue sua primeira Ficha Dourada." },
+    "token-hoarder": { name: "Acumulador de Fichas", description: "Pegue 5 Fichas Douradas." },
+    "golden-age": { name: "Era Dourada", description: "Pegue 15 Fichas Douradas." },
+    "lucky-lode": { name: "Veio de Sorte", description: "Pegue 30 Fichas Douradas." },
+
+    // Runs
+    "maiden-flight": { name: "Voo Inaugural", description: "Complete sua primeira rodada." },
+    "veteran-swinger": { name: "Balanço Veterano", description: "Complete 10 rodadas." },
+    "endless-arc": { name: "Arco Infinito", description: "Complete 50 rodadas." },
+
+    // Collection
+    "kit-builder": { name: "Montador de Kit", description: "Possua 3 pêndulos diferentes." },
+    "full-workshop": { name: "Oficina Completa", description: "Possua 8 pêndulos diferentes." },
+    "legendary-finder": { name: "Caçador de Lendários", description: "Possua qualquer item de raridade lendária." },
+    "behavior-pioneer": { name: "Pioneiro de Comportamentos", description: "Possua um bob com comportamento especial." },
+
+    // Feats
+    "token-spender": { name: "Gastador de Fichas", description: "Gaste sua primeira Ficha Dourada." },
+    "black-hole-diver": { name: "Mergulhador de Buraco Negro", description: "Alimente um bob na singularidade." },
+    "first-snap": { name: "Primeiro Estalo", description: "Complete uma rodada que termina com um finale de estalo." },
+    "arc-reactor": { name: "Reator de Arco", description: "Possua uma corda com comportamento especial." },
+
+    // Secret
+    "zen-master": { name: "Mestre Zen", description: "Alcance um combo de 150. (Secreta)", hint: "Verdadeira maestria do balanço." },
+    "momentum-singularity": { name: "Singularidade de Momentum", description: "Alcance 25.000.000 de Momentum total. (Secreta)" },
   },
 };
 

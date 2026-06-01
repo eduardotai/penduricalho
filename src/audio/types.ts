@@ -21,7 +21,8 @@ export type SoundId =
   | "ui-equip"
   | "ui-error"
   | "ui-modal-open"
-  | "ui-modal-close";
+  | "ui-modal-close"
+  | "ui-achievement";
 
 export interface PlayOptions {
   pitch?: number;

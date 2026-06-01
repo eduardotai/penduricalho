@@ -303,4 +303,17 @@ export const SYNTH_PROFILES: Record<string, SynthProfile> = {
       tone(ctx, dest, 320 * pitch, t + 0.05, 0.08, volume * 0.22, "sine");
     },
   },
+  "ui-achievement": {
+    group: "ui",
+    duration: 0.42,
+    play(ctx, dest, pitch, volume) {
+      const t = ctx.currentTime;
+      // Bright celebratory 3-note chime (major-ish lift)
+      tone(ctx, dest, 620 * pitch, t, 0.11, volume * 0.55, "sine");
+      tone(ctx, dest, 780 * pitch, t + 0.07, 0.13, volume * 0.48, "sine");
+      tone(ctx, dest, 930 * pitch, t + 0.18, 0.18, volume * 0.42, "sine");
+      // Subtle lower harmonic for warmth
+      tone(ctx, dest, 310 * pitch, t + 0.22, 0.22, volume * 0.18, "triangle");
+    },
+  },
 };

@@ -378,6 +378,22 @@ export interface BobShapeDef {
 
 export type ItemKind = "pendulum" | "attachment" | "site" | "skin" | "shape";
 
+export interface Owned {
+  pendulums: string[];
+  attachments: string[];
+  sites: string[];
+  skins: string[];
+  shapes: string[];
+}
+
+export interface Equipped {
+  pendulumId: string;
+  attachmentId: string;
+  siteId: string;
+  skinId: string;
+  shapeId: string;
+}
+
 export type TokenKind =
   | "bigger-bob"
   | "giant-bob"
@@ -407,4 +423,34 @@ export interface TokenInstance {
   expiresAt: number;
   driftPhase: number;
   consumed: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Achievements (Cookie Clicker-inspired system)
+// ---------------------------------------------------------------------------
+
+export type AchievementCategory =
+  | "momentum"
+  | "combo"
+  | "gold"
+  | "runs"
+  | "collection"
+  | "feats"
+  | "secret";
+
+export type AchievementRequirement =
+  | { type: "stat"; stat: "totalMomentum" | "totalHits" | "totalSwings" | "bestCombo"; gte: number }
+  | { type: "topLevel"; key: "totalRuns" | "bestRunMomentum" | "totalGoldenTokens"; gte: number }
+  | { type: "ownedCount"; kind?: ItemKind; min: number }
+  | { type: "counter"; counter: "totalGoldenSpent" | "blackHoleCaptures"; gte: number }
+  | { type: "custom"; id: "hasLegendary" | "hasAnyBehaviorBob" | "hasAnyBehaviorAttachment" };
+
+export interface AchievementDef {
+  id: string;
+  category: AchievementCategory;
+  /** Emoji or short symbol used as icon in the UI. */
+  icon: string;
+  /** If true, this achievement is hidden in the list until unlocked (shadow style). */
+  hidden?: boolean;
+  requirement: AchievementRequirement;
 }

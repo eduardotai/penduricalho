@@ -6,6 +6,7 @@ import {
   useEquippedAttachment,
   useEquippedPendulum,
   useEquippedSite,
+  getAchievementMomentumMult,
 } from "../state/selectors";
 import {
   createEngine,
@@ -1170,9 +1171,11 @@ export default function GameCanvas() {
         (attachment.bonuses.momentumMult ?? 1) *
         effects$.pointMult *
         echoFactor;
+      // Permanent achievement bonus (small global multiplier, Cookie Clicker milk style)
+      const achMult = getAchievementMomentumMult(Object.keys(state.unlockedAchievements || {}).length);
       const comboStacks = state.combo.count + 1;
       const comboBonus = Math.min(20, comboStacks) * 0.05;
-      const total = Math.max(1, Math.round(base * (1 + comboBonus)));
+      const total = Math.max(1, Math.round(base * (1 + comboBonus) * achMult));
 
       state.registerHit(total, now);
       handle.hitFlashUntil = now + 240;
@@ -2410,7 +2413,10 @@ export default function GameCanvas() {
           blackHoleCaptured = true;
           playGameSound("token-spawn", { pitch: 0.6, volume: 0.6 });
           emitManeuver(effects, { x: blackHole.x, y: blackHole.y }, effectText.eventHorizon, performance.now());
-          useGameStore.getState().markRunStalled();
+          const store = useGameStore.getState();
+          store.recordBlackHoleCapture();
+          store.checkAchievements();
+          store.markRunStalled();
         }
         // Drain its motion so it settles into the core (and the idle timer can
         // still close the run if the player doesn't relaunch).

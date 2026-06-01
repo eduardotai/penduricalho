@@ -6,6 +6,7 @@ import { ATTACHMENT_MAP } from "../data/attachments";
 import { SITE_MAP, STARTER_SITE_ID } from "../data/sites";
 import { STARTER_SKIN_ID, SKIN_MAP, BOB_SKINS } from "../data/bobSkins";
 import { STARTER_SHAPE_ID, SHAPE_MAP, BOB_SHAPES } from "../data/bobShapes";
+import { ACHIEVEMENTS } from "../data/achievements";
 
 export function useEquippedPendulum() {
   const id = useGameStore((s) => s.equipped.pendulumId);
@@ -50,6 +51,24 @@ export function useEquippedShape() {
   const id = useGameStore((s) => s.equipped.shapeId);
   return resolveEquippedShape(id);
 }
+
+// ---------------------------------------------------------------------------
+// Achievements selectors (light wrappers + derived values)
+// ---------------------------------------------------------------------------
+
+export function useUnlockedAchievements() {
+  return useGameStore((s) => s.unlockedAchievements);
+}
+
+export function useAchievementCount(): number {
+  const unlocked = useGameStore((s) => s.unlockedAchievements);
+  // Count only those that actually exist in the current roster (defensive
+  // against old saves or future removals).
+  return Object.keys(unlocked).filter((id) => ACHIEVEMENTS.some((a) => a.id === id)).length;
+}
+
+// Re-export the pure mult helper for convenience in components & canvas.
+export { getAchievementMomentumMult } from "../data/achievements";
 
 export function aggregateModifierEffects(
   activeModifierIds: { defId: string; expiresAt: number }[]
