@@ -131,6 +131,7 @@ import {
   emitManeuver,
   tickEffects,
 } from "../game/effects";
+import { itemScoreMult } from "../game/levels";
 import { useT, useLang, locName } from "../i18n";
 
 const RUN_END_SPEED_THRESHOLD = 0.45;
@@ -1179,9 +1180,14 @@ export default function GameCanvas() {
         echoFactor;
       // Permanent achievement bonus (small global multiplier, Cookie Clicker milk style)
       const achMult = getAchievementMomentumMult(Object.keys(state.unlockedAchievements || {}).length);
+      // Per-item level bonus: the equipped bob's and rope's purchased levels
+      // each contribute a score multiplier (Cookie Clicker building levels).
+      const lvlMult =
+        itemScoreMult(state.itemLevels[pendulum.id] ?? 0) *
+        itemScoreMult(state.itemLevels[attachment.id] ?? 0);
       const comboStacks = state.combo.count + 1;
       const comboBonus = Math.min(20, comboStacks) * 0.05;
-      const total = Math.max(1, Math.round(base * (1 + comboBonus) * achMult));
+      const total = Math.max(1, Math.round(base * (1 + comboBonus) * achMult * lvlMult));
 
       state.registerHit(total, now);
       handle.hitFlashUntil = now + 240;

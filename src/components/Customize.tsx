@@ -14,6 +14,11 @@ import {
   formatStretchBudget,
   getMaterialProfile,
 } from "../game/attachmentPhysics";
+import {
+  bulkLevelUpCost,
+  itemScoreMult,
+  nextMilestone,
+} from "../game/levels";
 import { useT, useLang, locName, locDesc, type Lang } from "../i18n";
 import type { UIStrings } from "../i18n/strings";
 import type {
@@ -34,9 +39,15 @@ interface CustomizeProps {
   onClose: () => void;
 }
 
+const BUY_AMOUNTS = [1, 10, 50, 100] as const;
+type BuyAmount = (typeof BUY_AMOUNTS)[number];
+
 export default function Customize({ open, onClose }: CustomizeProps) {
   const t = useT();
   const [tab, setTab] = useState<Tab>("pendulum");
+  // Cookie-Clicker-style buy multiplier: level up 1/10/50/100 at once. Shared
+  // across the bob & rope tabs and reset to 1 each time the shop opens.
+  const [buyAmount, setBuyAmount] = useState<BuyAmount>(1);
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "pendulum", label: t.customize.tabPendulum },
@@ -101,8 +112,12 @@ export default function Customize({ open, onClose }: CustomizeProps) {
         </nav>
 
         <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3">
-          {tab === "pendulum" && <ItemList kind="pendulum" />}
-          {tab === "attachment" && <ItemList kind="attachment" />}
+          {tab === "pendulum" && (
+            <ItemList kind="pendulum" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
+          )}
+          {tab === "attachment" && (
+            <ItemList kind="attachment" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
+          )}
           {tab === "site" && <ItemList kind="site" />}
           {tab === "skin" && <ItemList kind="skin" />}
           {tab === "shape" && <ItemList kind="shape" />}
@@ -131,7 +146,15 @@ function MomentumBadge() {
   );
 }
 
-function ItemList({ kind }: { kind: ItemKind }) {
+function ItemList({
+  kind,
+  buyAmount = 1,
+  setBuyAmount,
+}: {
+  kind: ItemKind;
+  buyAmount?: BuyAmount;
+  setBuyAmount?: (n: BuyAmount) => void;
+}) {
   const t = useT();
   const stats = useGameStore((s) => s.stats);
   const owned = useGameStore((s) => s.owned);
@@ -194,6 +217,7 @@ function ItemList({ kind }: { kind: ItemKind }) {
         isOwned={ownedList.includes(item.id)}
         isEquipped={item.id === equippedId}
         momentum={momentum}
+        buyAmount={buyAmount}
         onBuy={() => {
           playUiClick();
           const ok = buy(kind, item.id);
@@ -207,9 +231,15 @@ function ItemList({ kind }: { kind: ItemKind }) {
       />
     ));
 
+  const buySelector =
+    setBuyAmount != null ? (
+      <BuyAmountSelector value={buyAmount} onChange={setBuyAmount} />
+    ) : null;
+
   if (kind === "attachment") {
     return (
       <div className="flex flex-col gap-4">
+        {buySelector}
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
             {t.customize.ropesShortToLong}
@@ -226,7 +256,47 @@ function ItemList({ kind }: { kind: ItemKind }) {
     );
   }
 
-  return <div className="flex flex-col gap-2">{renderRows(list)}</div>;
+  return (
+    <div className="flex flex-col gap-2">
+      {buySelector}
+      {renderRows(list)}
+    </div>
+  );
+}
+
+function BuyAmountSelector({
+  value,
+  onChange,
+}: {
+  value: BuyAmount;
+  onChange: (n: BuyAmount) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] uppercase tracking-widest text-slate-500">
+        {t.customize.buyQty}
+      </span>
+      <div className="flex gap-1 rounded-lg bg-slate-900 p-1">
+        {BUY_AMOUNTS.map((n) => (
+          <button
+            key={n}
+            onClick={() => {
+              playUiClick();
+              onChange(n);
+            }}
+            className={`min-w-[40px] rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+              value === n
+                ? "bg-emerald-600 text-white"
+                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            }`}
+          >
+            ×{n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 interface RowProps {
@@ -237,6 +307,7 @@ interface RowProps {
   isOwned: boolean;
   isEquipped: boolean;
   momentum: number;
+  buyAmount?: BuyAmount;
   onBuy: () => void;
   onEquip: () => void;
 }
@@ -249,15 +320,19 @@ function Row({
   isOwned,
   isEquipped,
   momentum,
+  buyAmount = 1,
   onBuy,
   onEquip,
 }: RowProps) {
   const t = useT();
   const lang = useLang();
+  const itemLevels = useGameStore((s) => s.itemLevels);
   const locked = item.unlock ? !meetsUnlock(stats, item.unlock) : false;
   const canAfford = momentum >= item.cost;
   const name = locName(lang, kind, item.id, item.name);
   const description = locDesc(lang, kind, item.id, item.description);
+  const levelable = kind === "pendulum" || kind === "attachment";
+  const level = itemLevels[item.id] ?? 0;
 
   return (
     <div
@@ -301,6 +376,11 @@ function Row({
             {isEquipped && (
               <span className="rounded bg-brand-500/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-200">
                 {t.customize.equipped}
+              </span>
+            )}
+            {levelable && isOwned && level > 0 && (
+              <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                {t.customize.level} {level}
               </span>
             )}
           </div>
@@ -352,6 +432,77 @@ function Row({
           )}
         </div>
       </div>
+      {levelable && isOwned && (
+        <LevelControl
+          kind={kind}
+          cost={item.cost}
+          level={level}
+          momentum={momentum}
+          itemId={item.id}
+          buyAmount={buyAmount}
+        />
+      )}
+    </div>
+  );
+}
+
+function LevelControl({
+  kind,
+  cost,
+  level,
+  momentum,
+  itemId,
+  buyAmount,
+}: {
+  kind: "pendulum" | "attachment";
+  cost: number;
+  level: number;
+  momentum: number;
+  itemId: string;
+  buyAmount: BuyAmount;
+}) {
+  const t = useT();
+  const levelUp = useGameStore((s) => s.levelUp);
+  const batchCost = bulkLevelUpCost(cost, level, buyAmount);
+  const canAfford = momentum >= batchCost;
+  const bonusPct = Math.round((itemScoreMult(level) - 1) * 100);
+  const next = nextMilestone(level);
+  // A milestone is hit when buying this batch crosses one of the milestone levels.
+  const milestoneReady = next != null && level + buyAmount >= next;
+
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-800 pt-2">
+      <div className="flex flex-col text-[11px] leading-tight">
+        <span className="font-semibold text-emerald-300">
+          {t.customize.level} {level} · {t.customize.levelBonus(bonusPct)}
+        </span>
+        <span className={milestoneReady ? "text-amber-300" : "text-slate-500"}>
+          {milestoneReady
+            ? t.customize.milestoneReady
+            : next != null
+              ? t.customize.nextMilestone(next)
+              : t.customize.milestoneMaxed}
+        </span>
+      </div>
+      <button
+        onClick={() => {
+          playUiClick();
+          const ok = levelUp(kind, itemId, buyAmount);
+          playGameSound(ok ? "ui-buy" : "ui-error");
+        }}
+        disabled={!canAfford}
+        className={`flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
+          canAfford
+            ? "bg-emerald-600 text-white hover:bg-emerald-500"
+            : "cursor-not-allowed bg-slate-800 text-slate-500"
+        }`}
+      >
+        <span>
+          {t.customize.levelUp}
+          {buyAmount > 1 ? ` ×${buyAmount}` : ""}
+        </span>
+        <FormattedNumber value={batchCost} className="font-display" />
+      </button>
     </div>
   );
 }

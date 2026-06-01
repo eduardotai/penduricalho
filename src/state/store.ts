@@ -33,6 +33,7 @@ import {
   getAllAchievementProgress,
   getAchievementMomentumMult,
 } from "../data/achievements";
+import { bulkLevelUpCost } from "../game/levels";
 
 interface Owned {
   pendulums: string[];
@@ -129,6 +130,16 @@ export interface GameState {
    * `seq` bumps to force React re-render / show animation even if same id re-unlocked (rare).
    */
   lastAchievementUnlock: { id: string; seq: number } | null;
+
+  // -------------------------------------------------------------------------
+  // Per-item levels (Cookie Clicker–style grind loop)
+  // -------------------------------------------------------------------------
+  /**
+   * itemId -> number of level-ups purchased (0 by default). Bobs and ropes
+   * share this map since item ids are globally unique. The level boosts that
+   * item's score multiplier only while it's equipped (see game/levels.ts).
+   */
+  itemLevels: Record<string, number>;
   // --- Idle / background accrual ---------------------------------------------
   // Smoothed Momentum-per-second earned during live foreground play (an EMA fed
   // by the idle engine). Drives how much the pendulum "earns" while the tab is
@@ -148,6 +159,10 @@ export interface GameState {
   registerSwing: () => void;
   spend: (n: number) => boolean;
   buy: (kind: ItemKind, id: string) => boolean;
+  // Spend Momentum to add `count` levels (default 1) to an owned bob or rope.
+  // All-or-nothing: returns false if the item isn't owned or the player can't
+  // afford the full batch.
+  levelUp: (kind: "pendulum" | "attachment", id: string, count?: number) => boolean;
   equip: (kind: ItemKind, id: string) => void;
   pushModifier: (defId: string, now: number, addMs?: number) => void;
   // Stack one cross-run bonus for the given modifier defId. Each layer lasts
@@ -467,6 +482,7 @@ export const useGameStore = create<GameState>()(
       totalGoldenSpent: 0,
       blackHoleCaptures: 0,
       lastAchievementUnlock: null,
+      itemLevels: {},
 
       addMomentum: (n) =>
         set((s) => ({
@@ -532,6 +548,30 @@ export const useGameStore = create<GameState>()(
         });
         // Collection achievements (kit-builder, legendary-finder, etc.) can unlock
         // the instant you buy the qualifying item.
+        get().checkAchievements();
+        return true;
+      },
+
+      levelUp: (kind, id, count = 1) => {
+        const def =
+          kind === "pendulum" ? PENDULUM_MAP.get(id) : ATTACHMENT_MAP.get(id);
+        if (!def) return false;
+        const steps = Math.max(1, Math.floor(count));
+        const s = get();
+        const ownedList =
+          kind === "pendulum" ? s.owned.pendulums : s.owned.attachments;
+        if (!ownedList.includes(id)) return false;
+        const currentLevel = s.itemLevels[id] ?? 0;
+        const cost = bulkLevelUpCost(def.cost, currentLevel, steps);
+        if (s.momentum < cost) return false;
+        set((prev) => ({
+          momentum: prev.momentum - cost,
+          itemLevels: {
+            ...prev.itemLevels,
+            [id]: (prev.itemLevels[id] ?? 0) + steps,
+          },
+        }));
+        // Lets future "level a bob to N" milestone achievements fire.
         get().checkAchievements();
         return true;
       },
@@ -1010,11 +1050,12 @@ export const useGameStore = create<GameState>()(
           totalGoldenSpent: 0,
           blackHoleCaptures: 0,
           lastAchievementUnlock: null,
+          itemLevels: {},
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 20,
+      version: 21,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
@@ -1142,6 +1183,11 @@ export const useGameStore = create<GameState>()(
           // ensure the persisted object carries them forward cleanly.
           return normalizeCosmeticState({ ...state, audio: mergedAudio });
         }
+        if (version < 21) {
+          // Per-item leveling added (itemLevels). The new field defaults to {}
+          // via the merge with current state, so this is a pass-through.
+          return normalizeCosmeticState({ ...state, audio: mergedAudio });
+        }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },
       merge: (persistedState, currentState) => {
@@ -1183,6 +1229,8 @@ export const useGameStore = create<GameState>()(
         unlockedAchievements: state.unlockedAchievements,
         totalGoldenSpent: state.totalGoldenSpent,
         blackHoleCaptures: state.blackHoleCaptures,
+        // Per-item levels persist with the rest of the save.
+        itemLevels: state.itemLevels,
       }),
     }
   )
