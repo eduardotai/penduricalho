@@ -165,9 +165,15 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             {isRunning && !runStalled && (
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
             )}
-            {isRunning && !runStalled ? t.controls.running : buttonLabel}
+            {isRunning && !runStalled ? t.controls.clickBobToSwing : buttonLabel}
           </span>
         </button>
+
+        {isRunning && !runStalled && (
+          <p className="text-center text-[10px] leading-snug text-brand-300/90">
+            {t.controls.clickBobArenaHint}
+          </p>
+        )}
 
         {autoRun && canLaunch && countdown > 0 && (
           <div className="text-center text-xs text-slate-400">

@@ -8,7 +8,6 @@ import {
   meetsUnlock,
 } from "../game/clickerEconomy";
 import { FormattedNumberInline } from "./FormattedNumber";
-import PumpButton from "./PumpButton";
 import { playUiClick } from "../audio/soundMap";
 import { useT } from "../i18n";
 
@@ -39,6 +38,9 @@ export default function WorkshopPanel() {
         <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
           {t.workshop.subtitle}
         </p>
+        <p className="mt-1 rounded-lg border border-brand-500/25 bg-brand-500/10 px-2 py-1.5 text-[10px] font-medium text-brand-200">
+          {t.workshop.clickBobHint}
+        </p>
         <p className="mt-1 text-[10px] text-slate-500">
           {t.workshop.cpsLabel}{" "}
           <FormattedNumberInline value={Math.floor(cachedTotalCps * 10) / 10} />
@@ -51,8 +53,6 @@ export default function WorkshopPanel() {
           {t.workshop.arcSurgeActive(surgeLeft)}
         </div>
       )}
-
-      <PumpButton />
 
       <div className="flex gap-1 rounded-lg bg-slate-800/80 p-0.5">
         {(["build", "upgrades"] as const).map((id) => (

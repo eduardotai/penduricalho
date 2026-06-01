@@ -6,9 +6,11 @@ import {
 } from "../game/clickerEconomy";
 
 const TICK_MS = 100;
+const AUTO_PUMP_MS = 220;
 let earnAcc = 0;
 let lastArcCheck = 0;
 let nextSurgeAt = 0;
+let autoPumpAcc = 0;
 
 function now(): number {
   return Date.now();
@@ -46,6 +48,17 @@ export function startClickerEngine(): () => void {
 
     store.getState().decayClickCombo(t);
     store.getState().syncIdleRateFromWorkshop();
+
+    const st = store.getState();
+    if (st.autoRun && st.isRunning && !document.hidden) {
+      autoPumpAcc += TICK_MS;
+      if (autoPumpAcc >= AUTO_PUMP_MS) {
+        autoPumpAcc = 0;
+        st.cookiePump();
+      }
+    } else {
+      autoPumpAcc = 0;
+    }
   }, TICK_MS);
 
   return () => {

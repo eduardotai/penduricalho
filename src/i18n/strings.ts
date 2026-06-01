@@ -19,12 +19,12 @@ export const en = {
     buffStacksTitle: (description: string, seconds: string, maxSeconds: string) =>
       `${description} Stacks for ${seconds}s (max ${maxSeconds}s).`,
     combo: "Combo",
-    hintBefore: "Pump the Workshop or tap ",
-    hintAfter: " to launch. Hits and clicks both earn Momentum.",
+    hintBefore: "Tap ",
+    hintAfter: " to ready the arena, then click the bob to swing and earn.",
   },
   workshop: {
     title: "Workshop",
-    subtitle: "Click and build passive income. Fill run charge, then launch for big multipliers.",
+    subtitle: "Buy generators for passive income. Click the arena bob to earn and swing.",
     pumpLabel: "Pump",
     clickStreak: "Click streak",
     runCharge: "Run charge",
@@ -37,11 +37,15 @@ export const en = {
     cpsShort: "Passive",
     arcSurgeActive: (sec: number) => `Arc Surge! ×7 clicks · ${sec}s`,
     arcSurgeHud: "Arc Surge — frantic clicks!",
+    clickBobTitle: "Click the Bob",
+    clickBobHint: "Tap the swinging bob on the arena — each click earns Momentum and pushes the swing.",
   },
   controls: {
     runAgain: "Run Again",
     startRun: "Start Run",
     running: "Running...",
+    clickBobToSwing: "Click the Bob",
+    clickBobArenaHint: "Press Start Run prepares the arena. Click the bob in the middle to swing and earn.",
     loadout: "Loadout",
     tokenSpendTitle: "Re-launch the Bob with x3 points (G)",
     tokenIdleTitle: "Use during a run to re-launch",
@@ -134,16 +138,16 @@ export const en = {
     subtitle: "Pump the workshop, launch swings, ride the snap.",
     steps: [
       {
-        title: "Pump the Workshop",
-        body: "Tap the big Pump to earn Momentum anytime. Buy generators for passive income and click upgrades for bigger pumps.",
-      },
-      {
         title: "Build your rig",
         body: "Open the Shop and pick a Bob (the swinging weight), a Rope, and a Site (the arena it swings in).",
       },
       {
-        title: "Charge & launch",
-        body: "Clicks fill Run Charge. Tap Start Run to burn that charge into a big earnings multiplier during the swing.",
+        title: "Arm the arena",
+        body: "Tap Start Run to ready the field — the bob will not move until you click it.",
+      },
+      {
+        title: "Click the bob",
+        body: "Click the bob on the arena (like a cookie). Each click earns Momentum and nudges the swing through the multiplier circles.",
       },
       {
         title: "Hit the glowing orbs",
@@ -397,12 +401,12 @@ export const pt: UIStrings = {
     buffStacksTitle: (description, seconds, maxSeconds) =>
       `${description} Acumula por ${seconds}s (máx. ${maxSeconds}s).`,
     combo: "Combo",
-    hintBefore: "Bombear a Oficina ou toque em ",
-    hintAfter: " para lançar. Cliques e acertos geram momentum.",
+    hintBefore: "Toque em ",
+    hintAfter: " para preparar a arena e clique no bob para balançar e ganhar.",
   },
   workshop: {
     title: "Oficina",
-    subtitle: "Clique e construa renda passiva. Encha a carga e lance para multiplicadores.",
+    subtitle: "Compre máquinas para renda passiva. Clique no bob da arena para ganhar e balançar.",
     pumpLabel: "Bombear",
     clickStreak: "Sequência",
     runCharge: "Carga da rodada",
@@ -415,11 +419,15 @@ export const pt: UIStrings = {
     cpsShort: "Passivo",
     arcSurgeActive: (sec: number) => `Surto de Arco! ×7 cliques · ${sec}s`,
     arcSurgeHud: "Surto de Arco — clique frenético!",
+    clickBobTitle: "Clique no Bob",
+    clickBobHint: "Toque o bob na arena — cada clique gera Momentum e empurra o balanço.",
   },
   controls: {
     runAgain: "Rodar de novo",
     startRun: "Iniciar",
     running: "Em andamento...",
+    clickBobToSwing: "Clique no Bob",
+    clickBobArenaHint: "Iniciar prepara a arena. Clique no bob no centro para balançar e ganhar.",
     loadout: "Atual",
     tokenSpendTitle: "Jogue o Bob de novo com x3 pontos (G)",
     tokenIdleTitle: "Use durante uma rodada para jogar de novo",
@@ -509,19 +517,19 @@ export const pt: UIStrings = {
   },
   tutorial: {
     title: "Como Jogar",
-    subtitle: "Bombear a oficina, lançar balançadas e curtir o rompimento.",
+    subtitle: "Clique no bob, balançe e curta o rompimento.",
     steps: [
-      {
-        title: "Bombear a Oficina",
-        body: "Toque no Bombear para ganhar Momentum a qualquer hora. Compre máquinas para renda passiva e upgrades de clique.",
-      },
       {
         title: "Monte seu equipamento",
         body: "Abra a Loja e escolha um Bob (o peso que balança), uma Linha e um Cenário (a arena onde ele balança).",
       },
       {
-        title: "Carga e lançamento",
-        body: "Cliques enchem a Carga da rodada. Toque Iniciar para transformar essa carga em multiplicador durante a balançada.",
+        title: "Prepare a arena",
+        body: "Toque em Iniciar para preparar o campo — o bob só se move quando você clicar nele.",
+      },
+      {
+        title: "Clique no bob",
+        body: "Clique no bob na arena (como um cookie). Cada clique gera Momentum e empurra o balanço pelos círculos multiplicadores.",
       },
       {
         title: "Acerte as bolinhas brilhantes",

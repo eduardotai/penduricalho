@@ -15,6 +15,7 @@ import { useGameStore } from "./state/store";
 import { startIdleEngine } from "./state/idleEngine";
 import { startClickerEngine } from "./state/clickerEngine";
 import WorkshopPanel from "./components/WorkshopPanel";
+import ArenaClickHint from "./components/ArenaClickHint";
 
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -173,6 +174,7 @@ export default function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
+      <ArenaClickHint />
       {/* On mobile the overlay spans the screen: stats pinned top, controls as a
           bottom action bar. At md+ it collapses back to the left sidebar. */}
       <aside

@@ -132,6 +132,7 @@ import {
   tickEffects,
 } from "../game/effects";
 import { itemScoreMult } from "../game/levels";
+import { applyCookieKick } from "../game/cookieKick";
 import { useT, useLang, locName } from "../i18n";
 
 const RUN_END_SPEED_THRESHOLD = 0.45;
@@ -146,6 +147,9 @@ const AUTO_RUN_DELAY_MS = 1500;
 // live zoom so the on-screen feel stays constant at any camera distance.
 const GRAB_PAD_PX = 46;
 const GRAB_ROPE_CORRIDOR_PX = 40;
+/** Cookie-click target: generous hit area on the tip bob only. */
+const COOKIE_HIT_PAD_PX = 56;
+const COOKIE_TAP_THRESHOLD_PX = 14;
 // Grace window after a Mechanic Belt ejects its bob at the conveyor exit, during
 // which the escape check can't hard-end the run — lets the thrown bob fly its
 // full arc / bounce around the cage instead of being reset the instant it clips
@@ -237,12 +241,20 @@ export default function GameCanvas() {
   // re-fit even though the stored zoom no longer equals the persisted default.
   const lastAutoZoomRef = useRef<number | null>(null);
   const pendulumHandleRef = useRef<PendulumHandle | null>(null);
-  const launchPendingRef = useRef(false);
+  const prepRunPendingRef = useRef(false);
+  const lastCookiePumpEpochRef = useRef(0);
   // Direct manipulation: while the player is grabbing the bob (mouse or touch)
   // this holds the captured pointer id and its current target position in world
   // coordinates. The simulation effect springs the grabbed bob toward this
   // point each frame, so the rope can be swung by hand. `null` when not held.
   const dragRef = useRef<{ pointerId: number; worldX: number; worldY: number } | null>(null);
+  const bobInteractRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    worldX: number;
+    worldY: number;
+  } | null>(null);
   // Set when a manual grab starts a fresh run, so the launch handler skips its
   // automatic slingshot impulse and lets the player's drag drive the swing.
   const suppressLaunchImpulseRef = useRef(false);
@@ -269,8 +281,13 @@ export default function GameCanvas() {
 
   useEffect(() => {
     if (runStartId === 0) return;
-    launchPendingRef.current = true;
+    prepRunPendingRef.current = true;
   }, [runStartId]);
+
+  const cookiePumpEpoch = useGameStore((s) => s.cookiePumpEpoch);
+  useEffect(() => {
+    lastCookiePumpEpochRef.current = cookiePumpEpoch;
+  }, [cookiePumpEpoch]);
 
   // Auto-Run: kick a new run as soon as the launch button would be available —
   // either no run is active or the current run has stalled past the point of
@@ -370,36 +387,55 @@ export default function GameCanvas() {
       setPanCursor(false);
     }
 
-    // Try to grab the bob/rope at this screen point. On success the pointer is
-    // captured to drive a manual swing and we skip the camera pan/pinch path.
-    function tryGrabBob(e: PointerEvent, pt: { x: number; y: number }) {
-      const handle = pendulumHandleRef.current;
-      // Can't hand-swing a snapped (flying) rig or the unattached belt bob.
-      if (!handle || handle.snapped) return false;
-      if (isBeltTunnelAttachment(handle.attachment)) return false;
-      const tip = handle.bobs[handle.bobs.length - 1];
-      if (!tip) return false;
-
-      const view = viewRef.current;
+    function worldAtScreen(pt: { x: number; y: number }) {
       const store = useGameStore.getState();
-      const world = screenToWorld(
+      return screenToWorld(
         pt.x,
         pt.y,
-        view,
+        viewRef.current,
         ANCHOR,
         store.cameraZoom,
         store.cameraPanX,
         store.cameraPanY
       );
-      // World units per CSS pixel — keeps the grab zone's on-screen size
-      // constant (forgiving for fat fingers) at any zoom level.
-      const worldPerPx = 1 / (view.coverScale * store.cameraZoom);
+    }
+
+    /** Cookie Clicker target: tip bob only. */
+    function hitTestCookieBob(pt: { x: number; y: number }): { x: number; y: number } | null {
+      const handle = pendulumHandleRef.current;
+      if (!handle || handle.snapped) return null;
+      const tip = handle.bobs[handle.bobs.length - 1];
+      if (!tip) return null;
+      const store = useGameStore.getState();
+      const world = worldAtScreen(pt);
+      const worldPerPx = 1 / (viewRef.current.coverScale * store.cameraZoom);
+      const r = getEffectiveBobRadius(handle) + COOKIE_HIT_PAD_PX * worldPerPx;
+      if (Math.hypot(world.x - tip.position.x, world.y - tip.position.y) <= r) {
+        return world;
+      }
+      return null;
+    }
+
+    function startBobDrag(e: PointerEvent, world: { x: number; y: number }) {
+      dragRef.current = { pointerId: e.pointerId, worldX: world.x, worldY: world.y };
+      container!.setPointerCapture?.(e.pointerId);
+      container!.style.cursor = "grabbing";
+    }
+
+    function tryBeginBobDrag(e: PointerEvent, pt: { x: number; y: number }) {
+      const handle = pendulumHandleRef.current;
+      if (!handle || handle.snapped) return false;
+      if (isBeltTunnelAttachment(handle.attachment)) return false;
+      const tip = handle.bobs[handle.bobs.length - 1];
+      if (!tip) return false;
+
+      const world = worldAtScreen(pt);
+      const store = useGameStore.getState();
+      const worldPerPx = 1 / (viewRef.current.coverScale * store.cameraZoom);
       const pad = GRAB_PAD_PX * worldPerPx;
       const corridor = GRAB_ROPE_CORRIDOR_PX * worldPerPx;
       const bobR = getEffectiveBobRadius(handle);
 
-      // Grabbable along the whole line: the tip bob, every rope node, and any
-      // chain bobs. All hand to the same tip-bob spring.
       const grabbable: Matter.Body[] = [
         ...handle.bobs,
         ...handle.chainBobs,
@@ -413,12 +449,6 @@ export default function GameCanvas() {
           break;
         }
       }
-
-      // Beyond the per-body checks, accept a press anywhere inside a soft
-      // corridor that runs the full length of the rope line (pivot → tip). The
-      // rope nodes above already cover the line, but this fills the gaps
-      // between sparse nodes and pads the whole line outward, so you can grab
-      // the swing by pressing *alongside* the rope, not only on it.
       if (!near) {
         const pivot = handle.pivot.position;
         const abx = tip.position.x - pivot.x;
@@ -434,9 +464,7 @@ export default function GameCanvas() {
       }
       if (!near) return false;
 
-      dragRef.current = { pointerId: e.pointerId, worldX: world.x, worldY: world.y };
-      container!.setPointerCapture?.(e.pointerId);
-      container!.style.cursor = "grabbing";
+      startBobDrag(e, world);
       e.preventDefault();
       return true;
     }
@@ -445,9 +473,20 @@ export default function GameCanvas() {
       if (blockedTarget(e.target)) return;
       const pt = cssPoint(e.clientX, e.clientY);
       if (!pt) return;
-      // Grabbing the bob takes priority over camera control, so a hand-swing
-      // works with a plain mouse press (no Space) and with a single touch.
-      if (tryGrabBob(e, pt)) return;
+      const cookieWorld = hitTestCookieBob(pt);
+      if (cookieWorld) {
+        bobInteractRef.current = {
+          pointerId: e.pointerId,
+          startX: pt.x,
+          startY: pt.y,
+          worldX: cookieWorld.x,
+          worldY: cookieWorld.y,
+        };
+        container!.setPointerCapture?.(e.pointerId);
+        container!.style.cursor = "pointer";
+        e.preventDefault();
+        return;
+      }
       const touch = e.pointerType === "touch";
       // Mouse/pen only pan while Space is held (preserve desktop behavior);
       // touch always drives the camera since the canvas has no tap action.
@@ -474,9 +513,19 @@ export default function GameCanvas() {
     }
 
     function onPointerMove(e: PointerEvent) {
-      // A manual bob grab owns its pointer — track it to the swing, never the
-      // camera. Updated in world units so the spring target follows the finger
-      // even as the bob's own motion shifts the view.
+      const interact = bobInteractRef.current;
+      if (interact && interact.pointerId === e.pointerId && !dragRef.current) {
+        const pt = cssPoint(e.clientX, e.clientY);
+        if (pt) {
+          const moved = Math.hypot(pt.x - interact.startX, pt.y - interact.startY);
+          if (moved >= COOKIE_TAP_THRESHOLD_PX) {
+            bobInteractRef.current = null;
+            startBobDrag(e, { x: interact.worldX, y: interact.worldY });
+          }
+        }
+        return;
+      }
+
       const drag = dragRef.current;
       if (drag && drag.pointerId === e.pointerId) {
         const pt = cssPoint(e.clientX, e.clientY);
@@ -541,8 +590,22 @@ export default function GameCanvas() {
     }
 
     function endPointer(e: PointerEvent) {
-      // Releasing a bob grab hands the swing back to physics — the bob keeps the
-      // velocity the player flung it with. The spring is torn down next frame.
+      const interact = bobInteractRef.current;
+      if (interact && interact.pointerId === e.pointerId) {
+        bobInteractRef.current = null;
+        container!.releasePointerCapture?.(e.pointerId);
+        setPanCursor(spaceHeld.current);
+        const pt = cssPoint(e.clientX, e.clientY);
+        const moved =
+          pt != null
+            ? Math.hypot(pt.x - interact.startX, pt.y - interact.startY)
+            : 0;
+        if (moved < COOKIE_TAP_THRESHOLD_PX) {
+          useGameStore.getState().cookiePump();
+        }
+        return;
+      }
+
       if (dragRef.current?.pointerId === e.pointerId) {
         dragRef.current = null;
         container!.releasePointerCapture?.(e.pointerId);
@@ -575,6 +638,7 @@ export default function GameCanvas() {
       pointers.clear();
       pinchPrevDist = 0;
       dragRef.current = null;
+      bobInteractRef.current = null;
       setPanCursor(false);
     }
 
@@ -2567,6 +2631,34 @@ export default function GameCanvas() {
       store.expireModifiers(now);
       store.decayCombo(now, 1800);
 
+      if (
+        store.cookiePumpEpoch !== lastCookiePumpEpochRef.current &&
+        store.isRunning &&
+        !pendulumHandle.snapped &&
+        pendulumHandle.bobs.length > 0
+      ) {
+        lastCookiePumpEpochRef.current = store.cookiePumpEpoch;
+        applyCookieKick(
+          pendulumHandle,
+          attachment,
+          aggregateEffects(store.activeModifiers, store.persistentBonuses),
+          store.clickCombo.count
+        );
+        const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+        const gain = store.lastCookieGain;
+        if (gain > 0) {
+          emitHit(effects, tip.position, now, {
+            color: "#93c5fd",
+            points: gain,
+            intensity: 0.75 + Math.min(store.clickCombo.count, 30) * 0.02,
+          });
+        }
+        playGameSound("ui-click", {
+          volume: 0.65,
+          pitch: 0.92 + Math.min(store.clickCombo.count, 25) * 0.028,
+        });
+      }
+
       // --- Manual swing: spring the grabbed bob toward the pointer ----------
       // A live grab (mouse or touch) pulls the tip bob toward the world point
       // under the player's finger, so the rope swings by hand. Disabled for a
@@ -2815,8 +2907,8 @@ export default function GameCanvas() {
         playGameSound("token-expire", { volume: 0.7 });
       }
 
-      if (launchPendingRef.current) {
-        launchPendingRef.current = false;
+      if (prepRunPendingRef.current) {
+        prepRunPendingRef.current = false;
         // A snapped rig (e.g. Run Again pressed mid-finale) must be re-strung
         // before it can swing again, and the fresh run starts at full durability.
         if (pendulumHandle.snapped) restoreRope(pendulumHandle);
@@ -2847,19 +2939,13 @@ export default function GameCanvas() {
         destroyTokenField(engineHandle.world, tokenField);
         resetBehaviorRunState();
         if (suppressLaunchImpulseRef.current) {
-          // A hand-swing started this run: no slingshot, no reset-to-rest. The
-          // bob stays under the player's grip and their drag drives the swing.
           suppressLaunchImpulseRef.current = false;
-        } else if (ropeBehavior?.kind === "belt" && beltTunnel) {
-          resetPendulumToRest(pendulumHandle);
-          beltVirtualPayout = resetBeltVirtual();
-          applyBeltLaunchKick(
-            pendulumHandle,
-            beltTunnel,
-            ropeBehavior.beltKickSpeed ?? 20
-          );
         } else {
-          launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+          // Armed run: arena is ready but the bob stays at rest until cookie clicks.
+          resetPendulumToRest(pendulumHandle);
+        }
+        if (store.consumePendingCookiePump()) {
+          store.cookiePump();
         }
         store.registerSwing();
         runIdleMs = 0;
@@ -2867,21 +2953,9 @@ export default function GameCanvas() {
         speedRampAppliedMult = 1;
         syncEchoBobs(0);
         maneuvers.reset();
-        // Rocket has no launch slingshot: bleed the kick down to a seed so the
-        // continuous thrust (rocketTick) builds the swing from near-still. We
-        // keep a sliver of the launch direction so the first thrust has a
-        // tangent to push along.
         if (behavior?.kind === "rocket") {
-          for (const bob of pendulumHandle.bobs) {
-            Matter.Body.setVelocity(bob, {
-              x: bob.velocity.x * 0.1,
-              y: bob.velocity.y * 0.1,
-            });
-          }
           rocketLaunchAt = now;
         }
-        playGameSound("launch");
-        emitManeuver(effects, pendulumHandle.bobs[0].position, effectText.launch, now);
       }
 
       if (tokenLaunchPendingRef.current > 0) {

@@ -194,9 +194,18 @@ export interface GameState {
   arcSurgeMult: number;
   lastArcSurgeSeq: number;
   totalArcSurges: number;
+  /** Bumped each cookie bob click; GameCanvas applies physics kick. */
+  cookiePumpEpoch: number;
+  /** Set when a click arms a run; canvas credits click after arena prep. */
+  pendingCookiePump: boolean;
+  /** Transient: last cookiePump gain for canvas float text. */
+  lastCookieGain: number;
 
   addMomentum: (n: number) => void;
   registerClick: (now: number) => number;
+  /** Cookie-click the bob: earn momentum + queue a swing kick (no auto-launch). */
+  cookiePump: () => number;
+  consumePendingCookiePump: () => boolean;
   buyGenerator: (id: string) => boolean;
   buyClickUpgrade: (id: string) => boolean;
   recomputeWorkshop: () => void;
@@ -550,6 +559,9 @@ export const useGameStore = create<GameState>()(
       arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
       lastArcSurgeSeq: 0,
       totalArcSurges: 0,
+      cookiePumpEpoch: 0,
+      pendingCookiePump: false,
+      lastCookieGain: 0,
 
       // Achievements (new in v20)
       unlockedAchievements: {},
@@ -600,6 +612,29 @@ export const useGameStore = create<GameState>()(
           totalArcSurges: s.totalArcSurges + 1,
         }));
         get().checkAchievements();
+      },
+
+      consumePendingCookiePump: () => {
+        const s = get();
+        if (!s.pendingCookiePump) return false;
+        set({ pendingCookiePump: false });
+        return true;
+      },
+
+      cookiePump: () => {
+        const now = Date.now();
+        const s = get();
+        if (!s.isRunning) {
+          get().startRun();
+          set({ pendingCookiePump: true });
+          return 0;
+        }
+        if (s.runStalled) {
+          set({ runStalled: false });
+        }
+        const gain = get().registerClick(now);
+        set({ cookiePumpEpoch: s.cookiePumpEpoch + 1, lastCookieGain: gain });
+        return gain;
       },
 
       registerClick: (now) => {
@@ -983,6 +1018,7 @@ export const useGameStore = create<GameState>()(
             runMomentum: 0,
             combo: { count: 0, lastHitAt: 0 },
             runStalled: true,
+            pendingCookiePump: false,
             totalRuns: closingPrevious ? s.totalRuns + 1 : s.totalRuns,
             bestRunMomentum: closingPrevious
               ? Math.max(s.bestRunMomentum, s.runMomentum)
@@ -1281,6 +1317,8 @@ export const useGameStore = create<GameState>()(
           arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
           lastArcSurgeSeq: 0,
           totalArcSurges: 0,
+          cookiePumpEpoch: 0,
+          pendingCookiePump: false,
         }),
     }),
     {

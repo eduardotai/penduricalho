@@ -137,3 +137,6 @@ export function meetsUnlock(gate: UnlockGate | undefined, stats: Stats): boolean
   const v = stats[gate.stat];
   return typeof v === "number" && v >= gate.gte;
 }
+
+/** Per cookie-click tangential kick (world units / step), before attachment bonuses. */
+export const COOKIE_KICK_BASE = 5;
