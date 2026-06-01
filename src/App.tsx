@@ -42,7 +42,7 @@ export default function App() {
         return;
       }
       const rect = el!.getBoundingClientRect();
-      setBuffsBottomOffset(Math.max(0, Math.round(window.innerHeight - rect.top + 8)));
+      setBuffsBottomOffset(Math.max(0, Math.round(window.innerHeight - rect.top + 4)));
     }
     update();
     const ro = new ResizeObserver(update);
@@ -146,11 +146,13 @@ export default function App() {
           bottom action bar. At md+ it collapses back to the left sidebar. */}
       <aside
         className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between
-          p-3 pl-[max(0.75rem,env(safe-area-inset-left))] pt-[max(0.75rem,env(safe-area-inset-top))]
-          pb-[max(0.75rem,env(safe-area-inset-bottom))]
+          p-2 pl-[max(0.5rem,env(safe-area-inset-left))] pt-[max(0.5rem,env(safe-area-inset-top))]
+          pb-[max(0.5rem,env(safe-area-inset-bottom))]
+          sm:p-3 sm:pl-[max(0.75rem,env(safe-area-inset-left))] sm:pt-[max(0.75rem,env(safe-area-inset-top))]
+          sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]
           md:inset-y-0 md:right-auto md:w-80 md:max-w-[min(20rem,calc(100%-2rem))] md:justify-start md:p-6"
       >
-        <div className="pointer-events-none max-h-[42dvh] max-w-[12rem] min-h-0 overflow-y-auto overscroll-contain sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:pb-4">
+        <div className="pointer-events-none max-h-[38dvh] max-w-[11rem] min-h-0 overflow-y-auto overscroll-contain sm:max-h-[42dvh] sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:pb-4">
           <HUDStats />
         </div>
         <div className="pointer-events-none flex justify-center md:block">
