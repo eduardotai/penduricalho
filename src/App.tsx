@@ -4,6 +4,7 @@ import GameCanvas from "./components/GameCanvas";
 import HUD, { HUDStats } from "./components/HUD";
 import Customize from "./components/Customize";
 import Settings from "./components/Settings";
+import Tutorial from "./components/Tutorial";
 import ControlPanel from "./components/ControlPanel";
 import IdleToast from "./components/IdleToast";
 import { AudioManager } from "./audio/AudioManager";
@@ -14,6 +15,13 @@ import { startIdleEngine } from "./state/idleEngine";
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Auto-open the How-to-Play tutorial once for first-time players, then leave
+  // it reopenable from the controls. tutorialSeen is read once on mount so a
+  // mid-session dismiss doesn't fight the initial state.
+  const [tutorialOpen, setTutorialOpen] = useState(
+    () => !useGameStore.getState().tutorialSeen
+  );
+  const dismissTutorial = useGameStore((s) => s.dismissTutorial);
   const toggleAudioMuted = useGameStore((s) => s.toggleAudioMuted);
   const audio = useGameStore((s) => s.audio);
   // Distance from the viewport bottom to the top of the bottom control bar, so
@@ -119,6 +127,18 @@ export default function App() {
     setSettingsOpen(false);
   }
 
+  function openTutorial() {
+    AudioManager.unlock();
+    playGameSound("ui-modal-open");
+    setTutorialOpen(true);
+  }
+
+  function closeTutorial() {
+    playGameSound("ui-modal-close");
+    setTutorialOpen(false);
+    dismissTutorial();
+  }
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
@@ -141,6 +161,7 @@ export default function App() {
             <ControlPanel
               onOpenCustomize={openCustomize}
               onOpenSettings={openSettings}
+              onOpenTutorial={openTutorial}
             />
           </div>
         </div>
@@ -148,6 +169,7 @@ export default function App() {
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} />
+      <Tutorial open={tutorialOpen} onClose={closeTutorial} />
       <IdleToast />
       <Analytics />
     </div>

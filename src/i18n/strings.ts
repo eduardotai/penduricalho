@@ -39,6 +39,7 @@ export const en = {
     off: "OFF",
     shop: "Shop",
     settings: "Settings",
+    howToPlay: "How to Play",
     hardEndConfirmRunning:
       "End this run immediately and start fresh? Progress from the current swing is lost.",
     hardEndConfirmIdle:
@@ -86,6 +87,38 @@ export const en = {
       { keys: "Drag", action: "Pan the camera (one finger, or Space + drag)" },
       { keys: "Escape", action: "Close open menus" },
     ] as { keys: string; action: string }[],
+  },
+  tutorial: {
+    title: "How to Play",
+    subtitle: "Set up a rig, launch the swing, ride the snap.",
+    steps: [
+      {
+        title: "Build your rig",
+        body: "Open the Shop and pick a Bob (the swinging weight), a Rope, and a Site (the arena it swings in).",
+      },
+      {
+        title: "Launch the swing",
+        body: "Tap Start Run. The Bob gets one push and swings on its own — no clicking grind, the physics does the work.",
+      },
+      {
+        title: "Hit the glowing orbs",
+        body: "Every multiplier circle the Bob sweeps through banks Momentum and grows your Combo. Bigger combo, bigger payout.",
+      },
+      {
+        title: "Grab the tokens",
+        body: "Buffs drift into the field mid-run. Golden Tokens fill your slot — press G (or Use Token) to re-launch the Bob for x3 points.",
+      },
+      {
+        title: "Ride the snap",
+        body: "The rope slowly wears down and snaps, triggering a finale. That's the reward beat — the run ends and your Momentum is banked.",
+      },
+      {
+        title: "Spend & upgrade",
+        body: "Spend Momentum in the Shop to unlock heavier bobs, stranger ropes, and new arenas. Every swing gets wilder.",
+      },
+    ] as { title: string; body: string }[],
+    start: "Got it — let's play",
+    reopenHint: "Reopen this anytime with the How to Play button.",
   },
   customize: {
     tabPendulum: "Bobs",
@@ -259,6 +292,7 @@ export const pt: UIStrings = {
     off: "DESL",
     shop: "Loja",
     settings: "Config",
+    howToPlay: "Como Jogar",
     hardEndConfirmRunning:
       "Encerrar esta rodada agora e começar do zero? O progresso da jogada atual será perdido.",
     hardEndConfirmIdle:
@@ -306,6 +340,38 @@ export const pt: UIStrings = {
       { keys: "Arrastar", action: "Mover a câmera (um dedo, ou Espaço + arrastar)" },
       { keys: "Esc", action: "Fechar menus abertos" },
     ],
+  },
+  tutorial: {
+    title: "Como Jogar",
+    subtitle: "Monte o equipamento, lance a balançada e curta o rompimento.",
+    steps: [
+      {
+        title: "Monte seu equipamento",
+        body: "Abra a Loja e escolha um Bob (o peso que balança), uma Linha e um Cenário (a arena onde ele balança).",
+      },
+      {
+        title: "Lance a balançada",
+        body: "Toque em Iniciar. O Bob recebe um empurrão e balança sozinho — sem ficar clicando, a física faz o trabalho.",
+      },
+      {
+        title: "Acerte as bolinhas brilhantes",
+        body: "Cada círculo multiplicador que o Bob atravessa acumula Momentum e aumenta seu Combo. Combo maior, recompensa maior.",
+      },
+      {
+        title: "Pegue as fichas",
+        body: "Bônus aparecem no campo durante a rodada. Fichas Douradas vão para o seu slot — aperte G (ou Usar Ficha) para jogar o Bob de novo com x3 pontos.",
+      },
+      {
+        title: "Curta o rompimento",
+        body: "A linha vai desgastando até romper, ativando um final. Esse é o momento da recompensa — a rodada acaba e seu Momentum é guardado.",
+      },
+      {
+        title: "Gaste e evolua",
+        body: "Gaste Momentum na Loja para liberar bobs mais pesados, linhas mais estranhas e novas arenas. Cada balançada fica mais insana.",
+      },
+    ],
+    start: "Entendi — bora jogar",
+    reopenHint: "Reabra quando quiser pelo botão Como Jogar.",
   },
   customize: {
     tabPendulum: "Bobs",

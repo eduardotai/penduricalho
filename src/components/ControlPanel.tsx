@@ -10,9 +10,10 @@ const AUTO_RUN_DELAY_MS = 1500;
 interface ControlPanelProps {
   onOpenCustomize: () => void;
   onOpenSettings: () => void;
+  onOpenTutorial: () => void;
 }
 
-export default function ControlPanel({ onOpenCustomize, onOpenSettings }: ControlPanelProps) {
+export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTutorial }: ControlPanelProps) {
   const t = useT();
   const lang = useLang();
   const isRunning = useGameStore((s) => s.isRunning);
@@ -252,6 +253,18 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
             {t.controls.settings}
           </button>
         </div>
+
+        <button
+          onClick={() => {
+            AudioManager.unlock();
+            playUiClick();
+            onOpenTutorial();
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+        >
+          <span aria-hidden>🪀</span>
+          {t.controls.howToPlay}
+        </button>
 
         {hardEndConfirmOpen ? (
           <div className="w-full rounded-xl border border-rose-500/50 bg-rose-950/40 p-4">
