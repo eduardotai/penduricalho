@@ -25,7 +25,7 @@ export const SITES: SiteDef[] = [
     walls: "breakable",
     cageScale: 1,
     wallDurabilityMult: 0.6,
-    cost: 0,
+    cost: 3_500,
     unlock: { stat: "totalMomentum", gte: 3000 },
   },
   {
@@ -40,7 +40,7 @@ export const SITES: SiteDef[] = [
     walls: "breakable",
     cageScale: 1.45,
     wallDurabilityMult: 0.5,
-    cost: 0,
+    cost: 12_000,
     unlock: { stat: "totalMomentum", gte: 9000 },
   },
   {
@@ -55,7 +55,7 @@ export const SITES: SiteDef[] = [
     walls: "breakable",
     cageScale: 1.9,
     wallDurabilityMult: 0.4,
-    cost: 0,
+    cost: 40_000,
     unlock: { stat: "totalMomentum", gte: 24000 },
   },
   {
@@ -71,7 +71,7 @@ export const SITES: SiteDef[] = [
     wallShape: "rings",
     ringCount: 5,
     wallDurabilityMult: 0.55,
-    cost: 0,
+    cost: 24_000,
     unlock: { stat: "totalMomentum", gte: 16000 },
   },
   {
@@ -87,7 +87,7 @@ export const SITES: SiteDef[] = [
     cageScale: 1.45,
     wallDurabilityMult: 0.5,
     blackHole: true,
-    cost: 0,
+    cost: 80_000,
     unlock: { stat: "totalMomentum", gte: 32000 },
   },
 ];

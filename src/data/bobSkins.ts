@@ -23,7 +23,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#9a3412",
     pattern: "band",
     rarity: "common",
-    cost: 0,
+    cost: 350,
     unlock: { stat: "totalHits", gte: 25 },
   },
   {
@@ -35,7 +35,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#155e75",
     pattern: "crystal",
     rarity: "common",
-    cost: 0,
+    cost: 750,
     unlock: { stat: "totalMomentum", gte: 500 },
   },
   {
@@ -47,7 +47,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#9d174d",
     pattern: "starfield",
     rarity: "rare",
-    cost: 0,
+    cost: 2_200,
     unlock: { stat: "totalHits", gte: 150 },
   },
   {
@@ -59,7 +59,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#5b21b6",
     pattern: "striped",
     rarity: "rare",
-    cost: 0,
+    cost: 5_500,
     unlock: { stat: "bestCombo", gte: 8 },
   },
   {
@@ -71,7 +71,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#334155",
     pattern: "crystal",
     rarity: "epic",
-    cost: 0,
+    cost: 12_000,
     unlock: { stat: "totalMomentum", gte: 25_000 },
   },
   {
@@ -83,7 +83,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#78350f",
     pattern: "band",
     rarity: "epic",
-    cost: 0,
+    cost: 28_000,
     unlock: { stat: "totalHits", gte: 800 },
   },
   {
@@ -95,7 +95,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#312e81",
     pattern: "starfield",
     rarity: "legendary",
-    cost: 0,
+    cost: 65_000,
     unlock: { stat: "totalMomentum", gte: 200_000 },
   },
   {
@@ -107,7 +107,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#9a3412",
     pattern: "band",
     rarity: "rare",
-    cost: 0,
+    cost: 4_200,
     unlock: { stat: "totalHits", gte: 100 },
   },
   {
@@ -119,7 +119,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#4c1d95",
     pattern: "starfield",
     rarity: "legendary",
-    cost: 0,
+    cost: 85_000,
     unlock: { stat: "totalMomentum", gte: 280_000 },
   },
   {
@@ -131,7 +131,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#581c87",
     pattern: "striped",
     rarity: "epic",
-    cost: 0,
+    cost: 16_500,
     unlock: { stat: "bestCombo", gte: 10 },
   },
   {
@@ -143,7 +143,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#14532d",
     pattern: "solid",
     rarity: "rare",
-    cost: 0,
+    cost: 3_600,
     unlock: { stat: "totalSwings", gte: 400 },
   },
   {
@@ -155,7 +155,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#1c1917",
     pattern: "crystal",
     rarity: "epic",
-    cost: 0,
+    cost: 19_000,
     unlock: { stat: "totalHits", gte: 500 },
   },
   {
@@ -167,7 +167,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#134e4a",
     pattern: "band",
     rarity: "epic",
-    cost: 0,
+    cost: 21_000,
     unlock: { stat: "totalMomentum", gte: 55_000 },
   },
   {
@@ -179,7 +179,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#4338ca",
     pattern: "striped",
     rarity: "rare",
-    cost: 0,
+    cost: 6_800,
     unlock: { stat: "totalHits", gte: 220 },
   },
   {
@@ -191,7 +191,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#27272a",
     pattern: "striped",
     rarity: "epic",
-    cost: 0,
+    cost: 24_000,
     unlock: { stat: "bestCombo", gte: 14 },
   },
   {
@@ -203,7 +203,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#450a0a",
     pattern: "starfield",
     rarity: "rare",
-    cost: 0,
+    cost: 7_400,
     unlock: { stat: "totalMomentum", gte: 12_000 },
   },
   {
@@ -215,7 +215,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#334155",
     pattern: "solid",
     rarity: "rare",
-    cost: 0,
+    cost: 5_000,
     unlock: { stat: "totalSwings", gte: 800 },
   },
   {
@@ -227,7 +227,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#1f2937",
     pattern: "starfield",
     rarity: "legendary",
-    cost: 0,
+    cost: 95_000,
     unlock: { stat: "totalHits", gte: 1_200 },
   },
   {
@@ -239,7 +239,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#1a2e05",
     pattern: "striped",
     rarity: "epic",
-    cost: 0,
+    cost: 26_000,
     unlock: { stat: "totalMomentum", gte: 90_000 },
   },
   {
@@ -251,7 +251,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#9d174d",
     pattern: "band",
     rarity: "common",
-    cost: 0,
+    cost: 1_800,
     unlock: { stat: "totalHits", gte: 60 },
   },
   {
@@ -263,7 +263,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#172554",
     pattern: "crystal",
     rarity: "epic",
-    cost: 0,
+    cost: 20_500,
     unlock: { stat: "bestCombo", gte: 11 },
   },
   {
@@ -275,7 +275,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#022c22",
     pattern: "striped",
     rarity: "legendary",
-    cost: 0,
+    cost: 78_000,
     unlock: { stat: "totalSwings", gte: 4_000 },
   },
   {
@@ -287,7 +287,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#0284c7",
     pattern: "crystal",
     rarity: "rare",
-    cost: 0,
+    cost: 8_200,
     unlock: { stat: "totalMomentum", gte: 18_000 },
   },
   {
@@ -299,7 +299,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#7c2d12",
     pattern: "starfield",
     rarity: "legendary",
-    cost: 0,
+    cost: 110_000,
     unlock: { stat: "totalMomentum", gte: 500_000 },
   },
   {
@@ -311,7 +311,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#171717",
     pattern: "solid",
     rarity: "legendary",
-    cost: 0,
+    cost: 125_000,
     unlock: { stat: "totalHits", gte: 2_000 },
   },
   {
@@ -323,7 +323,7 @@ export const BOB_SKINS: BobSkinDef[] = [
     stroke: "#4c1d95",
     pattern: "crystal",
     rarity: "epic",
-    cost: 0,
+    cost: 30_000,
     unlock: { stat: "bestCombo", gte: 16 },
   },
 ];
