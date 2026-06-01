@@ -28,28 +28,28 @@ export function HUDStats() {
 
   return (
     <div className="pointer-events-none space-y-3">
-      <div className="inline-block rounded-2xl bg-slate-900/70 px-4 py-2 backdrop-blur sm:block sm:px-5 sm:py-3">
-        <div className="text-[10px] uppercase tracking-widest text-slate-400 sm:text-xs">
+      <div className="inline-block rounded-2xl bg-slate-900/70 px-3 py-1.5 backdrop-blur sm:px-5 sm:py-3">
+        <div className="text-[9px] uppercase tracking-widest text-slate-400 sm:text-xs">
           {t.hud.momentum}
         </div>
         <FormattedNumber
           value={momentum}
-          className="font-display text-2xl font-bold text-brand-300 sm:text-3xl"
+          className="font-display text-xl font-bold text-brand-300 sm:text-3xl"
         />
       </div>
 
       {showRunCard && (
         <div
-          className={`rounded-xl border px-4 py-2 backdrop-blur ${
+          className={`rounded-xl border px-3 py-1.5 backdrop-blur ${
             isRunning
               ? "border-amber-500/40 bg-amber-500/15"
               : "border-slate-700/60 bg-slate-900/70"
           }`}
         >
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-slate-400">
+          <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-slate-400">
             {isRunning ? (
               <>
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
                 {t.hud.runInProgress}
               </>
             ) : (
@@ -59,9 +59,9 @@ export function HUDStats() {
           <FormattedNumber
             value={runMomentum}
             prefix="+"
-            className="font-display text-xl font-semibold text-amber-200"
+            className="font-display text-lg font-semibold text-amber-200 sm:text-xl"
           />
-          <div className="mt-0.5 text-[10px] text-slate-500">
+          <div className="mt-0.5 text-[9px] text-slate-500">
             {t.hud.best} <FormattedNumberInline value={bestRunMomentum} /> ·{" "}
             {t.hud.runs} {totalRuns}
           </div>
@@ -70,7 +70,7 @@ export function HUDStats() {
 
       {showTokenCard && (
         <div
-          className={`rounded-xl border px-4 py-2 backdrop-blur ${
+          className={`rounded-xl border px-3 py-1.5 backdrop-blur ${
             tokenReady
               ? "border-yellow-300 bg-yellow-400/25 shadow-[0_0_30px_-3px_rgba(250,204,21,0.9)]"
               : goldenActive
@@ -79,9 +79,9 @@ export function HUDStats() {
           }`}
           title={t.hud.goldenTokensTitle}
         >
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-yellow-300/90">
+          <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-yellow-300/90">
             <span
-              className={`inline-block h-2 w-2 rounded-full bg-yellow-300 ${
+              className={`inline-block h-1.5 w-1.5 rounded-full bg-yellow-300 ${
                 tokenReady ? "animate-pulse" : ""
               }`}
             />
@@ -91,11 +91,11 @@ export function HUDStats() {
                 ? t.hud.tokenBonusActive
                 : t.hud.goldenTokens}
           </div>
-          <div className="font-display text-xl font-semibold text-yellow-200">
+          <div className="font-display text-lg font-semibold text-yellow-200 sm:text-xl">
             {tokenReady ? (
               <>
-                <span className="text-3xl">{pendingGoldenTokens}</span>
-                <span className="ml-2 text-xs text-yellow-200/80">
+                <span className="text-2xl sm:text-3xl">{pendingGoldenTokens}</span>
+                <span className="ml-2 text-[10px] text-yellow-200/80">
                   {t.hud.tokensCaught(totalGoldenTokens)}
                 </span>
               </>
@@ -103,7 +103,7 @@ export function HUDStats() {
               totalGoldenTokens
             )}
           </div>
-          <div className="mt-0.5 text-[10px] text-slate-500">
+          <div className="mt-0.5 text-[9px] text-slate-500">
             {t.hud.bonusDuration((goldenTokenBonusMs / 1000).toFixed(1))}
           </div>
         </div>
@@ -143,8 +143,8 @@ function buffRowClass(phase: BuffPhase) {
 }
 
 const VISIBLE_BUFF_SLOTS = 5;
-const BUFF_ROW_HEIGHT_PX = 48;
-const BUFF_ROW_GAP_PX = 8;
+const BUFF_ROW_HEIGHT_PX = 40; // mobile base; sm+ rows are taller but maxHeight is conservative
+const BUFF_ROW_GAP_PX = 6;
 
 function ActiveBuffsPanel() {
   const t = useT();
@@ -377,7 +377,7 @@ function ActiveBuffsPanel() {
 
   return (
     <div
-      className="scrollbar-thin flex w-52 max-w-[min(20rem,calc(100vw-2.5rem))] flex-col items-stretch gap-1.5 overflow-y-auto overscroll-contain sm:w-80 sm:gap-2"
+      className="scrollbar-thin flex w-40 max-w-[min(18rem,calc(100vw-2rem))] flex-col items-stretch gap-1 overflow-y-auto overscroll-contain sm:w-52 sm:gap-1.5 md:w-80"
       style={{
         maxHeight:
           BUFF_ROW_HEIGHT_PX * VISIBLE_BUFF_SLOTS +
@@ -400,7 +400,7 @@ function ActiveBuffsPanel() {
         return (
           <div
             key={row.key}
-            className={`relative h-10 shrink-0 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/88 backdrop-blur sm:h-12 ${buffRowClass(row.phase)}`}
+            className={`relative h-9 shrink-0 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/88 backdrop-blur sm:h-10 md:h-12 ${buffRowClass(row.phase)}`}
             style={
               {
                 "--buff-glow": `${def.color}99`,
@@ -416,9 +416,9 @@ function ActiveBuffsPanel() {
                 : defDescription
             }
           >
-            <div className="flex h-full items-center gap-2 px-3 pb-1 sm:gap-3 sm:px-4 sm:pb-1.5">
+            <div className="flex h-full items-center gap-1.5 px-2.5 pb-0.5 text-[10px] sm:gap-2 sm:px-3 sm:pb-1 sm:text-xs">
               <span
-                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full sm:h-3 sm:w-3"
+                className="inline-block h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5"
                 style={{
                   background: def.color,
                   boxShadow:
@@ -427,10 +427,10 @@ function ActiveBuffsPanel() {
                       : `0 0 6px ${def.color}88`,
                 }}
               />
-              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-100 sm:text-sm">
+              <span className="min-w-0 flex-1 truncate font-semibold text-slate-100">
                 {defName}
               </span>
-              <span className="shrink-0 text-xs tabular-nums font-medium text-slate-300 sm:text-sm">
+              <span className="shrink-0 tabular-nums font-medium text-slate-300">
                 {(remaining / 1000).toFixed(1)}s
               </span>
             </div>
@@ -473,16 +473,16 @@ export default function HUD({
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
-      <div className="pointer-events-none flex items-start justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <div className="pointer-events-none flex items-start justify-end p-3 pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1rem,env(safe-area-inset-top))] sm:p-5 sm:pr-[max(1.25rem,env(safe-area-inset-right))] sm:pt-[max(1.25rem,env(safe-area-inset-top))]">
         {comboActive && (
-          <div className="rounded-2xl bg-amber-500/20 px-3 py-2 text-right backdrop-blur sm:px-5 sm:py-3">
-            <div className="text-[10px] uppercase tracking-widest text-amber-200/80 sm:text-xs">
+          <div className="rounded-2xl bg-amber-500/20 px-2.5 py-1.5 text-right backdrop-blur sm:px-5 sm:py-3">
+            <div className="text-[9px] uppercase tracking-widest text-amber-200/80 sm:text-xs">
               {t.hud.combo}
             </div>
-            <div className="font-display text-2xl font-bold text-amber-200 sm:text-3xl">
+            <div className="font-display text-xl font-bold text-amber-200 sm:text-3xl">
               x{combo.count}
             </div>
-            <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-amber-900/50">
+            <div className="mt-1 h-0.5 w-full overflow-hidden rounded bg-amber-900/50">
               <div
                 className="h-full bg-amber-300 transition-[width] duration-100 ease-linear"
                 style={{ width: `${comboDecayPct * 100}%` }}
@@ -493,7 +493,7 @@ export default function HUD({
       </div>
 
       <div
-        className="pointer-events-none flex flex-1 items-end justify-end p-5 pr-[max(1.25rem,env(safe-area-inset-right))] md:pb-5"
+        className="pointer-events-none flex flex-1 items-end justify-end p-3 pr-[max(1rem,env(safe-area-inset-right))] sm:p-5 sm:pr-[max(1.25rem,env(safe-area-inset-right))] md:pb-5"
         style={
           buffsBottomOffset != null ? { paddingBottom: buffsBottomOffset } : undefined
         }
@@ -512,7 +512,7 @@ function Hint() {
   const isRunning = useGameStore((s) => s.isRunning);
   if (totalRuns > 0 || isRunning) return null;
   return (
-    <div className="pointer-events-none absolute bottom-56 left-1/2 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-slate-900/80 px-4 py-2 text-center text-sm text-slate-300 backdrop-blur md:bottom-44 md:w-auto">
+    <div className="pointer-events-none absolute bottom-48 left-1/2 w-[min(20rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-xl bg-slate-900/80 px-3 py-1.5 text-center text-xs text-slate-300 backdrop-blur sm:bottom-52 sm:w-[min(22rem,calc(100%-2rem))] sm:px-4 sm:py-2 sm:text-sm md:bottom-44 md:w-auto">
       {t.hud.hintBefore}
       <span className="font-semibold text-brand-300">{t.controls.startRun}</span>
       {t.hud.hintAfter}

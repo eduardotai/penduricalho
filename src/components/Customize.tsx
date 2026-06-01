@@ -68,7 +68,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
         className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(720px,90vh)] sm:max-w-3xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:py-4">
           <div>
             <h2 className="font-display text-xl font-bold text-slate-100">{t.customize.shopTitle}</h2>
             <p className="text-xs text-slate-400">
@@ -84,7 +84,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
           </button>
         </header>
 
-        <nav className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-slate-800 px-3 py-2">
+        <nav className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-slate-800 px-2 py-1.5 sm:px-3 sm:py-2">
           {tabs.map((tabDef) => (
             <button
               key={tabDef.id}
@@ -100,7 +100,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
           ))}
         </nav>
 
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3">
           {tab === "pendulum" && <ItemList kind="pendulum" />}
           {tab === "attachment" && <ItemList kind="attachment" />}
           {tab === "site" && <ItemList kind="site" />}
@@ -261,7 +261,7 @@ function Row({
 
   return (
     <div
-      className={`rounded-xl border bg-slate-900/50 p-3 transition-colors ${
+      className={`rounded-xl border bg-slate-900/50 p-2.5 transition-colors sm:p-3 ${
         isEquipped
           ? "border-brand-500/60 bg-brand-500/10"
           : locked

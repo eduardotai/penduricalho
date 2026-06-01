@@ -100,7 +100,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
 
   return (
     <div className="pointer-events-auto w-full min-w-0">
-      <div className="flex w-full flex-col items-stretch gap-2 rounded-2xl border border-slate-700/60 bg-slate-950/85 p-3 shadow-xl backdrop-blur">
+      <div className="flex w-full flex-col items-stretch gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-950/85 p-2 shadow-xl backdrop-blur sm:gap-2 sm:p-3">
         <div className="hidden px-2 pt-1 pb-2 text-center md:block">
           <div className="text-[10px] uppercase tracking-widest text-slate-500">{t.controls.loadout}</div>
           <div className="text-xs text-slate-300">
@@ -121,7 +121,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               spendGoldenToken();
             }}
             disabled={!canSpendToken}
-            className={`group relative w-full overflow-hidden rounded-xl px-6 py-3 font-display text-base font-extrabold uppercase tracking-wider transition-all ${
+            className={`group relative w-full overflow-hidden rounded-xl px-4 py-2.5 font-display text-sm font-extrabold uppercase tracking-wider transition-all sm:px-6 sm:py-3 sm:text-base ${
               canSpendToken
                 ? "animate-pulse bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-600 text-slate-900 shadow-[0_0_25px_-3px_rgba(250,204,21,0.85)] hover:shadow-[0_0_35px_-3px_rgba(250,204,21,1)] active:scale-[0.98]"
                 : "cursor-not-allowed bg-yellow-900/40 text-yellow-200/60"
@@ -154,7 +154,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
             startRun();
           }}
           disabled={!canLaunch}
-          className={`group relative w-full overflow-hidden rounded-xl px-6 py-4 font-display text-lg font-bold uppercase tracking-wider transition-all ${
+          className={`group relative w-full overflow-hidden rounded-xl px-4 py-3 font-display text-base font-bold uppercase tracking-wider transition-all sm:px-6 sm:py-4 sm:text-lg ${
             canLaunch
               ? "bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg hover:shadow-brand-500/30 active:scale-[0.98]"
               : "cursor-not-allowed bg-slate-800 text-slate-500"
@@ -184,7 +184,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
             playUiClick();
             setMoreOpen((v) => !v);
           }}
-          className="flex w-full items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 transition-colors hover:bg-slate-800 md:hidden"
+          className="flex w-full items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-300 transition-colors hover:bg-slate-800 md:hidden"
           aria-expanded={moreOpen}
         >
           {moreOpen ? t.controls.less : t.controls.more}
@@ -202,7 +202,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               toggleAutoRun();
             }}
-            className={`rounded-xl border px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+            className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-4 sm:py-2.5 sm:text-sm ${
               autoRun
                 ? "border-brand-500/60 bg-brand-900/40 text-brand-300 hover:bg-brand-900/60"
                 : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
@@ -218,7 +218,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               toggleAutoToken();
             }}
-            className={`rounded-xl border px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
+            className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-4 sm:py-2.5 sm:text-sm ${
               autoToken
                 ? "border-yellow-500/60 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50"
                 : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
@@ -238,7 +238,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               onOpenCustomize();
             }}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+            className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             {t.controls.shop}
           </button>
@@ -248,7 +248,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               onOpenSettings();
             }}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+            className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             {t.controls.settings}
           </button>
@@ -260,7 +260,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
             playUiClick();
             onOpenTutorial();
           }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
         >
           <span aria-hidden>🪀</span>
           {t.controls.howToPlay}
@@ -281,7 +281,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
                   hardEndRun();
                   setHardEndConfirmOpen(false);
                 }}
-                className="w-full rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-white hover:bg-rose-500"
+                className="w-full rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-rose-500 sm:py-2.5"
               >
                 {t.controls.endRun}
               </button>
@@ -291,7 +291,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
                   playUiClick();
                   setHardEndConfirmOpen(false);
                 }}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+                className="w-full rounded-lg border border-slate-600 bg-slate-900/80 px-4 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 sm:py-2 sm:text-sm"
               >
                 {t.controls.cancel}
               </button>
@@ -304,7 +304,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               setHardEndConfirmOpen(true);
             }}
-            className="w-full rounded-xl border border-rose-900/60 bg-rose-950/30 px-6 py-2.5 text-sm font-semibold uppercase tracking-wide text-rose-200 transition-colors hover:border-rose-600/60 hover:bg-rose-950/50"
+            className="w-full rounded-xl border border-rose-900/60 bg-rose-950/30 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-200 transition-colors hover:border-rose-600/60 hover:bg-rose-950/50 sm:px-6 sm:py-2.5 sm:text-sm"
           >
             {t.controls.hardEndRun}
           </button>

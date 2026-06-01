@@ -31,7 +31,7 @@ export default function Tutorial({ open, onClose }: TutorialProps) {
         className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(640px,88vh)] sm:max-w-lg sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-800 px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-4 sm:px-5 sm:py-4">
           <div>
             <h2 className="font-display text-xl font-bold text-slate-100">
               🪀 {t.tutorial.title}
@@ -49,12 +49,12 @@ export default function Tutorial({ open, onClose }: TutorialProps) {
           </button>
         </header>
 
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-5 py-4">
+        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
           <ol className="space-y-3">
             {t.tutorial.steps.map((step, i) => (
               <li
                 key={step.title}
-                className="flex gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3"
+                className="flex gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 sm:px-4 sm:py-3"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600 font-display text-sm font-bold text-white">
                   {i + 1}
@@ -72,7 +72,7 @@ export default function Tutorial({ open, onClose }: TutorialProps) {
           </ol>
         </div>
 
-        <footer className="border-t border-slate-800 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <footer className="border-t border-slate-800 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={() => {
