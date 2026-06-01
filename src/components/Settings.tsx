@@ -1,16 +1,27 @@
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import {
   useGameStore,
   CAMERA_ZOOM_MIN,
   CAMERA_ZOOM_MAX,
   CAMERA_ZOOM_DEFAULT,
 } from "../state/store";
+import {
+  downloadSaveFile,
+  exportSaveString,
+  importSaveString,
+} from "../state/saveTransfer";
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { BACKGROUND_MUSIC_CREDIT } from "../audio/backgroundMusic";
 import { useT, LANGUAGES, type Lang } from "../i18n";
 
-type SettingsTab = "audio" | "display" | "controls" | "language";
+type SettingsTab = "audio" | "display" | "controls" | "language" | "data";
 
 interface SettingsProps {
   open: boolean;
@@ -26,6 +37,7 @@ export default function Settings({ open, onClose }: SettingsProps) {
     { id: "display", label: t.settings.tabDisplay },
     { id: "controls", label: t.settings.tabControls },
     { id: "language", label: t.settings.tabLanguage },
+    { id: "data", label: t.settings.tabData },
   ];
 
   useEffect(() => {
@@ -91,6 +103,7 @@ export default function Settings({ open, onClose }: SettingsProps) {
           {tab === "display" && <DisplayTab />}
           {tab === "controls" && <ControlsTab />}
           {tab === "language" && <LanguageTab />}
+          {tab === "data" && <DataTab />}
         </div>
       </div>
     </div>
@@ -288,6 +301,141 @@ function LanguageTab() {
           {t.settings.languageNote}
         </p>
       </SettingsSection>
+    </div>
+  );
+}
+
+function DataTab() {
+  const t = useT();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pasted, setPasted] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  function errorMessage(reason: "empty" | "invalid" | "unrecognized"): string {
+    if (reason === "empty") return t.settings.importErrorEmpty;
+    if (reason === "unrecognized") return t.settings.importErrorUnrecognized;
+    return t.settings.importErrorInvalid;
+  }
+
+  function applyImport(text: string) {
+    setError(null);
+    const result = importSaveString(text);
+    if (!result.ok) {
+      setError(errorMessage(result.reason));
+      return;
+    }
+    if (!window.confirm(t.settings.importConfirm)) return;
+    setSuccess(true);
+    // Reload so the store rehydrates from the freshly written localStorage.
+    setTimeout(() => window.location.reload(), 350);
+  }
+
+  async function onCopy() {
+    playUiClick();
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(exportSaveString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked (e.g. insecure context) — fall back to a download.
+      downloadSaveFile();
+    }
+  }
+
+  function onPickFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Allow re-picking the same file later by clearing the input value.
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => applyImport(String(reader.result ?? ""));
+    reader.onerror = () => setError(t.settings.importErrorInvalid);
+    reader.readAsText(file);
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-xs leading-relaxed text-slate-400">{t.settings.dataIntro}</p>
+
+      <SettingsSection title={t.settings.exportSection}>
+        <p className="text-xs leading-relaxed text-slate-500">{t.settings.exportDesc}</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              playUiClick();
+              setError(null);
+              downloadSaveFile();
+            }}
+            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+          >
+            {t.settings.downloadSave}
+          </button>
+          <button
+            type="button"
+            onClick={onCopy}
+            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+          >
+            {copied ? t.settings.copied : t.settings.copySave}
+          </button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={t.settings.importSection}>
+        <p className="text-xs leading-relaxed text-slate-500">{t.settings.importDesc}</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json,.txt"
+          onChange={onPickFile}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            playUiClick();
+            setError(null);
+            fileInputRef.current?.click();
+          }}
+          className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+        >
+          {t.settings.loadSaveFile}
+        </button>
+        <textarea
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder={t.settings.pastePlaceholder}
+          rows={4}
+          className="scrollbar-thin w-full resize-y rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            playUiClick();
+            applyImport(pasted);
+          }}
+          disabled={!pasted.trim()}
+          className="w-full rounded-xl border border-brand-500/50 bg-brand-900/30 px-4 py-2.5 text-sm font-semibold text-brand-200 transition-colors hover:border-brand-400/60 hover:bg-brand-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {t.settings.applyPasted}
+        </button>
+      </SettingsSection>
+
+      {error && (
+        <p className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs leading-relaxed text-rose-200">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+          {t.settings.importSuccess}
+        </p>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-slate-600">{t.settings.safetyNote}</p>
     </div>
   );
 }

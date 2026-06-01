@@ -32,7 +32,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.56,
     basePointMultiplier: 1.5,
     rarity: "common",
-    cost: 150,
+    cost: 0,
   },
   {
     id: "iron-bob",
@@ -45,7 +45,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.42,
     basePointMultiplier: 2.2,
     rarity: "rare",
-    cost: 850,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 75 },
   },
   {
@@ -59,7 +59,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.6,
     basePointMultiplier: 1.8,
     rarity: "rare",
-    cost: 2400,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 3000 },
   },
   {
@@ -73,7 +73,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.55,
     basePointMultiplier: 2.6,
     rarity: "epic",
-    cost: 12000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 18000 },
   },
   {
@@ -87,7 +87,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.4,
     basePointMultiplier: 4.5,
     rarity: "legendary",
-    cost: 60000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 25 },
   },
 
@@ -107,7 +107,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.5,
     basePointMultiplier: 2.4,
     rarity: "epic",
-    cost: 14000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 15 },
     behavior: {
       kind: "hunter",
@@ -129,13 +129,12 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.85,
     basePointMultiplier: 1.6,
     rarity: "rare",
-    cost: 3200,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 150 },
     behavior: {
       kind: "piercer",
       dashIntervalMs: 1400,
       dashSpeed: V(26),
-      dashMaxPerRun: 4,
     },
   },
   {
@@ -150,7 +149,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.56,
     basePointMultiplier: 2.0,
     rarity: "epic",
-    cost: 16000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 25000 },
     behavior: {
       kind: "hydra",
@@ -171,7 +170,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.45,
     basePointMultiplier: 3.6,
     rarity: "rare",
-    cost: 5000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 10 },
     behavior: {
       kind: "nitro",
@@ -190,7 +189,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.52,
     basePointMultiplier: 2.2,
     rarity: "epic",
-    cost: 20000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 60000 },
     behavior: {
       kind: "magnet",
@@ -211,7 +210,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.5,
     basePointMultiplier: 2.8,
     rarity: "legendary",
-    cost: 70000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 25 },
     behavior: {
       kind: "frenzy",
@@ -232,13 +231,12 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.6,
     basePointMultiplier: 2.0,
     rarity: "epic",
-    cost: 8000,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 200 },
     behavior: {
       kind: "teleport",
       teleportIntervalMs: 1100,
       teleportSpeed: V(14),
-      teleportMaxPerRun: 4,
     },
   },
   {
@@ -253,7 +251,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 1.0,
     basePointMultiplier: 1.8,
     rarity: "epic",
-    cost: 18000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 30000 },
     behavior: {
       kind: "rocket",
@@ -276,7 +274,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.42,
     basePointMultiplier: 3.0,
     rarity: "epic",
-    cost: 22000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 15 },
     behavior: {
       kind: "splitter",
@@ -300,7 +298,7 @@ export const PENDULUMS: PendulumDef[] = [
     maxAngularVelocity: 0.6,
     basePointMultiplier: 2.6,
     rarity: "legendary",
-    cost: 80000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 200000 },
     behavior: {
       kind: "chaos",

@@ -56,6 +56,12 @@ rewrite a slice of the run, two new sites, and a full conveyor-tunnel mechanic.
 - **Two new sites** — **The Layers** (concentric circular walls ringing the mount,
   with multiplier circles between rings and a snap finale that ricochets through
   every ring on the way out) and **Black Hole** (gravity-well site).
+- **Save export / import** (`src/state/saveTransfer.ts`, new **Save** tab in
+  Settings) — move your progress between browsers and devices. Export downloads a
+  timestamped JSON file or copies the save to the clipboard; import loads it from
+  a file or pasted text, replaces the local save, and reloads. The save still
+  lives only in the player's own browser `localStorage`; transfer is entirely
+  player-driven and never leaves the device on its own.
 
 ### Changed
 
@@ -63,6 +69,16 @@ rewrite a slice of the run, two new sites, and a full conveyor-tunnel mechanic.
   behaviors; refined the snap finale's freed-bob handling.
 - Reworked `pendulum.ts`, `render.ts`, `engine.ts`, and `GameCanvas.tsx` to host the
   behavior hook points and the belt's free-body ride path.
+- Rebalanced **Arrow**, **TP**, and **Rocket** around the rope economy: removed the
+  per-run cap on the Arrow dash and TP blink (and the fixed 6s post-snap window) so
+  their powers now fire for the whole run, limited only by rope durability. Post-snap
+  the effects decay per use (Rocket per second) so the freed bob still winds down to a
+  clean end. To offset the buff, **Rope Patch** drops are rarer (drop weight 32 → 18)
+  and heal less (35% → 18% of full durability).
+- **Hard End Run** now fully stops the run instead of auto-launching a fresh one.
+  It still clears active modifiers and persistent bonuses, but leaves the launch
+  button ready so the player starts the next run themselves (store action renamed
+  `hardEndAndRestartRun` → `hardEndRun`).
 
 ## [Post-1.0.1] - Systems Expansion - 2026-05-28
 

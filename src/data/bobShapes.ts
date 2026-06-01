@@ -17,7 +17,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Chunky square mass — hits like a tiny anvil.",
     shape: "square",
     rarity: "common",
-    cost: 450,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 40 },
   },
   {
@@ -26,7 +26,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Faceted diamond silhouette with sharp attitude.",
     shape: "diamond",
     rarity: "common",
-    cost: 900,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 200 },
   },
   {
@@ -35,7 +35,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Five-pointed star bob that screams main character.",
     shape: "star",
     rarity: "rare",
-    cost: 2_400,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 6 },
   },
   {
@@ -44,7 +44,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Industrial hex hardware bolted straight to chaos.",
     shape: "hex",
     rarity: "rare",
-    cost: 3_800,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 8_000 },
   },
   {
@@ -53,7 +53,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "A pointed wedge bob built for aggressive arcs.",
     shape: "triangle",
     rarity: "rare",
-    cost: 5_200,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 300 },
   },
   {
@@ -62,7 +62,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Heart-shaped destruction. Cute until it connects.",
     shape: "heart",
     rarity: "epic",
-    cost: 9_500,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 12 },
   },
   {
@@ -71,7 +71,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Lightning bolt outline — crackling with bad decisions.",
     shape: "bolt",
     rarity: "epic",
-    cost: 14_000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 40_000 },
   },
   {
@@ -80,7 +80,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Tear-drop fire silhouette for pyromaniac swingers.",
     shape: "flame",
     rarity: "epic",
-    cost: 18_500,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 600 },
   },
   {
@@ -89,7 +89,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Rotating gear teeth. Machine-core energy.",
     shape: "cog",
     rarity: "epic",
-    cost: 22_000,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 2_500 },
   },
   {
@@ -98,7 +98,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Bold plus-sign bob. Judgment delivered horizontally.",
     shape: "cross",
     rarity: "legendary",
-    cost: 38_000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 120_000 },
   },
   {
@@ -107,7 +107,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Crescent moon cutout — night-sky menace.",
     shape: "moon",
     rarity: "legendary",
-    cost: 48_000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 18 },
   },
   {
@@ -116,7 +116,7 @@ export const BOB_SHAPES: BobShapeDef[] = [
     description: "Donut-shaped singularity. Hollow center, full send.",
     shape: "ring",
     rarity: "legendary",
-    cost: 72_000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 350_000 },
   },
 ];

@@ -41,10 +41,10 @@ export const en = {
     settings: "Settings",
     howToPlay: "How to Play",
     hardEndConfirmRunning:
-      "End this run immediately and start fresh? Progress from the current swing is lost.",
+      "End this run immediately and stop? Progress from the current swing is lost, and you'll start the next run yourself.",
     hardEndConfirmIdle:
-      "Start a new run now? Any ready golden tokens will stay unless you spend them first.",
-    endRestart: "End & Restart",
+      "Clear all active modifiers and bonuses? Any ready golden tokens will stay unless you spend them first.",
+    endRun: "End Run",
     cancel: "Cancel",
     hardEndRun: "Hard End Run",
   },
@@ -56,6 +56,7 @@ export const en = {
     tabDisplay: "Display",
     tabControls: "Controls",
     tabLanguage: "Language",
+    tabData: "Save",
     output: "Output",
     muteAll: "Mute all audio",
     muteAllDesc: "Silences every sound. Press M to toggle anytime.",
@@ -79,6 +80,28 @@ export const en = {
     controlsNote: "Camera zoom and pan are disabled while a menu is open.",
     languageHeading: "Interface language",
     languageNote: "Changes apply instantly across the whole game.",
+    dataHeading: "Transfer your save",
+    dataIntro:
+      "Your progress is stored only in this browser, on this device. Export it to a file (or copy it) and import it elsewhere to move your game to another browser or device.",
+    exportSection: "Export",
+    exportDesc: "Save a copy you can move to another device.",
+    downloadSave: "Download save file",
+    copySave: "Copy to clipboard",
+    copied: "Copied!",
+    importSection: "Import",
+    importDesc:
+      "Load a save from a file, or paste an exported save below. This replaces the progress currently on this device.",
+    loadSaveFile: "Load save file…",
+    pastePlaceholder: "Paste an exported save here…",
+    applyPasted: "Apply pasted save",
+    importConfirm:
+      "Import this save? It will replace the progress currently saved on this device. This cannot be undone.",
+    importSuccess: "Save imported. Reloading…",
+    importErrorEmpty: "Nothing to import — pick a file or paste a save first.",
+    importErrorInvalid: "That doesn't look like a valid save file.",
+    importErrorUnrecognized: "That file isn't a Penduricalho save.",
+    safetyNote:
+      "Saves never leave your device on their own — exporting and importing is entirely up to you.",
     shortcuts: [
       { keys: "Start Run / Run Again", action: "Launch the Bob" },
       { keys: "G", action: "Spend a ready golden token (mid-run)" },
@@ -294,12 +317,12 @@ export const pt: UIStrings = {
     settings: "Config",
     howToPlay: "Como Jogar",
     hardEndConfirmRunning:
-      "Encerrar esta rodada agora e começar do zero? O progresso da jogada atual será perdido.",
+      "Encerrar esta rodada agora e parar? O progresso da jogada atual será perdido, e você inicia a próxima rodada quando quiser.",
     hardEndConfirmIdle:
-      "Começar uma nova rodada agora? As fichas douradas prontas continuam guardadas, a menos que você use antes.",
-    endRestart: "Encerrar e reiniciar",
+      "Limpar todos os modificadores e bônus ativos? As fichas douradas prontas continuam guardadas, a menos que você use antes.",
+    endRun: "Encerrar",
     cancel: "Cancelar",
-    hardEndRun: "Reiniciar agora",
+    hardEndRun: "Encerrar agora",
   },
   settings: {
     title: "Configurações",
@@ -309,6 +332,7 @@ export const pt: UIStrings = {
     tabDisplay: "Vídeo",
     tabControls: "Controles",
     tabLanguage: "Idioma",
+    tabData: "Save",
     output: "Saída",
     muteAll: "Silenciar tudo",
     muteAllDesc: "Desliga todos os sons. Aperte M para alternar a qualquer momento.",
@@ -332,6 +356,28 @@ export const pt: UIStrings = {
     controlsNote: "Zoom e movimento da câmera ficam desativados enquanto um menu está aberto.",
     languageHeading: "Idioma da interface",
     languageNote: "As mudanças se aplicam na hora em todo o jogo.",
+    dataHeading: "Transferir seu progresso",
+    dataIntro:
+      "Seu progresso fica salvo só neste navegador, neste aparelho. Exporte para um arquivo (ou copie) e importe em outro lugar para levar seu jogo para outro navegador ou aparelho.",
+    exportSection: "Exportar",
+    exportDesc: "Salve uma cópia para levar a outro aparelho.",
+    downloadSave: "Baixar arquivo do save",
+    copySave: "Copiar para a área de transferência",
+    copied: "Copiado!",
+    importSection: "Importar",
+    importDesc:
+      "Carregue um save de um arquivo, ou cole um save exportado abaixo. Isso substitui o progresso atual deste aparelho.",
+    loadSaveFile: "Carregar arquivo do save…",
+    pastePlaceholder: "Cole aqui um save exportado…",
+    applyPasted: "Aplicar save colado",
+    importConfirm:
+      "Importar este save? Ele vai substituir o progresso salvo atualmente neste aparelho. Não dá para desfazer.",
+    importSuccess: "Save importado. Recarregando…",
+    importErrorEmpty: "Nada para importar — escolha um arquivo ou cole um save primeiro.",
+    importErrorInvalid: "Isso não parece um arquivo de save válido.",
+    importErrorUnrecognized: "Esse arquivo não é um save do Penduricalho.",
+    safetyNote:
+      "Os saves nunca saem do seu aparelho sozinhos — exportar e importar depende só de você.",
     shortcuts: [
       { keys: "Iniciar / Rodar de novo", action: "Jogar o Bob" },
       { keys: "G", action: "Usar uma ficha dourada pronta (durante a rodada)" },

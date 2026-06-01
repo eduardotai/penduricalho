@@ -139,9 +139,10 @@ export interface GameState {
   decayCombo: (now: number, decayMs: number) => void;
   startRun: () => void;
   // Player-initiated emergency reset: closes the current run immediately
-  // (even before stall detection) and launches a fresh one with all timed
-  // modifiers, persistent bonus stacks, and ready/spawned tokens cleared.
-  hardEndAndRestartRun: () => void;
+  // (even before stall detection) and stops, clearing all timed modifiers,
+  // persistent bonus stacks, and spawned tokens. Does NOT auto-launch — the
+  // player starts the next run themselves via the launch button.
+  hardEndRun: () => void;
   endRun: () => void;
   markRunStalled: () => void;
   // Called by the canvas when a Golden Token is physically picked up. Adds
@@ -667,28 +668,26 @@ export const useGameStore = create<GameState>()(
           };
         }),
 
-      hardEndAndRestartRun: () =>
+      hardEndRun: () =>
         set((s) => {
           const closingPrevious = s.isRunning;
-          const isRunAgainLaunch = s.totalRuns > 0 || s.isRunning;
-          const guaranteedFirstDrop =
-            isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_DROP_CHANCE;
-          const guaranteedFirstBuff =
-            isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_BUFF_CHANCE;
           return {
             activeModifiers: [],
             persistentBonuses: [],
             // Ready golden tokens survive a hard reset — spend them first if
             // you want a clean slate. Reset the consume epoch so queued canvas
-            // relaunches from a prior spend don't fire on the fresh run.
+            // relaunches from a prior spend don't fire later.
             goldenTokenConsumeEpoch: 0,
-            guaranteedFirstDrop,
-            guaranteedFirstBuff,
-            isRunning: true,
-            runStartId: s.runStartId + 1,
+            // No auto-launch: stop the run fully. The launch button becomes
+            // available (isRunning false) so the player starts the next run.
+            // Drop any unused first-drop/buff guarantee — it is re-rolled fresh
+            // on the next Run Again, exactly like a natural end-of-run.
+            guaranteedFirstDrop: false,
+            guaranteedFirstBuff: false,
+            isRunning: false,
             runMomentum: 0,
             combo: { count: 0, lastHitAt: 0 },
-            runStalled: false,
+            runStalled: true,
             totalRuns: closingPrevious ? s.totalRuns + 1 : s.totalRuns,
             bestRunMomentum: closingPrevious
               ? Math.max(s.bestRunMomentum, s.runMomentum)
