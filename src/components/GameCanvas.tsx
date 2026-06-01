@@ -195,6 +195,12 @@ const WALL_HIT_MIN_SPEED = 3.5 * WORLD_SCALE;
 // Velocity multiplier on a normal bounce vs. a wall-shattering hit.
 const WALL_BOUNCE_BOOST = 1.22;
 const WALL_BREAK_BOOST = 1.5;
+// Ring segments in The Layers can report several contacts in the same impact
+// burst. Keep the ricochet lively, but prevent compounded boosts from launching
+// the bob into unstable tunneling speeds.
+const WALL_BOUNCE_MAX_SPEED = 55 * WORLD_SCALE;
+const RING_WALL_BOUNCE_MAX_SPEED = 38 * WORLD_SCALE;
+const RING_MULTI_HIT_COOLDOWN_MS = 45;
 // Flat momentum bonus for shattering a wall.
 const WALL_BREAK_BONUS = 70;
 // Breakable Bob shed pieces chip walls slowly — ~3 shard slams ≈ one full bob hit.
@@ -1428,6 +1434,13 @@ export default function GameCanvas() {
         rx += n.x * (MIN_INWARD - inward);
         ry += n.y * (MIN_INWARD - inward);
       }
+      const maxSpeed = wall.side === "ring" ? RING_WALL_BOUNCE_MAX_SPEED : WALL_BOUNCE_MAX_SPEED;
+      const speed = Math.hypot(rx, ry);
+      if (speed > maxSpeed) {
+        const k = maxSpeed / speed;
+        rx *= k;
+        ry *= k;
+      }
       Matter.Body.setVelocity(bob, { x: rx, y: ry });
     }
 
@@ -1435,6 +1448,7 @@ export default function GameCanvas() {
     // Each separate impact lands exactly one point of damage — a bob resting or
     // grinding against the wall does NOT keep wearing it down over time; it has
     // to pull away and slam in again to deal another hit.
+    const ringWallHitLastAt = new Map<number, number>();
     function handleWallHit(
       wallBody: Matter.Body,
       bobBody: Matter.Body,
@@ -1446,6 +1460,12 @@ export default function GameCanvas() {
       // slam triggers the bumper kick / break event.
       const speed = Math.hypot(bobBody.velocity.x, bobBody.velocity.y);
       if (speed < WALL_HIT_MIN_SPEED) return;
+
+      if (wall.side === "ring") {
+        const lastRingHit = ringWallHitLastAt.get(bobBody.id) ?? -Infinity;
+        if (now - lastRingHit < RING_MULTI_HIT_COOLDOWN_MS) return;
+        ringWallHitLastAt.set(bobBody.id, now);
+      }
 
       const isShard = bobBody.label.startsWith("bob-shard-");
       const wallDamage = isShard ? WALL_SHARD_DAMAGE : 1;
