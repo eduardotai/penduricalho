@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Combined offline idle: workshop CPS always accrues away; arena EMA adds when auto-run is on.
 - Save migration v21 → v22; 4 new Workshop achievements.
 - Branch: `feature/pendulum-cookie` (merge when ready — `main` unchanged until then).
+- **Cookie-click swing**: Start Run only arms the arena; click the bob on the canvas to earn Momentum and push the physics swing (no auto-launch).
 
 ## [Unreleased] - Achievements System (Cookie Clicker inspired) - 2026-06-xx
 
