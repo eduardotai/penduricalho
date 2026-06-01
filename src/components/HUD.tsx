@@ -143,7 +143,7 @@ function buffRowClass(phase: BuffPhase) {
 }
 
 const VISIBLE_BUFF_SLOTS = 5;
-const BUFF_ROW_HEIGHT_PX = 40; // mobile base; sm+ rows are taller but maxHeight is conservative
+const BUFF_ROW_HEIGHT_PX = 44;
 const BUFF_ROW_GAP_PX = 6;
 
 function ActiveBuffsPanel() {
@@ -377,7 +377,9 @@ function ActiveBuffsPanel() {
 
   return (
     <div
-      className="scrollbar-thin flex w-40 max-w-[min(18rem,calc(100vw-2rem))] flex-col items-stretch gap-1 overflow-y-auto overscroll-contain sm:w-52 sm:gap-1.5 md:w-80"
+      className="scrollbar-thin flex gap-1.5 overflow-x-auto overscroll-contain pb-1
+        flex-row items-center
+        sm:flex-col sm:items-stretch sm:gap-1.5 sm:pb-0 sm:w-52 sm:max-w-[min(18rem,calc(100vw-2rem))] md:w-80"
       style={{
         maxHeight:
           BUFF_ROW_HEIGHT_PX * VISIBLE_BUFF_SLOTS +
@@ -400,7 +402,11 @@ function ActiveBuffsPanel() {
         return (
           <div
             key={row.key}
-            className={`relative h-9 shrink-0 overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950/88 backdrop-blur sm:h-10 md:h-12 ${buffRowClass(row.phase)}`}
+            className={`relative shrink-0 overflow-hidden border border-slate-700/60 bg-slate-950/88 backdrop-blur ${buffRowClass(row.phase)}
+              /* Mobile: very compact horizontal pills */
+              h-7 rounded-full text-[9px] px-1.5
+              /* sm+: original taller cards */
+              sm:h-10 sm:rounded-xl sm:text-xs sm:px-0 sm:w-full md:h-12`}
             style={
               {
                 "--buff-glow": `${def.color}99`,
@@ -416,9 +422,27 @@ function ActiveBuffsPanel() {
                 : defDescription
             }
           >
-            <div className="flex h-full items-center gap-1.5 px-2.5 pb-0.5 text-[10px] sm:gap-2 sm:px-3 sm:pb-1 sm:text-xs">
+            {/* Mobile compact version (dot + time only) */}
+            <div className="sm:hidden flex h-full items-center gap-1">
               <span
-                className="inline-block h-2 w-2 shrink-0 rounded-full sm:h-2.5 sm:w-2.5"
+                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{
+                  background: def.color,
+                  boxShadow:
+                    row.phase === "expiring"
+                      ? `0 0 8px ${def.color}`
+                      : `0 0 4px ${def.color}99`,
+                }}
+              />
+              <span className="tabular-nums font-medium text-slate-200">
+                {(remaining / 1000).toFixed(0)}s
+              </span>
+            </div>
+
+            {/* Desktop / larger screens: full card with name + progress */}
+            <div className="hidden sm:flex sm:h-full sm:items-center sm:gap-2 sm:px-3 sm:pb-1">
+              <span
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full sm:h-3 sm:w-3"
                 style={{
                   background: def.color,
                   boxShadow:
@@ -434,7 +458,9 @@ function ActiveBuffsPanel() {
                 {(remaining / 1000).toFixed(1)}s
               </span>
             </div>
-            <div className="absolute inset-x-0 bottom-0 h-1.5 bg-slate-800/90">
+
+            {/* Progress bar (only on sm+) */}
+            <div className="hidden sm:block absolute inset-x-0 bottom-0 h-1 bg-slate-800/90">
               <div
                 className="h-full transition-[width] duration-100 ease-linear"
                 style={{ width: `${pct * 100}%`, background: def.color }}
