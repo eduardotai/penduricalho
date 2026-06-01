@@ -403,8 +403,8 @@ function ActiveBuffsPanel() {
           <div
             key={row.key}
             className={`relative shrink-0 overflow-hidden border border-slate-700/60 bg-slate-950/88 backdrop-blur ${buffRowClass(row.phase)}
-              /* Mobile: very compact horizontal pills */
-              h-7 rounded-full text-[9px] px-1.5
+              /* Mobile: compact horizontal pills with name + time */
+              h-8 rounded-md text-[9px] px-1.5
               /* sm+: original taller cards */
               sm:h-10 sm:rounded-xl sm:text-xs sm:px-0 sm:w-full md:h-12`}
             style={
@@ -422,7 +422,7 @@ function ActiveBuffsPanel() {
                 : defDescription
             }
           >
-            {/* Mobile compact version (dot + time only) */}
+            {/* Mobile compact version: dot + truncated name + time (single line for minimal height) */}
             <div className="sm:hidden flex h-full items-center gap-1">
               <span
                 className="inline-block h-2 w-2 shrink-0 rounded-full"
@@ -434,7 +434,10 @@ function ActiveBuffsPanel() {
                       : `0 0 4px ${def.color}99`,
                 }}
               />
-              <span className="tabular-nums font-medium text-slate-200">
+              <span className="min-w-0 max-w-[72px] truncate text-[8px] font-medium leading-none text-slate-100">
+                {defName}
+              </span>
+              <span className="shrink-0 tabular-nums text-[9px] font-medium text-slate-200">
                 {(remaining / 1000).toFixed(0)}s
               </span>
             </div>
