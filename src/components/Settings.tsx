@@ -329,6 +329,7 @@ function DataTab() {
   const [pasted, setPasted] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   function errorMessage(reason: "empty" | "invalid" | "unrecognized"): string {
@@ -353,6 +354,7 @@ function DataTab() {
   async function onCopy() {
     playUiClick();
     setError(null);
+    setNotice(null);
     try {
       await navigator.clipboard.writeText(exportSaveString());
       setCopied(true);
@@ -360,6 +362,7 @@ function DataTab() {
     } catch {
       // Clipboard blocked (e.g. insecure context) — fall back to a download.
       downloadSaveFile();
+      setNotice(t.settings.copyFallback);
     }
   }
 
@@ -386,6 +389,7 @@ function DataTab() {
             onClick={() => {
               playUiClick();
               setError(null);
+              setNotice(null);
               downloadSaveFile();
             }}
             className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
@@ -407,7 +411,7 @@ function DataTab() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/json,.json,.txt"
+          accept="text/plain,application/json,.txt,.json"
           onChange={onPickFile}
           className="hidden"
         />
@@ -426,13 +430,14 @@ function DataTab() {
           value={pasted}
           onChange={(e) => setPasted(e.target.value)}
           placeholder={t.settings.pastePlaceholder}
-          rows={4}
-          className="scrollbar-thin w-full resize-y rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-300 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
+          rows={3}
+          className="scrollbar-thin w-full resize-y rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
         />
         <button
           type="button"
           onClick={() => {
             playUiClick();
+            setNotice(null);
             applyImport(pasted);
           }}
           disabled={!pasted.trim()}
@@ -445,6 +450,11 @@ function DataTab() {
       {error && (
         <p className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs leading-relaxed text-rose-200">
           {error}
+        </p>
+      )}
+      {notice && (
+        <p className="rounded-lg border border-sky-900/60 bg-sky-950/30 px-3 py-2 text-xs leading-relaxed text-sky-200">
+          {notice}
         </p>
       )}
       {success && (

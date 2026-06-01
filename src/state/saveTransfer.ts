@@ -11,6 +11,7 @@ export const SAVE_STORAGE_KEY = "pendulum-clicker-save";
 // recognise our own files and reject unrelated JSON a player might paste in.
 const EXPORT_MAGIC = "penduricalho-save";
 const EXPORT_FORMAT = 1;
+const SAVE_CODE_PREFIX = "PENDURICALHO-SAVE:";
 
 interface SaveEnvelope {
   magic: typeof EXPORT_MAGIC;
@@ -60,15 +61,48 @@ function readCurrentPersistRecord(): PersistRecord {
   return { state: {} };
 }
 
-/** Serialise the current save into a portable, human-readable JSON string. */
-export function exportSaveString(): string {
-  const envelope: SaveEnvelope = {
+function buildSaveEnvelope(): SaveEnvelope {
+  return {
     magic: EXPORT_MAGIC,
     format: EXPORT_FORMAT,
     exportedAt: Date.now(),
     payload: readCurrentPersistRecord(),
   };
-  return JSON.stringify(envelope, null, 2);
+}
+
+function encodeSaveCode(envelope: SaveEnvelope): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(envelope));
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+  }
+  return `${SAVE_CODE_PREFIX}${btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "")}`;
+}
+
+function decodeSaveCode(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith(SAVE_CODE_PREFIX)) return null;
+  const body = trimmed.slice(SAVE_CODE_PREFIX.length).replace(/\s+/g, "");
+  const padded = body
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(body.length / 4) * 4, "=");
+  try {
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/** Serialise the current save into a paste-friendly portable save code. */
+export function exportSaveString(): string {
+  return encodeSaveCode(buildSaveEnvelope());
 }
 
 /** Suggested download filename, timestamped so multiple exports don't collide. */
@@ -78,13 +112,13 @@ export function exportSaveFilename(now: number = Date.now()): string {
   const stamp =
     `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
     `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  return `penduricalho-save-${stamp}.json`;
+  return `penduricalho-save-${stamp}.txt`;
 }
 
-/** Trigger a browser download of the current save as a .json file. */
+/** Trigger a browser download of the current save as a paste-friendly text file. */
 export function downloadSaveFile(): void {
   const data = exportSaveString();
-  const blob = new Blob([data], { type: "application/json" });
+  const blob = new Blob([data], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -105,7 +139,7 @@ export function downloadSaveFile(): void {
 function parseImport(text: string): PersistRecord | null {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(decodeSaveCode(text) ?? text);
   } catch {
     return null;
   }
