@@ -6,6 +6,16 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Achievements System (Cookie Clicker inspired) - 2026-06-xx
+
+### Added
+- Full achievements system with 24 starter badges across Momentum, Combo, Gold, Runs, Collection, Feats, and Secret categories.
+- Persistent tracking (`unlockedAchievements`, `totalGoldenSpent`, `blackHoleCaptures`).
+- Live progress bars, hidden (shadow) achievements, unlock toasts with celebratory sound, and a global permanent Momentum multiplier (~0.25% per unlocked achievement, capped at 12%).
+- New Achievements panel (🏆) accessible from the control bar + full bilingual (EN/PT) strings.
+- Special feat hooks (Black Hole capture) and scoring integration.
+- Save migration v19 → v20 with full backward compatibility.
+
 ## [Unreleased] - Behavior Bobs, Behavior Ropes & Belt Tunnel - 2026-05-31
 
 The biggest content drop since launch: special-behavior bobs and ropes that each

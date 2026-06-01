@@ -7,6 +7,8 @@ import Settings from "./components/Settings";
 import Tutorial from "./components/Tutorial";
 import ControlPanel from "./components/ControlPanel";
 import IdleToast from "./components/IdleToast";
+import Achievements from "./components/Achievements";
+import AchievementToast from "./components/AchievementToast";
 import { AudioManager } from "./audio/AudioManager";
 import { playGameSound } from "./audio/soundMap";
 import { useGameStore } from "./state/store";
@@ -15,6 +17,7 @@ import { startIdleEngine } from "./state/idleEngine";
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   // Auto-open the How-to-Play tutorial once for first-time players, then leave
   // it reopenable from the controls. tutorialSeen is read once on mount so a
   // mid-session dismiss doesn't fight the initial state.
@@ -61,6 +64,16 @@ export default function App() {
   // and a wall-clock reconcile grants offline progress on return. See
   // state/idleEngine.ts.
   useEffect(() => startIdleEngine(), []);
+
+  // One-time retroactive achievement reconciliation on load (catches any
+  // milestones the player already qualified for before the system existed).
+  useEffect(() => {
+    // Defer one tick so the persisted store is fully merged.
+    const id = window.setTimeout(() => {
+      useGameStore.getState().checkAchievements();
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     const unlock = () => {
@@ -139,6 +152,17 @@ export default function App() {
     dismissTutorial();
   }
 
+  function openAchievements() {
+    AudioManager.unlock();
+    playGameSound("ui-modal-open");
+    setAchievementsOpen(true);
+  }
+
+  function closeAchievements() {
+    playGameSound("ui-modal-close");
+    setAchievementsOpen(false);
+  }
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
@@ -163,15 +187,17 @@ export default function App() {
             <ControlPanel
               onOpenCustomize={openCustomize}
               onOpenSettings={openSettings}
-              onOpenTutorial={openTutorial}
+              onOpenAchievements={openAchievements}
             />
           </div>
         </div>
       </aside>
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
-      <Settings open={settingsOpen} onClose={closeSettings} />
+      <Settings open={settingsOpen} onClose={closeSettings} onOpenTutorial={openTutorial} />
       <Tutorial open={tutorialOpen} onClose={closeTutorial} />
+      <Achievements open={achievementsOpen} onClose={closeAchievements} />
+      <AchievementToast />
       <IdleToast />
       <Analytics />
     </div>

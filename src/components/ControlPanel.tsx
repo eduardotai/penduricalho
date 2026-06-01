@@ -10,10 +10,11 @@ const AUTO_RUN_DELAY_MS = 1500;
 interface ControlPanelProps {
   onOpenCustomize: () => void;
   onOpenSettings: () => void;
-  onOpenTutorial: () => void;
+  onOpenTutorial?: () => void; // still passed from App, but button moved into Settings
+  onOpenAchievements: () => void;
 }
 
-export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTutorial }: ControlPanelProps) {
+export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAchievements }: ControlPanelProps) {
   const t = useT();
   const lang = useLang();
   const isRunning = useGameStore((s) => s.isRunning);
@@ -196,13 +197,13 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
         <div
           className={`${moreOpen ? "flex" : "hidden"} flex-col gap-2 md:flex`}
         >
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => {
               playUiClick();
               toggleAutoRun();
             }}
-            className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-4 sm:py-2.5 sm:text-sm ${
+            className={`rounded-xl border px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:px-3 sm:py-2 sm:text-xs ${
               autoRun
                 ? "border-brand-500/60 bg-brand-900/40 text-brand-300 hover:bg-brand-900/60"
                 : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
@@ -218,7 +219,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
               playUiClick();
               toggleAutoToken();
             }}
-            className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-4 sm:py-2.5 sm:text-sm ${
+            className={`rounded-xl border px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors sm:px-3 sm:py-2 sm:text-xs ${
               autoToken
                 ? "border-yellow-500/60 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50"
                 : "border-slate-700 bg-slate-900/70 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
@@ -231,40 +232,57 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenTu
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Primary navigation */}
+        <div className="grid grid-cols-[1fr_1.35fr_1fr] gap-1 rounded-xl border border-slate-700/70 bg-slate-950/55 p-1 sm:grid-cols-1 sm:gap-1.5 sm:p-1.5">
           <button
             onClick={() => {
               AudioManager.unlock();
               playUiClick();
               onOpenCustomize();
             }}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
+            className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[10px] font-bold uppercase text-slate-300 transition-colors hover:bg-slate-800/80 hover:text-white sm:justify-start sm:px-4 sm:text-sm"
+            aria-label={t.controls.shop}
           >
-            {t.controls.shop}
+            <span className="text-base leading-none" aria-hidden>
+              🛒
+            </span>
+            <span className="hidden min-w-0 truncate leading-none sm:inline">{t.controls.shop}</span>
           </button>
+
+          <button
+            onClick={() => {
+              AudioManager.unlock();
+              playUiClick();
+              onOpenAchievements();
+            }}
+            className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-2 py-2 text-[9px] font-extrabold uppercase text-slate-950 shadow-[0_0_18px_-8px_rgba(251,191,36,0.9)] transition-colors hover:bg-amber-300 sm:justify-start sm:px-4 sm:text-sm"
+            aria-label={t.controls.achievements ?? "Achievements"}
+          >
+            <span className="text-base leading-none" aria-hidden>
+              🏆
+            </span>
+            <span className="min-w-0 truncate leading-none">
+              {t.controls.achievements ?? "Achievements"}
+            </span>
+          </button>
+
           <button
             onClick={() => {
               AudioManager.unlock();
               playUiClick();
               onOpenSettings();
             }}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
+            className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[10px] font-bold uppercase text-slate-300 transition-colors hover:bg-slate-800/80 hover:text-white sm:justify-start sm:px-4 sm:text-sm"
+            aria-label={t.controls.settings}
           >
-            {t.controls.settings}
+            <span className="text-base leading-none" aria-hidden>
+              ⚙️
+            </span>
+            <span className="hidden min-w-0 truncate leading-none sm:inline">{t.controls.settings}</span>
           </button>
         </div>
 
-        <button
-          onClick={() => {
-            AudioManager.unlock();
-            playUiClick();
-            onOpenTutorial();
-          }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
-        >
-          <span aria-hidden>🪀</span>
-          {t.controls.howToPlay}
-        </button>
+        {/* How to Play was moved into Settings (see Controls/Data tab) */}
 
         {hardEndConfirmOpen ? (
           <div className="w-full rounded-xl border border-rose-500/50 bg-rose-950/40 p-4">

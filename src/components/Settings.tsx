@@ -26,9 +26,10 @@ type SettingsTab = "audio" | "display" | "controls" | "language" | "data";
 interface SettingsProps {
   open: boolean;
   onClose: () => void;
+  onOpenTutorial?: () => void;
 }
 
-export default function Settings({ open, onClose }: SettingsProps) {
+export default function Settings({ open, onClose, onOpenTutorial }: SettingsProps) {
   const t = useT();
   const [tab, setTab] = useState<SettingsTab>("audio");
 
@@ -97,6 +98,23 @@ export default function Settings({ open, onClose }: SettingsProps) {
             </button>
           ))}
         </nav>
+
+        {/* Persistent help access — moved from the main control bar */}
+        {onOpenTutorial && (
+          <div className="border-b border-slate-800 bg-slate-900/40 px-4 py-2 sm:px-5">
+            <button
+              onClick={() => {
+                playUiClick();
+                onClose();           // close settings first
+                onOpenTutorial();    // then open tutorial
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+            >
+              <span aria-hidden>🪀</span>
+              {t.controls.howToPlay}
+            </button>
+          </div>
+        )}
 
         <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
           {tab === "audio" && <AudioTab />}

@@ -28,6 +28,11 @@ import {
   CAMERA_ZOOM_DEFAULT,
 } from "../game/worldConstants";
 import { DEFAULT_LANG, type Lang } from "../i18n/lang";
+import {
+  ACHIEVEMENTS,
+  getAllAchievementProgress,
+  getAchievementMomentumMult,
+} from "../data/achievements";
 
 interface Owned {
   pendulums: string[];
@@ -109,6 +114,21 @@ export interface GameState {
   // Whether the player has dismissed the first-time "How to Play" tutorial.
   // Persisted so it only auto-opens once; it stays reopenable from the controls.
   tutorialSeen: boolean;
+
+  // -------------------------------------------------------------------------
+  // Achievements (Cookie Clicker style)
+  // -------------------------------------------------------------------------
+  /** id -> unlockedAt timestamp (ms since epoch). Only entries that are unlocked. */
+  unlockedAchievements: Record<string, number>;
+  /** Lifetime Golden Tokens that have been *spent* (not just caught). Powers feat achievements. */
+  totalGoldenSpent: number;
+  /** Times the player has successfully fed a bob into the Black Hole singularity. */
+  blackHoleCaptures: number;
+  /**
+   * Transient driver for the achievement toast (like lastIdleReport).
+   * `seq` bumps to force React re-render / show animation even if same id re-unlocked (rare).
+   */
+  lastAchievementUnlock: { id: string; seq: number } | null;
   // --- Idle / background accrual ---------------------------------------------
   // Smoothed Momentum-per-second earned during live foreground play (an EMA fed
   // by the idle engine). Drives how much the pendulum "earns" while the tab is
@@ -177,6 +197,21 @@ export interface GameState {
   setLanguage: (lang: Lang) => void;
   // Marks the first-time tutorial as seen so it stops auto-opening.
   dismissTutorial: () => void;
+
+  // --- Achievements --------------------------------------------------------
+  /** Idempotent. Sets the timestamp if not already present and bumps the toast seq. */
+  unlockAchievement: (id: string) => void;
+  /**
+   * Scans every achievement def against current stats/owned/counters.
+   * Unlocks any that are now met but weren't before (batched, triggers toasts).
+   * Safe to call frequently — very cheap.
+   */
+  checkAchievements: () => void;
+  /** Increment the spent counter + auto-check (called from spendGoldenToken success). */
+  recordGoldenSpend: () => void;
+  /** Increment capture counter + auto-check. Called from GameCanvas on successful black-hole feed. */
+  recordBlackHoleCapture: () => void;
+
   setAudioMasterVolume: (volume: number) => void;
   setAudioSfxVolume: (volume: number) => void;
   setAudioUiVolume: (volume: number) => void;
@@ -427,6 +462,12 @@ export const useGameStore = create<GameState>()(
       lastActiveAt: 0,
       lastIdleReport: null,
 
+      // Achievements (new in v20)
+      unlockedAchievements: {},
+      totalGoldenSpent: 0,
+      blackHoleCaptures: 0,
+      lastAchievementUnlock: null,
+
       addMomentum: (n) =>
         set((s) => ({
           momentum: s.momentum + n,
@@ -489,6 +530,9 @@ export const useGameStore = create<GameState>()(
           if (kind === "shape") owned.shapes = [...ownedShapesList(prev.owned), id];
           return { momentum: prev.momentum - cost, owned };
         });
+        // Collection achievements (kit-builder, legendary-finder, etc.) can unlock
+        // the instant you buy the qualifying item.
+        get().checkAchievements();
         return true;
       },
 
@@ -708,15 +752,23 @@ export const useGameStore = create<GameState>()(
           // Likewise drop any unused buff guarantee — re-rolled each Run Again.
           guaranteedFirstBuff: false,
         })),
+      // Run-count and best-run-momentum achievements are checked right after
+      // the numbers are committed (endRun is the cleanest single point).
+      // We call it from the *caller* of endRun in GameCanvas for timing, but
+      // having it here keeps the action self-contained for future callers.
 
       markRunStalled: () =>
         set((s) => (s.runStalled ? s : { runStalled: true })),
 
-      claimGoldenToken: () =>
+      claimGoldenToken: () => {
         set((s) => ({
           totalGoldenTokens: s.totalGoldenTokens + 1,
           pendingGoldenTokens: s.pendingGoldenTokens + 1,
-        })),
+        }));
+        // Golden catch achievements (first-gleam, token-hoarder...) fire the
+        // instant the physical pickup happens.
+        get().checkAchievements();
+      },
 
       // Spend one ready Golden Token. Refuses to fire if the player has no
       // charge or if there's no running pendulum to boost — we don't want a
@@ -725,10 +777,15 @@ export const useGameStore = create<GameState>()(
         const s = get();
         if (s.pendingGoldenTokens <= 0) return false;
         if (!s.isRunning) return false;
-        set({
-          pendingGoldenTokens: s.pendingGoldenTokens - 1,
-          goldenTokenConsumeEpoch: s.goldenTokenConsumeEpoch + 1,
-        });
+        set((prev) => ({
+          pendingGoldenTokens: prev.pendingGoldenTokens - 1,
+          goldenTokenConsumeEpoch: prev.goldenTokenConsumeEpoch + 1,
+          totalGoldenSpent: prev.totalGoldenSpent + 1,
+        }));
+        // Re-check immediately so "token-spender" (and future spend-gated achs)
+        // pop the toast while the player is still in the exciting moment.
+        // (checkAchievements is a no-op if nothing new.)
+        get().checkAchievements();
         return true;
       },
 
@@ -797,6 +854,67 @@ export const useGameStore = create<GameState>()(
       setLanguage: (lang) => set({ language: lang }),
 
       dismissTutorial: () => set({ tutorialSeen: true }),
+
+      // --- Achievements --------------------------------------------------------
+      unlockAchievement: (id) =>
+        set((s) => {
+          if (s.unlockedAchievements[id]) return s; // already unlocked
+          const def = ACHIEVEMENTS.find((a) => a.id === id);
+          if (!def) return s;
+          return {
+            unlockedAchievements: {
+              ...s.unlockedAchievements,
+              [id]: Date.now(),
+            },
+            lastAchievementUnlock: {
+              id,
+              seq: (s.lastAchievementUnlock?.seq ?? 0) + 1,
+            },
+          };
+        }),
+
+      checkAchievements: () =>
+        set((s) => {
+          const snapshot = {
+            stats: s.stats,
+            owned: s.owned,
+            totalGoldenSpent: s.totalGoldenSpent,
+            blackHoleCaptures: s.blackHoleCaptures,
+            totalRuns: s.totalRuns,
+            bestRunMomentum: s.bestRunMomentum,
+            totalGoldenTokens: s.totalGoldenTokens,
+            unlocked: s.unlockedAchievements,
+          };
+          const progressMap = getAllAchievementProgress(snapshot);
+          const newly: Record<string, number> = {};
+          let anyNew = false;
+          for (const [id, p] of Object.entries(progressMap)) {
+            if (p.unlocked && !s.unlockedAchievements[id]) {
+              newly[id] = Date.now();
+              anyNew = true;
+            }
+          }
+          if (!anyNew) return s;
+          return {
+            unlockedAchievements: { ...s.unlockedAchievements, ...newly },
+            // Only bump the toast driver for the *last* one discovered in this batch.
+            // The panel will still show all of them as newly unlocked.
+            lastAchievementUnlock: {
+              id: Object.keys(newly).pop()!,
+              seq: (s.lastAchievementUnlock?.seq ?? 0) + 1,
+            },
+          };
+        }),
+
+      recordGoldenSpend: () =>
+        set((s) => ({
+          totalGoldenSpent: s.totalGoldenSpent + 1,
+        })),
+
+      recordBlackHoleCapture: () =>
+        set((s) => ({
+          blackHoleCaptures: s.blackHoleCaptures + 1,
+        })),
 
       setAudioMasterVolume: (volume) =>
         set((s) => ({
@@ -887,11 +1005,16 @@ export const useGameStore = create<GameState>()(
           idleRatePerSec: 0,
           lastActiveAt: 0,
           lastIdleReport: null,
+          // Achievements reset (full wipe, consistent with new-game intent)
+          unlockedAchievements: {},
+          totalGoldenSpent: 0,
+          blackHoleCaptures: 0,
+          lastAchievementUnlock: null,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 19,
+      version: 20,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
@@ -1013,6 +1136,12 @@ export const useGameStore = create<GameState>()(
           // current state, so this is a pass-through.
           return normalizeCosmeticState({ ...state, audio: mergedAudio });
         }
+        if (version < 20) {
+          // Achievements system added (unlockedAchievements, two feat counters).
+          // New fields default to {} / 0 in the current state shape; we just
+          // ensure the persisted object carries them forward cleanly.
+          return normalizeCosmeticState({ ...state, audio: mergedAudio });
+        }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },
       merge: (persistedState, currentState) => {
@@ -1050,6 +1179,10 @@ export const useGameStore = create<GameState>()(
         // so progress can be granted for time the page was fully closed.
         idleRatePerSec: state.idleRatePerSec,
         lastActiveAt: state.lastActiveAt,
+        // Achievements (the core collection + the two feat counters)
+        unlockedAchievements: state.unlockedAchievements,
+        totalGoldenSpent: state.totalGoldenSpent,
+        blackHoleCaptures: state.blackHoleCaptures,
       }),
     }
   )

@@ -128,6 +128,14 @@ Direct `.getState()` is the safe way to read/write from imperative loops.
 - `pendingGoldenTokens` can be > 0 while not in a run. The "Use Token" button is enabled in that state.
 - Camera values in the store are the ones saved to localStorage. Live dragging updates the store on pointer up (or throttled).
 
+### Achievements (v20+)
+- `unlockedAchievements: Record<id, timestamp>` — the core collection. Drives toasts, panel, and the permanent global Momentum mult.
+- `totalGoldenSpent` + `blackHoleCaptures` — lightweight feat counters for specific achievements.
+- `lastAchievementUnlock` (transient) — drives the unlock toast exactly like `lastIdleReport`.
+- `checkAchievements()` is called from key mutation points (buy, golden spend/catch, endRun, black-hole capture) and is cheap enough to be safe.
+- Pure evaluator + declarative defs live in `src/data/achievements.ts`.
+- Small permanent bonus: `getAchievementMomentumMult(count)` applied in the scoring hot path (GameCanvas).
+
 ---
 
 ## Related
