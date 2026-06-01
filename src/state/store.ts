@@ -106,6 +106,9 @@ export interface GameState {
   autoToken: boolean;
   // Active UI language. Persisted so the player's choice survives reloads.
   language: Lang;
+  // Whether the player has dismissed the first-time "How to Play" tutorial.
+  // Persisted so it only auto-opens once; it stays reopenable from the controls.
+  tutorialSeen: boolean;
   // --- Idle / background accrual ---------------------------------------------
   // Smoothed Momentum-per-second earned during live foreground play (an EMA fed
   // by the idle engine). Drives how much the pendulum "earns" while the tab is
@@ -171,6 +174,8 @@ export interface GameState {
   toggleAutoRun: () => void;
   toggleAutoToken: () => void;
   setLanguage: (lang: Lang) => void;
+  // Marks the first-time tutorial as seen so it stops auto-opening.
+  dismissTutorial: () => void;
   setAudioMasterVolume: (volume: number) => void;
   setAudioSfxVolume: (volume: number) => void;
   setAudioUiVolume: (volume: number) => void;
@@ -416,6 +421,7 @@ export const useGameStore = create<GameState>()(
       autoRun: false,
       autoToken: false,
       language: DEFAULT_LANG,
+      tutorialSeen: false,
       idleRatePerSec: 0,
       lastActiveAt: 0,
       lastIdleReport: null,
@@ -791,6 +797,8 @@ export const useGameStore = create<GameState>()(
 
       setLanguage: (lang) => set({ language: lang }),
 
+      dismissTutorial: () => set({ tutorialSeen: true }),
+
       setAudioMasterVolume: (volume) =>
         set((s) => ({
           audio: { ...s.audio, masterVolume: clampVolume(volume) },
@@ -1038,6 +1046,7 @@ export const useGameStore = create<GameState>()(
         autoRun: state.autoRun,
         autoToken: state.autoToken,
         language: state.language,
+        tutorialSeen: state.tutorialSeen,
         // Idle accrual: keep the earn rate and the offline clock across reloads
         // so progress can be granted for time the page was fully closed.
         idleRatePerSec: state.idleRatePerSec,
