@@ -655,19 +655,37 @@ export default function GameCanvas() {
     // Layers map: concentric ring walls centered on the mount, so the bob's
     // orbit threads through their rotating gaps. Stored on the wall field so
     // they're drawn each frame and torn down with everything else on unmount.
+    const RING_THICKNESS = Math.round(12 * WORLD_SCALE);
     if (site.wallShape === "rings") {
-      wallField.obstacles = createRingObstacles(
+      // Vary the layer count run-to-run (one of the middle rings drops out at
+      // random), on top of the randomized radii, so no two runs look alike.
+      const baseRings = site.ringCount ?? 5;
+      const ringCount = baseRings - (Math.random() < 0.5 ? 1 : 0); // baseRings or one fewer
+      const ringField = createRingObstacles(
         engineHandle.world,
         ANCHOR,
-        site.ringCount ?? 4,
-        Math.round(115 * WORLD_SCALE), // ring spacing (design px × world scale)
-        Math.round(12 * WORLD_SCALE),
+        ringCount,
+        Math.round(110 * WORLD_SCALE), // innermost ring radius (design px × world scale)
+        Math.round(580 * WORLD_SCALE), // outermost ring radius → external ring near the edge
+        RING_THICKNESS,
         pendulum.weight,
-        site.wallDurabilityMult ?? 1
+        site.wallDurabilityMult ?? 1,
+        2.3, // falloff > 1: inner/middle rings cluster, wide empty band before the edge ring
+        Math.round(48 * WORLD_SCALE) // min center-to-center spacing so clustered rings never glue together
       );
+      wallField.obstacles = ringField.walls;
+      wallField.rings = ringField.rings;
+      wallField.ringCenter = ANCHOR;
       wallField.breakable = site.walls === "breakable";
       wallless = wallField.walls.length === 0 && wallField.obstacles.length === 0;
     }
+
+    // Longest single-step travel that can still be a real tunnel (a bob can at
+    // most shoot clear across the ring field's diameter in one step). Anything
+    // longer is a teleport / rope re-string, which the swept guards must ignore.
+    const ringMaxTravel = wallField.rings.length
+      ? Math.max(...wallField.rings.map((r) => r.radius)) * 2.2
+      : 0;
 
     const ropeMaterial = resolveRopeMaterial(attachment);
 
@@ -1480,6 +1498,90 @@ export default function GameCanvas() {
       }
     }
 
+    // --- Swept ring-wall crossing (Layers map) ---------------------------
+    // The rings are centered on the mount, so a swinging bob orbits them at a
+    // near-constant radius and skims a layer *tangentially* — it never makes a
+    // big jump in distance-from-center, so a radius test misses it. Matter's
+    // discrete check also misses it once the bob outruns the ring's ~12px
+    // thickness between steps. So we test the bob's actual travel segment for
+    // this step against each live ring segment's centerline and catch the frame
+    // it crosses, however fast it's moving and from any direction.
+
+    // Fraction (0..1) along travel A→B where it crosses ring segment `s`'s
+    // centerline, or null. The segment is inflated by `bobR` at each end so a
+    // crossing near a segment's tip still counts (the bob has real width).
+    function pathCrossesSegment(
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number,
+      s: BoundaryWall,
+      halfLen: number,
+      bobR: number
+    ): number | null {
+      if (s.angle === undefined) return null;
+      const tx = -Math.sin(s.angle); // tangential (along-arc) unit vector
+      const ty = Math.cos(s.angle);
+      const reach = halfLen + bobR;
+      const w0x = s.body.position.x - tx * reach;
+      const w0y = s.body.position.y - ty * reach;
+      const d1x = bx - ax;
+      const d1y = by - ay;
+      const d2x = tx * reach * 2;
+      const d2y = ty * reach * 2;
+      const denom = d1x * d2y - d1y * d2x;
+      if (Math.abs(denom) < 1e-9) return null; // travel parallel to the segment
+      const ox = w0x - ax;
+      const oy = w0y - ay;
+      const t = (ox * d2y - oy * d2x) / denom;
+      const u = (ox * d1y - oy * d1x) / denom;
+      if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+      return t;
+    }
+
+    // The first live ring segment the travel A→B crosses (smallest t), or null.
+    function firstRingCrossing(
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number,
+      bobR: number
+    ): { seg: BoundaryWall; t: number } | null {
+      let best: BoundaryWall | null = null;
+      let bestT = Infinity;
+      for (const ring of wallField.rings) {
+        for (const s of ring.segments) {
+          if (s.broken) continue;
+          const t = pathCrossesSegment(ax, ay, bx, by, s, ring.segHalfLen, bobR);
+          if (t !== null && t < bestT) {
+            bestT = t;
+            best = s;
+          }
+        }
+      }
+      return best ? { seg: best, t: bestT } : null;
+    }
+
+    // Snap a bob back onto the approach side of a ring segment it crossed during
+    // `prev`→`cur`, returning the corrected position (its center just clear of
+    // the wall). Shared by the dynamic bounce and the kinematic clamp.
+    function ringSurfacePosition(
+      prevX: number,
+      prevY: number,
+      crossX: number,
+      crossY: number,
+      seg: BoundaryWall,
+      bobR: number
+    ): { x: number; y: number } {
+      const n = seg.normal; // radial, pointing outward from the field center
+      const side =
+        (prevX - seg.body.position.x) * n.x + (prevY - seg.body.position.y) * n.y >= 0
+          ? 1
+          : -1;
+      const off = RING_THICKNESS / 2 + bobR;
+      return { x: crossX + n.x * side * off, y: crossY + n.y * side * off };
+    }
+
     // Previous-frame positions for the kinematic bobs, used to estimate how
     // hard a rope-riding bob is pushing into a wall (its body.velocity is 0).
     const kinematicWallLastPos = new Map<number, { x: number; y: number }>();
@@ -1538,6 +1640,26 @@ export default function GameCanvas() {
         hits.push(bottom);
       }
 
+      // Ring obstacles (Layers map): the chain/echo bobs ride a rope that
+      // threads *through* the rings, so without this they slide straight across
+      // a layer. Catch the frame their travel crosses a live segment and pin
+      // them to its approach-side surface — they bump the ring instead of
+      // passing through. Skipped on teleports / re-strings (oversized jumps).
+      if (wallField.rings.length > 0 && prev) {
+        const travel = Math.hypot(incomingX - prev.x, incomingY - prev.y);
+        if (travel <= ringMaxTravel) {
+          const hit = firstRingCrossing(prev.x, prev.y, incomingX, incomingY, radius);
+          if (hit) {
+            const crossX = prev.x + (incomingX - prev.x) * hit.t;
+            const crossY = prev.y + (incomingY - prev.y) * hit.t;
+            const snapped = ringSurfacePosition(prev.x, prev.y, crossX, crossY, hit.seg, radius);
+            x = snapped.x;
+            y = snapped.y;
+            hits.push(hit.seg);
+          }
+        }
+      }
+
       if (x !== incomingX || y !== incomingY) {
         Matter.Body.setPosition(body, { x, y });
         Matter.Body.setVelocity(body, { x: 0, y: 0 });
@@ -1568,7 +1690,7 @@ export default function GameCanvas() {
     // once the rope breaks these become free dynamic bodies that Matter and
     // handleWallHit resolve against the walls directly.
     function containRopeBobsInWalls(now: number, dt: number) {
-      if (wallField.walls.length === 0) return;
+      if (wallField.walls.length === 0 && wallField.rings.length === 0) return;
       const radius = getEffectiveBobRadius(pendulumHandle);
       for (const chainBob of pendulumHandle.chainBobs) {
         containKinematicBobInWalls(
@@ -1581,6 +1703,54 @@ export default function GameCanvas() {
       for (const e of echoBobs) {
         containKinematicBobInWalls(e.body, e.body.circleRadius ?? radius, now, dt);
       }
+    }
+
+    // --- Ring-wall tunneling guard (Layers map) --------------------------
+    // Matter resolves bob↔ring contacts discretely, so a bob outrunning a ring's
+    // ~12px thickness between fixed steps leaps clean over it without ever
+    // overlapping — it "tunnels" through the layer. Every physics step we test
+    // each dynamic bob's actual travel segment against the live ring segments
+    // (see firstRingCrossing); on a crossing we snap the bob to the segment's
+    // approach-side surface and run the normal wall-hit bounce — exactly what
+    // Matter would have done had the step been small enough to catch it.
+    const ringPrevPos = new Map<number, { x: number; y: number }>();
+    function sweepRingTunneling(now: number) {
+      if (wallField.rings.length === 0) return;
+      const fallbackR = getEffectiveBobRadius(pendulumHandle);
+
+      const sweepBob = (bob: Matter.Body) => {
+        const bobR = bob.circleRadius ?? fallbackR;
+        const cur = bob.position;
+        const prev = ringPrevPos.get(bob.id);
+        ringPrevPos.set(bob.id, { x: cur.x, y: cur.y });
+        if (!prev) return;
+
+        const tvx = cur.x - prev.x;
+        const tvy = cur.y - prev.y;
+        const tlen = Math.hypot(tvx, tvy);
+        // Short hops can't tunnel — Matter's own contact already resolved them.
+        if (tlen < RING_THICKNESS) return;
+        // Reject teleports / resets: an oversized jump, or one whose velocity
+        // doesn't point along the step's displacement, isn't a real tunnel.
+        if (tlen > ringMaxTravel) return;
+        const vlen = Math.hypot(bob.velocity.x, bob.velocity.y) || 1;
+        if ((tvx * bob.velocity.x + tvy * bob.velocity.y) / (tlen * vlen) < 0.3) return;
+
+        const hit = firstRingCrossing(prev.x, prev.y, cur.x, cur.y, bobR);
+        if (!hit) return;
+
+        // Snap the bob back onto the ring surface on the side it came from, then
+        // let the standard wall-hit logic score / damage / bounce off the segment.
+        const crossX = prev.x + tvx * hit.t;
+        const crossY = prev.y + tvy * hit.t;
+        const snapped = ringSurfacePosition(prev.x, prev.y, crossX, crossY, hit.seg, bobR);
+        Matter.Body.setPosition(bob, snapped);
+        handleWallHit(hit.seg.body, bob, now);
+        ringPrevPos.set(bob.id, { x: bob.position.x, y: bob.position.y });
+      };
+
+      for (const bob of pendulumHandle.bobs) sweepBob(bob);
+      for (const shard of shards) sweepBob(shard);
     }
 
     // --- Behavior bobs ---------------------------------------------------
@@ -2303,6 +2473,13 @@ export default function GameCanvas() {
       clampAngularVelocity(pendulumHandle, cap);
     };
     Matter.Events.on(engineHandle.engine, "afterUpdate", clampSwingSpeed);
+
+    // Catch fast bobs that would otherwise tunnel through the Layers map's thin
+    // ring walls between fixed steps. Runs every physics step (including while
+    // snapped, when the freed bobs ricochet out through the rings) so a crossing
+    // can never slip past unresolved.
+    const ringTunnelGuard = () => sweepRingTunneling(performance.now());
+    Matter.Events.on(engineHandle.engine, "afterUpdate", ringTunnelGuard);
 
     let lastT = performance.now();
     let raf = 0;
@@ -3029,6 +3206,7 @@ export default function GameCanvas() {
       cancelAnimationFrame(raf);
       Matter.Events.off(engineHandle.engine, "collisionStart", handleCollision);
       Matter.Events.off(engineHandle.engine, "afterUpdate", clampSwingSpeed);
+      Matter.Events.off(engineHandle.engine, "afterUpdate", ringTunnelGuard);
       destroyHitZones(engineHandle.world, field);
       destroyTokenField(engineHandle.world, tokenField);
       destroyWallField(engineHandle.world, wallField);

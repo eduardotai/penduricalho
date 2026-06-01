@@ -150,5 +150,5 @@ First tagged release.
 - Shop / Inventory / Stats UI and a HUD.
 - Claude Code Review + PR Assistant GitHub workflows.
 
-[1.0.1]: https://github.com/eduardotai/pendulum-clicker/releases/tag/v1.0.1
-[1.0.0]: https://github.com/eduardotai/pendulum-clicker/releases/tag/v1.0.0
+[1.0.1]: https://github.com/eduardotai/penduricalho/releases/tag/v1.0.1
+[1.0.0]: https://github.com/eduardotai/penduricalho/releases/tag/v1.0.0

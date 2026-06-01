@@ -132,6 +132,16 @@ src/
 
 Game **content** lives in `src/data/` (declarative defs), while game **behavior** lives in `src/game/`. Tuning for a system generally sits next to it — e.g. rope durability tuning lives in `src/game/rope/materials.ts`, and the belt tunnel route generation is self-contained in `src/game/beltTunnel.ts`.
 
+### AI / Contributor Context Docs
+
+For fast understanding without reading every line, see the `CONTEXT.md` files:
+
+- Root [CONTEXT.md](CONTEXT.md) — architecture overview + behavior hook philosophy
+- `src/data/CONTEXT.md`, `src/game/CONTEXT.md`, `src/game/rope/CONTEXT.md`, `src/game/render.md`
+- `src/state/CONTEXT.md`, `src/components/CONTEXT.md`, `src/audio/CONTEXT.md`
+
+These are deliberately structured for token efficiency when working with LLMs.
+
 ---
 
 ## 🚀 Getting Started
@@ -179,7 +189,7 @@ Releases are tagged in git as `v<version>`. See **[CHANGELOG.md](CHANGELOG.md)**
 
 ## 🤝 Contributing
 
-This is a personal project, but issues and suggestions are welcome on the [GitHub repo](https://github.com/eduardotai/pendulum-clicker). If you're adding game content:
+This is a personal project, but issues and suggestions are welcome on the [GitHub repo](https://github.com/eduardotai/penduricalho). If you're adding game content:
 
 - New **bobs / ropes / sites / cosmetics** → add a declarative def to the matching file in `src/data/`.
 - New **behaviors** → wire the def's `behavior` field into the relevant hook point in `src/game/`.

@@ -69,7 +69,7 @@ export const SITES: SiteDef[] = [
     background: "layers",
     walls: "breakable",
     wallShape: "rings",
-    ringCount: 4,
+    ringCount: 5,
     wallDurabilityMult: 0.55,
     cost: 16000,
     unlock: { stat: "totalMomentum", gte: 16000 },

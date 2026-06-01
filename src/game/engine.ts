@@ -66,6 +66,27 @@ export interface BoundaryWall {
   /** Full durability for this wall — scales with the rig's bob weight. */
   maxHp: number;
   broken: boolean;
+  /**
+   * Ring-wall only: the segment's center angle (radians) around the field
+   * center. Used by the swept tunneling guard to tell whether a fast bob
+   * crossed a live segment or slipped through the ring's open gap.
+   */
+  angle?: number;
+}
+
+/**
+ * One concentric ring of the Layers map, grouped for the swept (CCD) tunneling
+ * guard. Because every ring is a circle centered on the mount, a bob tunneling
+ * through shows up as its distance-from-center jumping across `radius` in a
+ * single physics step.
+ */
+export interface RingDescriptor {
+  /** Radius of this ring from the field center. */
+  radius: number;
+  /** Half a segment's tangential length — its reach along the ring's arc. */
+  segHalfLen: number;
+  /** Every segment on this ring; check `.broken` to find the live ones. */
+  segments: BoundaryWall[];
 }
 
 export interface CageBounds {
@@ -91,6 +112,16 @@ export interface WallField {
    * BOB-category bodies, so the rope threads through them while bobs bounce off.
    */
   obstacles: BoundaryWall[];
+  /**
+   * Field center for the ring obstacles (the rope pivot). Set only on the
+   * Layers map; undefined everywhere else.
+   */
+  ringCenter?: { x: number; y: number };
+  /**
+   * Concentric ring descriptors driving the swept tunneling guard. Empty on
+   * every site that has no ring obstacles.
+   */
+  rings: RingDescriptor[];
 }
 
 /** Baseline hits a breakable wall absorbs (at the lightest rig). */
@@ -137,7 +168,7 @@ export function createWallField(
     maxX: centerX + halfW,
     maxY: centerY + halfH,
   };
-  if (mode === "none") return { walls: [], breakable: false, bounds, obstacles: [] };
+  if (mode === "none") return { walls: [], breakable: false, bounds, obstacles: [], rings: [] };
   const breakable = mode === "breakable";
   const maxHp = wallHpForWeight(bobWeight, durabilityMult);
   const thickness = 200;
@@ -181,7 +212,47 @@ export function createWallField(
     broken: false,
   }));
   Matter.World.add(world, walls.map((w) => w.body));
-  return { walls, breakable, bounds, obstacles: [] };
+  return { walls, breakable, bounds, obstacles: [], rings: [] };
+}
+
+/**
+ * Pick the radii for the Layers map's rings — re-rolled every run so the layout
+ * is never the same twice. Ring 0 is pinned at `innerRadius` and the last ring
+ * at `outerRadius` (the edge); the interior rings get random fractions biased
+ * toward the inner side by `spacingFalloff` (so the "cluster in the middle, wide
+ * empty band out to the edge ring" shape holds on average while every gap still
+ * varies). `minSpacing` floors the center-to-center gap, and each interior ring
+ * is also capped so it can never crowd out the room reserved for the rings still
+ * to be placed — guaranteeing a strictly increasing, never-glued set.
+ */
+export function computeRingRadii(
+  ringCount: number,
+  innerRadius: number,
+  outerRadius: number,
+  spacingFalloff = 1,
+  minSpacing = 0
+): number[] {
+  if (ringCount <= 0) return [];
+  if (ringCount === 1) return [outerRadius];
+  const span = outerRadius - innerRadius;
+  const interior: number[] = [];
+  for (let i = 0; i < ringCount - 2; i++) {
+    interior.push(Math.pow(Math.random(), spacingFalloff));
+  }
+  interior.sort((a, b) => a - b);
+
+  const radii = [innerRadius];
+  let prev = innerRadius;
+  for (let i = 0; i < interior.length; i++) {
+    const remainingAfter = interior.length - 1 - i; // interior rings still to place
+    let r = innerRadius + span * interior[i];
+    r = Math.max(r, prev + minSpacing); // never glue to the previous ring
+    r = Math.min(r, outerRadius - minSpacing * (remainingAfter + 1)); // reserve room for the rest + edge
+    radii.push(r);
+    prev = r;
+  }
+  radii.push(outerRadius);
+  return radii;
 }
 
 /**
@@ -191,19 +262,29 @@ export function createWallField(
  * freed bob can thread through to the richer inner rings. Rings are static and
  * indestructible, and masked to COLLISION.OBSTACLE → BOB so the rope's segment
  * nodes pass straight through while the bobs ricochet. The created bodies are
- * added to the world and returned for storage on `WallField.obstacles`.
+ * added to the world and returned alongside per-ring descriptors for storage on
+ * `WallField.obstacles` / `WallField.rings` (the latter drives the swept
+ * tunneling guard so fast bobs can't slip through a layer between steps).
  */
 export function createRingObstacles(
   world: Matter.World,
   center: { x: number; y: number },
   ringCount: number,
-  ringSpacing: number,
+  innerRadius: number,
+  outerRadius: number,
   thickness: number,
   bobWeight = 1,
-  durabilityMult = 1
-): BoundaryWall[] {
+  durabilityMult = 1,
+  spacingFalloff = 1,
+  minSpacing = 0
+): { walls: BoundaryWall[]; rings: RingDescriptor[] } {
   const walls: BoundaryWall[] = [];
+  const rings: RingDescriptor[] = [];
   const maxHp = wallHpForWeight(bobWeight, durabilityMult);
+  // Radii are randomized per run (see computeRingRadii) so no two runs share a
+  // layout, while still honoring the inner-cluster / outer-band shape and the
+  // minimum spacing.
+  const radii = computeRingRadii(ringCount, innerRadius, outerRadius, spacingFalloff, minSpacing);
   const opts = {
     isStatic: true,
     restitution: 0.7,
@@ -211,8 +292,8 @@ export function createRingObstacles(
     label: "ring-wall",
     collisionFilter: { category: COLLISION.OBSTACLE, mask: COLLISION.BOB },
   };
-  for (let ring = 0; ring < ringCount; ring++) {
-    const radius = ringSpacing * (ring + 1);
+  for (let ring = 0; ring < radii.length; ring++) {
+    const radius = radii[ring];
     // A wedge left open so bobs can pass inward; rotate it per ring so the gaps
     // don't line up into a single straight corridor.
     const gapHalf = 0.55; // radians → ~63° opening
@@ -222,6 +303,7 @@ export function createRingObstacles(
     const step = (Math.PI * 2) / segCount;
     const segLen = step * radius * 1.08; // slight overlap so there are no seams
     const TAU = Math.PI * 2;
+    const ringSegments: BoundaryWall[] = [];
     for (let i = 0; i < segCount; i++) {
       const a = i * step;
       // Smallest absolute angle between this segment and the gap center, kept in
@@ -236,18 +318,22 @@ export function createRingObstacles(
         thickness,
         { ...opts, angle: a + Math.PI / 2 }
       );
-      walls.push({
+      const wall: BoundaryWall = {
         body: seg,
         side: "ring",
         normal: { x: Math.cos(a), y: Math.sin(a) },
         hp: maxHp,
         maxHp,
         broken: false,
-      });
+        angle: a,
+      };
+      walls.push(wall);
+      ringSegments.push(wall);
     }
+    rings.push({ radius, segHalfLen: segLen / 2, segments: ringSegments });
   }
   Matter.World.add(world, walls.map((w) => w.body));
-  return walls;
+  return { walls, rings };
 }
 
 export function destroyWallField(world: Matter.World, field: WallField) {
