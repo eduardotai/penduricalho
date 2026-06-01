@@ -14,7 +14,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.92,
     damping: 0.028,
     bonuses: { momentumMult: 0.85, velocityBonus: 0.2 },
-    cost: 40,
+    cost: 0,
   },
   {
     id: "short-hemp",
@@ -25,7 +25,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.91,
     damping: 0.025,
     bonuses: { momentumMult: 0.92, velocityBonus: 0.12 },
-    cost: 80,
+    cost: 0,
   },
   {
     id: "compact-rope",
@@ -36,7 +36,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.9,
     damping: 0.022,
     bonuses: { momentumMult: 0.98, velocityBonus: 0.06 },
-    cost: 160,
+    cost: 0,
   },
   {
     id: "hemp-rope",
@@ -58,7 +58,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.95,
     damping: 0.015,
     bonuses: { momentumMult: 1.15, velocityBonus: 0.1 },
-    cost: 200,
+    cost: 0,
   },
   {
     id: "braided-rope",
@@ -69,7 +69,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.88,
     damping: 0.02,
     bonuses: { momentumMult: 1.2 },
-    cost: 450,
+    cost: 0,
   },
   {
     id: "tow-rope",
@@ -80,7 +80,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.87,
     damping: 0.022,
     bonuses: { momentumMult: 1.35, twistPowerBonus: 0.08 },
-    cost: 2500,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 30 },
   },
   {
@@ -92,7 +92,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.93,
     damping: 0.014,
     bonuses: { momentumMult: 1.55, twistPowerBonus: 0.15 },
-    cost: 12000,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 100 },
   },
   {
@@ -104,7 +104,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.92,
     damping: 0.01,
     bonuses: { momentumMult: 2, twistPowerBonus: 0.5, velocityBonus: 0.25 },
-    cost: 80000,
+    cost: 0,
     unlock: { stat: "bestCombo", gte: 30 },
   },
   // --- Behavior ropes: the rope analog of the special bobs. Each carries a
@@ -119,7 +119,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.93,
     damping: 0.03,
     bonuses: { momentumMult: 0.8, velocityBonus: 0.3 },
-    cost: 6000,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 60 },
     behavior: {
       kind: "belt",
@@ -143,7 +143,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.88,
     damping: 0.024,
     bonuses: { momentumMult: 1.05 },
-    cost: 4000,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 25 },
     behavior: {
       kind: "flux",
@@ -161,7 +161,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.86,
     damping: 0.02,
     bonuses: { momentumMult: 1.25, twistPowerBonus: 0.1 },
-    cost: 9000,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 40 },
     behavior: {
       kind: "metronome",
@@ -179,7 +179,7 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.9,
     damping: 0.022,
     bonuses: { momentumMult: 1.3, twistPowerBonus: 0.12 },
-    cost: 14000,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 150 },
     behavior: {
       kind: "bulwark",
@@ -200,7 +200,7 @@ const OTHER_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 1,
     damping: 0.005,
     bonuses: { twistPowerBonus: 0.3, momentumMult: 1.25 },
-    cost: 1200,
+    cost: 0,
     unlock: { stat: "totalSwings", gte: 50 },
   },
   {
@@ -212,7 +212,7 @@ const OTHER_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.85,
     damping: 0.03,
     bonuses: { momentumMult: 1.5, twistPowerBonus: 0.15 },
-    cost: 5000,
+    cost: 0,
     unlock: { stat: "totalMomentum", gte: 8000 },
   },
   {
@@ -224,7 +224,7 @@ const OTHER_ATTACHMENTS: AttachmentDef[] = [
     stiffness: 0.6,
     damping: 0.04,
     bonuses: { momentumMult: 1.35, velocityBonus: 0.4, twistPowerBonus: 0.2 },
-    cost: 15000,
+    cost: 0,
     unlock: { stat: "totalHits", gte: 250 },
   },
 ];

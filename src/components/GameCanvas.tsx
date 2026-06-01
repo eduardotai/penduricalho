@@ -184,7 +184,10 @@ const SETTLE_REST_RATE = 6;
 const HIT_STOP_MS = 28;
 const HIT_STOP_COOLDOWN_MS = 90;
 // Durability restored by collecting a Rope Patch token (fraction of full).
-const REPAIR_AMOUNT = 0.35;
+// Nerfed (was 0.35) to offset the now-uncapped Piercer/TP powers: repairs are
+// rarer (see tokens.ts drop weight) and heal less, so the rope economy stays
+// the limiter even though the signature effects fire the whole run.
+const REPAIR_AMOUNT = 0.18;
 // --- Breakable-wall (Bumper Cage) tuning ---
 // Minimum freed-bob speed to count as a "slam" worth a bumper kick / break.
 const WALL_HIT_MIN_SPEED = 3.5 * WORLD_SCALE;
@@ -723,10 +726,18 @@ export default function GameCanvas() {
     let homingStartedAt = 0;
     // When the rope last snapped (0 = currently strung). Behavior bobs keep
     // their identity through the finale; the re-energizing effects (piercer
-    // dash, teleport blink, rocket thrust) only fire for this long after the
-    // snap so the freed bob still coasts to a natural escape/idle end.
+    // dash, teleport blink, rocket thrust) keep firing after the snap too, but
+    // with no fixed window — each successive proc adds less speed (see the decay
+    // knobs below) so the freed bob naturally winds down to a clean idle-end
+    // instead of ricocheting forever in a walled map.
     let snappedAt = 0;
-    const POST_SNAP_BEHAVIOR_MS = 6000;
+    // Post-snap wind-down. Piercer/TP decay per proc (proc N adds
+    // base * PROC_DECAY^N, with the proc counter reset to 0 at snap); Rocket
+    // decays its thrust + speed cap per second since the snap. Tuned so the
+    // re-energizing falls below STALL_SPEED_THRESHOLD within ~8-10s, after which
+    // the idle timer (RUN_END_IDLE_MS) ends the run on its own.
+    const POST_SNAP_PROC_DECAY = 0.8;
+    const POST_SNAP_THRUST_DECAY_PER_SEC = 0.6;
     // piercer (Arrow): straight-line dash cadence + per-run count.
     let lastDashAt = 0;
     let dashCount = 0;
@@ -1633,10 +1644,13 @@ export default function GameCanvas() {
     function dashPiercer(now: number) {
       if (!behavior) return;
       const interval = behavior.dashIntervalMs ?? 1400;
-      const maxPerRun = behavior.dashMaxPerRun ?? 0;
       if (now - lastDashAt < interval) return;
-      if (maxPerRun > 0 && dashCount >= maxPerRun) return;
-      const dashSpeed = behavior.dashSpeed ?? 78;
+      // No per-run cap — the rope's durability is the limiter while strung. Once
+      // snapped the dash decays per proc (dashCount is reset to 0 at snap) so the
+      // freed bob tapers to an idle-end instead of dashing forever.
+      const dashSpeed =
+        (behavior.dashSpeed ?? 78) *
+        (pendulumHandle.snapped ? Math.pow(POST_SNAP_PROC_DECAY, dashCount) : 1);
       const cap = 72 * WORLD_SCALE;
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
       const sp = Math.hypot(tip.velocity.x, tip.velocity.y);
@@ -1781,14 +1795,18 @@ export default function GameCanvas() {
     function teleportTick(now: number) {
       if (behavior?.kind !== "teleport") return;
       if (now - lastTeleportAt < (behavior.teleportIntervalMs ?? 1100)) return;
-      const maxPerRun = behavior.teleportMaxPerRun ?? 0;
-      if (maxPerRun > 0 && teleportCount >= maxPerRun) return;
+      // No per-run cap — the rope's durability is the limiter while strung.
       lastTeleportAt = now;
-      teleportCount += 1;
       const cage = wallField.bounds;
       const tx = cage.minX + Math.random() * (cage.maxX - cage.minX);
       const ty = cage.minY + Math.random() * (cage.maxY - cage.minY);
-      const speed = behavior.teleportSpeed ?? 42;
+      // Once snapped the rope can't reel the bob back, so the blink-fling decays
+      // per proc (teleportCount is reset to 0 at snap): each freed blink lands it
+      // with less speed until it drops below the stall threshold and idles out.
+      const speed =
+        (behavior.teleportSpeed ?? 42) *
+        (pendulumHandle.snapped ? Math.pow(POST_SNAP_PROC_DECAY, teleportCount) : 1);
+      teleportCount += 1;
       if (pendulumHandle.snapped) {
         // No rope to re-lay — blink the freed bob straight to the spot and fling
         // it off in a random direction so it keeps ricocheting and scoring.
@@ -1838,7 +1856,16 @@ export default function GameCanvas() {
       let thrust = (behavior.rocketAccel ?? 120) * (dt / 1000) * ramp;
       const rampMult = getSpeedRampMultiplier(useGameStore.getState().activeModifiers, now);
       if (rampMult > 1) thrust *= 1 + (rampMult - 1) * (behavior.rampSynergy ?? 3);
-      const cap = behavior.rocketMaxSpeed ?? 138;
+      let cap = behavior.rocketMaxSpeed ?? 138;
+      // Post-snap there's no rope to fray, so the engine winds down on its own:
+      // decay both the thrust and the speed cap per second since the snap.
+      // Decaying the cap (not just the thrust) is what actively brakes the freed
+      // bob — thrust alone would just hold it pinned at full cap speed.
+      if (pendulumHandle.snapped) {
+        const decay = Math.pow(POST_SNAP_THRUST_DECAY_PER_SEC, (now - snappedAt) / 1000);
+        thrust *= decay;
+        cap *= decay;
+      }
       for (const bob of pendulumHandle.bobs) {
         let nx = bob.velocity.x + tx * thrust;
         let ny = bob.velocity.y + ty * thrust;
@@ -2440,10 +2467,11 @@ export default function GameCanvas() {
         if (durability <= 0 && ropeBehavior?.kind !== "belt") {
           durability = 0;
           snappedAt = now;
-          // Refresh burst-style behavior counters for the snap finale. Arrow
-          // and TP may have spent their live-swing quota already; after the
-          // rope breaks, give them a fresh bounded window so their identity
-          // comes back while the bob is free, then still coasts to an end.
+          // Seed the post-snap wind-down. Zeroing lastDashAt/lastTeleportAt lets
+          // the first freed proc fire promptly, and zeroing dashCount/teleportCount
+          // restarts them as the decay index (proc 0 = full strength, then each
+          // subsequent freed proc adds POST_SNAP_PROC_DECAY^N less) so the freed
+          // bob tapers to a natural idle-end.
           lastDashAt = 0;
           dashCount = 0;
           lastTeleportAt = 0;
@@ -2491,12 +2519,11 @@ export default function GameCanvas() {
       // Behavior identity carries through the snap finale: these keep driving
       // the freed bob (or the field around it) after a snap too, not just while
       // strung. The passive churns (frenzy speed-bleed, magnet pull, chaos
-      // stat-churn) run for the whole finale; the re-energizing effects
-      // (piercer dash, teleport blink, rocket thrust) re-add speed, so they only
-      // fire within POST_SNAP_BEHAVIOR_MS of the snap — past that the freed bob
-      // coasts so the normal escape/idle end-of-run logic can still close it.
+      // stat-churn) run for the whole finale; the re-energizing effects (piercer
+      // dash, teleport blink, rocket thrust) also keep firing the whole time,
+      // but post-snap they decay per proc (see dashPiercer / teleportTick /
+      // rocketTick) so the freed bob still winds down to a natural escape/idle end.
       if (store.isRunning && dt > 0) {
-        const reenergize = !snapped || now - snappedAt < POST_SNAP_BEHAVIOR_MS;
         // Frenzy: ramp swing speed with the combo (bidirectional — bleeds back
         // down when the chain breaks). No-op (target 1) for non-frenzy bobs.
         applyFrenzyScale(frenzyMultipliers().speed);
@@ -2532,13 +2559,14 @@ export default function GameCanvas() {
 
         if (ropeBehavior?.kind === "bulwark") bulwarkTick(now);
         blackHoleTick(dt);
-        if (reenergize) {
-          // Piercer: periodic straight-line dash through a row of circles.
-          if (behavior?.kind === "piercer") dashPiercer(now);
-          // TP: random blinks. Rocket: continuous thrust.
-          if (behavior?.kind === "teleport") teleportTick(now);
-          if (behavior?.kind === "rocket") rocketTick(now, dt);
-        }
+        // Re-energizing effects fire every frame they're due, strung or freed —
+        // the rope economy limits them while strung, the per-proc/per-second
+        // decay (applied inside each) winds them down once freed.
+        // Piercer: periodic straight-line dash through a row of circles.
+        if (behavior?.kind === "piercer") dashPiercer(now);
+        // TP: random blinks. Rocket: continuous thrust.
+        if (behavior?.kind === "teleport") teleportTick(now);
+        if (behavior?.kind === "rocket") rocketTick(now, dt);
       }
       if (site.ambient && store.isRunning) {
         applyAmbientForce(engineHandle, pendulumHandle.bobs, site.ambient);

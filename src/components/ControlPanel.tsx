@@ -19,7 +19,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
   const runStalled = useGameStore((s) => s.runStalled);
   const totalRuns = useGameStore((s) => s.totalRuns);
   const startRun = useGameStore((s) => s.startRun);
-  const hardEndAndRestartRun = useGameStore((s) => s.hardEndAndRestartRun);
+  const hardEndRun = useGameStore((s) => s.hardEndRun);
   const [hardEndConfirmOpen, setHardEndConfirmOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
@@ -265,12 +265,12 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings }: Contro
                 type="button"
                 onClick={() => {
                   playUiClick();
-                  hardEndAndRestartRun();
+                  hardEndRun();
                   setHardEndConfirmOpen(false);
                 }}
                 className="w-full rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-white hover:bg-rose-500"
               >
-                {t.controls.endRestart}
+                {t.controls.endRun}
               </button>
               <button
                 type="button"

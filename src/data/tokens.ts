@@ -7,7 +7,7 @@ export const TOKENS: TokenDef[] = [
   { kind: "velocity-surge", name: "Velocity Surge", description: "Slams the bob with extra speed for 5s.", color: "#22d3ee", weight: 18, grantsModifierId: "velocity-surge" },
   { kind: "speed-ramp", name: "Speed Ramp", description: "Speed builds to +40% over 8s.", color: "#2dd4bf", weight: 16, grantsModifierId: "speed-ramp" },
   { kind: "multi-bob", name: "Multi-Bob", description: "Spawns echo bobs that also score for 6s.", color: "#c084fc", weight: 16, grantsModifierId: "multi-bob" },
-  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 32 },
+  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 18 },
   { kind: "golden", name: "Golden Token", description: "Re-launches the Bob and x3 points.", color: "#fde047", weight: 6, grantsModifierId: "token-bonus", isGolden: true },
 ];
 
