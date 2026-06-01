@@ -1187,7 +1187,13 @@ export default function GameCanvas() {
         itemScoreMult(state.itemLevels[attachment.id] ?? 0);
       const comboStacks = state.combo.count + 1;
       const comboBonus = Math.min(20, comboStacks) * 0.05;
-      const total = Math.max(1, Math.round(base * (1 + comboBonus) * achMult * lvlMult));
+      const burst = state.activeRunBurstMult * state.activeWorkshopSynergyMult;
+      const surge =
+        state.arcSurgeUntil > now ? Math.min(2, state.arcSurgeMult / 7) : 1;
+      const total = Math.max(
+        1,
+        Math.round(base * (1 + comboBonus) * achMult * lvlMult * burst * surge)
+      );
 
       state.registerHit(total, now);
       handle.hitFlashUntil = now + 240;

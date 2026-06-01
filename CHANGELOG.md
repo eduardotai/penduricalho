@@ -6,6 +6,16 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Workshop Clicker Layer (Path A) - 2026-06-01
+
+### Added
+- **Workshop panel**: Pump button (always-on clicks), 8 generators (passive CPS), 5 click upgrades.
+- **Run Charge**: clicks fill a bar consumed on Start Run for up to ×3 arena multiplier.
+- **Arc Surge**: random ×7 click frenzy windows (Cookie Clicker-style golden cookie).
+- Combined offline idle: workshop CPS always accrues away; arena EMA adds when auto-run is on.
+- Save migration v21 → v22; 4 new Workshop achievements.
+- Branch: `feature/pendulum-cookie` (merge when ready — `main` unchanged until then).
+
 ## [Unreleased] - Achievements System (Cookie Clicker inspired) - 2026-06-xx
 
 ### Added

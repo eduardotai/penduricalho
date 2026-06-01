@@ -13,6 +13,8 @@ import { AudioManager } from "./audio/AudioManager";
 import { playGameSound } from "./audio/soundMap";
 import { useGameStore } from "./state/store";
 import { startIdleEngine } from "./state/idleEngine";
+import { startClickerEngine } from "./state/clickerEngine";
+import WorkshopPanel from "./components/WorkshopPanel";
 
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -64,6 +66,11 @@ export default function App() {
   // and a wall-clock reconcile grants offline progress on return. See
   // state/idleEngine.ts.
   useEffect(() => startIdleEngine(), []);
+  useEffect(() => startClickerEngine(), []);
+
+  useEffect(() => {
+    useGameStore.getState().recomputeWorkshop();
+  }, []);
 
   // One-time retroactive achievement reconciliation on load (catches any
   // milestones the player already qualified for before the system existed).
@@ -179,18 +186,28 @@ export default function App() {
         <div className="pointer-events-none max-h-[38dvh] max-w-[11rem] min-h-0 overflow-y-auto overscroll-contain sm:max-h-[42dvh] sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:pb-4">
           <HUDStats />
         </div>
-        <div className="pointer-events-none flex justify-center md:block">
-          <div
-            ref={controlsRef}
-            className="pointer-events-auto w-full max-w-md md:max-w-none"
-          >
-            <ControlPanel
-              onOpenCustomize={openCustomize}
-              onOpenSettings={openSettings}
-              onOpenAchievements={openAchievements}
-            />
+        <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 md:gap-3">
+          <div className="pointer-events-auto min-h-0 md:hidden">
+            <WorkshopPanel />
+          </div>
+          <div className="pointer-events-none flex shrink-0 justify-center md:block">
+            <div
+              ref={controlsRef}
+              className="pointer-events-auto w-full max-w-md md:max-w-none"
+            >
+              <ControlPanel
+                onOpenCustomize={openCustomize}
+                onOpenSettings={openSettings}
+                onOpenAchievements={openAchievements}
+              />
+            </div>
           </div>
         </div>
+      </aside>
+      <aside
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] md:flex"
+      >
+        <WorkshopPanel />
       </aside>
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />

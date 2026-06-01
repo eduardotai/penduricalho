@@ -10,6 +10,8 @@ Read only the relevant context file(s) for the area you're working in.
 
 This is a **physics-driven idle clicker** built on real Matter.js simulation, not a scripted animation.
 
+**Workshop layer (Path A, `feature/pendulum-cookie`)**: Always-on Pump clicks + generator CPS earn Momentum between runs. Run Charge (from clicking) multiplies arena earnings when you launch. Arc Surge is the random ×7 click frenzy (Cookie Clicker golden cookie analogue).
+
 ### Quick Task → File Map
 
 | Task you need to do                              | Read these first (in order) |
@@ -20,6 +22,7 @@ This is a **physics-driven idle clicker** built on real Matter.js simulation, no
 | Change scoring, tokens, golden, modifiers        | `game/hit-tokens-modifiers.md` + `game/CONTEXT.md` |
 | Change camera, view math, or rendering           | `game/CONTEXT.md` (view + render section) + `render.ts` |
 | Change what persists or idle/offline earnings    | `state/CONTEXT.md` + store.ts |
+| Workshop clicks, generators, Arc Surge, CPS     | `state/clickerEngine.ts` + `game/clickerEconomy.ts` + `components/WorkshopPanel.tsx` |
 | Change UI layout or add a new panel              | `components/CONTEXT.md` (the thin parts) |
 | Add or change sounds                             | `audio/CONTEXT.md` |
 | Understand the entire 60fps game loop            | `components/CONTEXT.md` + `game/CONTEXT.md` |
@@ -29,6 +32,8 @@ This is a **physics-driven idle clicker** built on real Matter.js simulation, no
 ## Core Mental Model
 
 This is a **physics-driven idle clicker** built on real Matter.js simulation, not a scripted animation.
+
+**Workshop layer (Path A, `feature/pendulum-cookie`)**: Always-on Pump clicks + generator CPS earn Momentum between runs. Run Charge (from clicking) multiplies arena earnings when you launch. Arc Surge is the random ×7 click frenzy (Cookie Clicker golden cookie analogue).
 
 The entire experience revolves around one core loop:
 

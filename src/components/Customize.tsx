@@ -34,6 +34,9 @@ import type {
 
 type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "stats";
 
+/** Gear shop tabs only — workshop items use WorkshopPanel. */
+type GearItemKind = Exclude<ItemKind, "generator" | "clickUpgrade">;
+
 interface CustomizeProps {
   open: boolean;
   onClose: () => void;
@@ -151,7 +154,7 @@ function ItemList({
   buyAmount = 1,
   setBuyAmount,
 }: {
-  kind: ItemKind;
+  kind: GearItemKind;
   buyAmount?: BuyAmount;
   setBuyAmount?: (n: BuyAmount) => void;
 }) {
@@ -300,7 +303,7 @@ function BuyAmountSelector({
 }
 
 interface RowProps {
-  kind: ItemKind;
+  kind: GearItemKind;
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
   previewSkin: BobSkinDef;
   stats: StatsT;
@@ -511,7 +514,7 @@ function ItemStats({
   kind,
   item,
 }: {
-  kind: ItemKind;
+  kind: GearItemKind;
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
 }) {
   const t = useT();

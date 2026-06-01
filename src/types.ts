@@ -7,6 +7,10 @@ export interface Stats {
   totalSwings: number;
   totalHits: number;
   bestCombo: number;
+  /** Lifetime manual workshop pump clicks. */
+  totalClicks: number;
+  /** Sum of all generator building counts ever owned. */
+  totalGenerators: number;
 }
 
 export type StatKey = keyof Stats;
@@ -376,7 +380,42 @@ export interface BobShapeDef {
   unlock?: UnlockGate;
 }
 
-export type ItemKind = "pendulum" | "attachment" | "site" | "skin" | "shape";
+export type ItemKind =
+  | "pendulum"
+  | "attachment"
+  | "site"
+  | "skin"
+  | "shape"
+  | "generator"
+  | "clickUpgrade";
+
+export interface GeneratorDef {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  baseCost: number;
+  baseCps: number;
+  costMult: number;
+  unlock?: UnlockGate;
+}
+
+export type ClickUpgradeEffect =
+  | { kind: "addBaseClick"; amount: number }
+  | { kind: "multClick"; factor: number }
+  | { kind: "multAllWorkshop"; factor: number }
+  | { kind: "cpsPerClickLevel"; percent: number };
+
+export interface ClickUpgradeDef {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  baseCost: number;
+  costMult: number;
+  effect: ClickUpgradeEffect;
+  unlock?: UnlockGate;
+}
 
 export interface Owned {
   pendulums: string[];
@@ -436,13 +475,29 @@ export type AchievementCategory =
   | "runs"
   | "collection"
   | "feats"
+  | "workshop"
   | "secret";
 
 export type AchievementRequirement =
-  | { type: "stat"; stat: "totalMomentum" | "totalHits" | "totalSwings" | "bestCombo"; gte: number }
+  | {
+      type: "stat";
+      stat:
+        | "totalMomentum"
+        | "totalHits"
+        | "totalSwings"
+        | "bestCombo"
+        | "totalClicks"
+        | "totalGenerators";
+      gte: number;
+    }
+  | { type: "workshopCps"; gte: number }
   | { type: "topLevel"; key: "totalRuns" | "bestRunMomentum" | "totalGoldenTokens"; gte: number }
   | { type: "ownedCount"; kind?: ItemKind; min: number }
-  | { type: "counter"; counter: "totalGoldenSpent" | "blackHoleCaptures"; gte: number }
+  | {
+      type: "counter";
+      counter: "totalGoldenSpent" | "blackHoleCaptures" | "totalArcSurges";
+      gte: number;
+    }
   | { type: "custom"; id: "hasLegendary" | "hasAnyBehaviorBob" | "hasAnyBehaviorAttachment" };
 
 export interface AchievementDef {
