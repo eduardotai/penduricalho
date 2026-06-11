@@ -34,6 +34,23 @@ import {
   getAchievementMomentumMult,
 } from "../data/achievements";
 import { bulkLevelUpCost } from "../game/levels";
+import { GENERATORS, GENERATOR_MAP } from "../data/generators";
+import {
+  CLICK_UPGRADES,
+  CLICK_UPGRADE_MAP,
+  CLICK_UPGRADE_EFFECTS,
+} from "../data/clickUpgrades";
+import {
+  CLICKER_TUNING,
+  clickUpgradeCost,
+  clickUpgradeMultFromLevels,
+  computeClickGain,
+  computeRunBurstMult,
+  computeTotalCps,
+  generatorCost,
+  meetsUnlock,
+  workshopSynergyMult,
+} from "../game/clickerEconomy";
 
 interface Owned {
   pendulums: string[];
@@ -54,6 +71,11 @@ interface Equipped {
 interface ComboState {
   count: number;
   lastHitAt: number;
+}
+
+interface ClickComboState {
+  count: number;
+  lastClickAt: number;
 }
 
 export interface GameState {
@@ -154,7 +176,41 @@ export interface GameState {
   // persisted; `seq` bumps each time so the UI can re-trigger the banner.
   lastIdleReport: { momentum: number; ms: number; seq: number } | null;
 
+  // --- Workshop (Path A clicker) ---------------------------------------------
+  generatorCounts: Record<string, number>;
+  clickUpgradeLevels: Record<string, number>;
+  baseClickPower: number;
+  clickCombo: ClickComboState;
+  runCharge: number;
+  cachedTotalCps: number;
+  /** EMA of arena (physics run) earnings per second for offline with auto-run. */
+  arenaIdleRatePerSec: number;
+  /** Active run burst from consumed run charge (transient). */
+  activeRunBurstMult: number;
+  /** Synergy from workshop CPS applied during current run (transient). */
+  activeWorkshopSynergyMult: number;
+  /** Arc Surge end timestamp (0 = inactive). */
+  arcSurgeUntil: number;
+  arcSurgeMult: number;
+  lastArcSurgeSeq: number;
+  totalArcSurges: number;
+  /** Bumped each cookie bob click; GameCanvas applies physics kick. */
+  /** Transient: last workshop pump gain (shown briefly on the Pump button). */
+  lastCookieGain: number;
+
   addMomentum: (n: number) => void;
+  registerClick: (now: number) => number;
+  /** Workshop pump / click (Plan C): dedicated button in WorkshopPanel is the primary active earner.
+   *  Pure workshop action. No canvas coupling, no auto-arming of runs.
+   */
+  cookiePump: () => number;
+  buyGenerator: (id: string) => boolean;
+  buyClickUpgrade: (id: string) => boolean;
+  recomputeWorkshop: () => void;
+  decayClickCombo: (now: number) => void;
+  startArcSurge: (now: number) => void;
+  setArenaIdleRate: (ratePerSec: number) => void;
+  syncIdleRateFromWorkshop: () => void;
   registerHit: (points: number, now: number) => void;
   registerSwing: () => void;
   spend: (n: number) => boolean;
@@ -236,8 +292,6 @@ export interface GameState {
   setAudioMusicEnabled: (enabled: boolean) => void;
   setAudioAmbientEnabled: (enabled: boolean) => void;
   // Idle engine hooks (see state/idleEngine.ts):
-  // Replace the smoothed earn rate (Momentum/sec) used for background accrual.
-  setIdleRate: (ratePerSec: number) => void;
   // Anchor the offline clock to `now` without crediting anything.
   touchActive: (now: number) => void;
   // Credit `amount` Momentum earned while idle and re-anchor the clock. When
@@ -375,7 +429,25 @@ const initialStats: Stats = {
   totalSwings: 0,
   totalHits: 0,
   bestCombo: 0,
+  totalClicks: 0,
+  totalGenerators: 0,
 };
+
+function workshopSnapshot(s: GameState) {
+  const { clickMult, workshopMult, extraBaseClick } = clickUpgradeMultFromLevels(
+    s.clickUpgradeLevels,
+    CLICK_UPGRADE_EFFECTS
+  );
+  const cachedTotalCps = computeTotalCps(s.generatorCounts, GENERATORS, workshopMult);
+  return { clickMult, workshopMult, extraBaseClick, cachedTotalCps };
+}
+
+// The single offline/idle rate the HUD and away-earnings read: workshop CPS
+// plus the arena's smoothed earn rate. Every writer of idleRatePerSec goes
+// through here so the two contributions can never drift apart.
+function combinedIdleRate(cachedTotalCps: number, arenaRatePerSec: number): number {
+  return Math.max(0, cachedTotalCps + arenaRatePerSec);
+}
 
 function normalizeCosmeticState(state: Record<string, unknown>): Record<string, unknown> {
   const owned = (state.owned as Owned | undefined) ?? initialOwned;
@@ -477,6 +549,21 @@ export const useGameStore = create<GameState>()(
       lastActiveAt: 0,
       lastIdleReport: null,
 
+      generatorCounts: {},
+      clickUpgradeLevels: {},
+      baseClickPower: CLICKER_TUNING.baseClickPowerDefault,
+      clickCombo: { count: 0, lastClickAt: 0 },
+      runCharge: 0,
+      cachedTotalCps: 0,
+      arenaIdleRatePerSec: 0,
+      activeRunBurstMult: 1,
+      activeWorkshopSynergyMult: 1,
+      arcSurgeUntil: 0,
+      arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
+      lastArcSurgeSeq: 0,
+      totalArcSurges: 0,
+      lastCookieGain: 0,
+
       // Achievements (new in v20)
       unlockedAchievements: {},
       totalGoldenSpent: 0,
@@ -490,6 +577,155 @@ export const useGameStore = create<GameState>()(
           runMomentum: s.isRunning ? s.runMomentum + n : s.runMomentum,
           stats: { ...s.stats, totalMomentum: s.stats.totalMomentum + n },
         })),
+
+      recomputeWorkshop: () =>
+        set((s) => {
+          const { cachedTotalCps } = workshopSnapshot(s);
+          return {
+            cachedTotalCps,
+            idleRatePerSec: combinedIdleRate(cachedTotalCps, s.arenaIdleRatePerSec),
+          };
+        }),
+
+      syncIdleRateFromWorkshop: () =>
+        set((s) => {
+          const idleRatePerSec = combinedIdleRate(s.cachedTotalCps, s.arenaIdleRatePerSec);
+          // Called every clicker tick (100ms): returning the state unchanged
+          // skips the store notify entirely when nothing moved.
+          if (idleRatePerSec === s.idleRatePerSec) return s;
+          return { idleRatePerSec };
+        }),
+
+      setArenaIdleRate: (ratePerSec) =>
+        set((s) => ({
+          arenaIdleRatePerSec: Math.max(0, ratePerSec),
+          idleRatePerSec: combinedIdleRate(s.cachedTotalCps, ratePerSec),
+        })),
+
+      decayClickCombo: (now) =>
+        set((s) => {
+          if (s.clickCombo.count <= 0) return s;
+          if (now - s.clickCombo.lastClickAt < CLICKER_TUNING.clickComboDecayMs) return s;
+          return { clickCombo: { count: 0, lastClickAt: s.clickCombo.lastClickAt } };
+        }),
+
+      startArcSurge: (now) => {
+        set((s) => ({
+          arcSurgeUntil: now + CLICKER_TUNING.arcSurgeDurationMs,
+          arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
+          lastArcSurgeSeq: s.lastArcSurgeSeq + 1,
+          totalArcSurges: s.totalArcSurges + 1,
+        }));
+        get().checkAchievements();
+      },
+
+      // Pure workshop pump action (Plan C). The dedicated Pump button in WorkshopPanel
+      // is now the only high-frequency earner. This no longer auto-arms or starts arena runs.
+      cookiePump: () => {
+        const now = Date.now();
+        const gain = get().registerClick(now);
+        set((s) =>
+          s.runStalled
+            ? { lastCookieGain: gain, runStalled: false }
+            : { lastCookieGain: gain }
+        );
+        return gain;
+      },
+
+      registerClick: (now) => {
+        const s = get();
+        const { clickMult, extraBaseClick } = workshopSnapshot(s);
+        const still = now - s.clickCombo.lastClickAt < CLICKER_TUNING.clickComboDecayMs;
+        const stacks = Math.min(
+          CLICKER_TUNING.clickComboMax,
+          still ? s.clickCombo.count + 1 : 1
+        );
+        const gain = computeClickGain({
+          baseClickPower: s.baseClickPower,
+          clickUpgradeExtraBase: extraBaseClick,
+          clickMult,
+          clickComboStacks: stacks,
+          achievementCount: Object.keys(s.unlockedAchievements).length,
+          isRunning: s.isRunning,
+          arcSurgeActive: s.arcSurgeUntil > now,
+          arcSurgeMult: s.arcSurgeMult,
+        });
+        const charge = Math.min(
+          CLICKER_TUNING.runChargeMax,
+          s.runCharge + CLICKER_TUNING.runChargePerClick
+        );
+        set({
+          momentum: s.momentum + gain,
+          runMomentum: s.isRunning ? s.runMomentum + gain : s.runMomentum,
+          stats: {
+            ...s.stats,
+            totalMomentum: s.stats.totalMomentum + gain,
+            totalClicks: s.stats.totalClicks + 1,
+          },
+          clickCombo: { count: stacks, lastClickAt: now },
+          runCharge: charge,
+        });
+        get().checkAchievements();
+        return gain;
+      },
+
+      buyGenerator: (id) => {
+        const def = GENERATOR_MAP.get(id);
+        if (!def) return false;
+        const s = get();
+        if (!meetsUnlock(def.unlock, s.stats)) return false;
+        const owned = s.generatorCounts[id] ?? 0;
+        const cost = generatorCost(def.baseCost, def.costMult, owned);
+        if (s.momentum < cost) return false;
+        set((prev) => {
+          const generatorCounts = {
+            ...prev.generatorCounts,
+            [id]: (prev.generatorCounts[id] ?? 0) + 1,
+          };
+          const { cachedTotalCps } = workshopSnapshot({
+            ...prev,
+            momentum: prev.momentum - cost,
+            generatorCounts,
+          });
+          return {
+            momentum: prev.momentum - cost,
+            generatorCounts,
+            cachedTotalCps,
+            idleRatePerSec: combinedIdleRate(cachedTotalCps, prev.arenaIdleRatePerSec),
+            stats: {
+              ...prev.stats,
+              totalGenerators: prev.stats.totalGenerators + 1,
+            },
+          };
+        });
+        get().checkAchievements();
+        return true;
+      },
+
+      buyClickUpgrade: (id) => {
+        const def = CLICK_UPGRADE_MAP.get(id);
+        if (!def) return false;
+        const s = get();
+        if (!meetsUnlock(def.unlock, s.stats)) return false;
+        const level = s.clickUpgradeLevels[id] ?? 0;
+        const cost = clickUpgradeCost(def.baseCost, def.costMult, level);
+        if (s.momentum < cost) return false;
+        set((prev) => {
+          const clickUpgradeLevels = {
+            ...prev.clickUpgradeLevels,
+            [id]: level + 1,
+          };
+          const snap = workshopSnapshot({ ...prev, clickUpgradeLevels });
+          return {
+            momentum: prev.momentum - cost,
+            clickUpgradeLevels,
+            cachedTotalCps: snap.cachedTotalCps,
+            idleRatePerSec: combinedIdleRate(snap.cachedTotalCps, prev.arenaIdleRatePerSec),
+          };
+        });
+        get().checkAchievements();
+        return true;
+      },
 
       registerHit: (points, now) =>
         set((s) => {
@@ -737,6 +973,8 @@ export const useGameStore = create<GameState>()(
             isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_DROP_CHANCE;
           const guaranteedFirstBuff =
             isRunAgainLaunch && Math.random() < RUN_AGAIN_GUARANTEED_BUFF_CHANCE;
+          const burst = computeRunBurstMult(s.runCharge);
+          const synergy = workshopSynergyMult(s.cachedTotalCps);
           return {
             isRunning: true,
             runStartId: s.runStartId + 1,
@@ -749,6 +987,9 @@ export const useGameStore = create<GameState>()(
               : s.bestRunMomentum,
             guaranteedFirstDrop,
             guaranteedFirstBuff,
+            activeRunBurstMult: burst,
+            activeWorkshopSynergyMult: synergy,
+            runCharge: 0,
           };
         }),
 
@@ -776,6 +1017,8 @@ export const useGameStore = create<GameState>()(
             bestRunMomentum: closingPrevious
               ? Math.max(s.bestRunMomentum, s.runMomentum)
               : s.bestRunMomentum,
+            activeRunBurstMult: 1,
+            activeWorkshopSynergyMult: 1,
           };
         }),
 
@@ -791,6 +1034,8 @@ export const useGameStore = create<GameState>()(
           guaranteedFirstDrop: false,
           // Likewise drop any unused buff guarantee — re-rolled each Run Again.
           guaranteedFirstBuff: false,
+          activeRunBurstMult: 1,
+          activeWorkshopSynergyMult: 1,
         })),
       // Run-count and best-run-momentum achievements are checked right after
       // the numbers are committed (endRun is the cleanest single point).
@@ -923,6 +1168,8 @@ export const useGameStore = create<GameState>()(
             totalRuns: s.totalRuns,
             bestRunMomentum: s.bestRunMomentum,
             totalGoldenTokens: s.totalGoldenTokens,
+            cachedTotalCps: s.cachedTotalCps,
+            totalArcSurges: s.totalArcSurges,
             unlocked: s.unlockedAchievements,
           };
           const progressMap = getAllAchievementProgress(snapshot);
@@ -988,9 +1235,6 @@ export const useGameStore = create<GameState>()(
       setAudioAmbientEnabled: (enabled) =>
         set((s) => ({ audio: { ...s.audio, ambientEnabled: enabled } })),
 
-      setIdleRate: (ratePerSec) =>
-        set({ idleRatePerSec: Math.max(0, ratePerSec) }),
-
       touchActive: (now) => set({ lastActiveAt: now }),
 
       applyIdleEarnings: (amount, reportMs) =>
@@ -1051,13 +1295,31 @@ export const useGameStore = create<GameState>()(
           blackHoleCaptures: 0,
           lastAchievementUnlock: null,
           itemLevels: {},
+          generatorCounts: {},
+          clickUpgradeLevels: {},
+          baseClickPower: CLICKER_TUNING.baseClickPowerDefault,
+          clickCombo: { count: 0, lastClickAt: 0 },
+          runCharge: 0,
+          cachedTotalCps: 0,
+          arenaIdleRatePerSec: 0,
+          activeRunBurstMult: 1,
+          activeWorkshopSynergyMult: 1,
+          arcSurgeUntil: 0,
+          arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
+          lastArcSurgeSeq: 0,
+          totalArcSurges: 0,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 21,
+      version: 23,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
+
+        // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
+        if (version < 23) {
+          delete (state as any).pendingCookiePump;
+        }
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
         const mergedAudio = {
           ...DEFAULT_AUDIO_SETTINGS,
@@ -1188,6 +1450,34 @@ export const useGameStore = create<GameState>()(
           // via the merge with current state, so this is a pass-through.
           return normalizeCosmeticState({ ...state, audio: mergedAudio });
         }
+        if (version < 22) {
+          const stats = (state.stats as Stats | undefined) ?? initialStats;
+          return normalizeCosmeticState({
+            ...state,
+            audio: mergedAudio,
+            stats: {
+              ...initialStats,
+              ...stats,
+              totalClicks: (stats as Stats).totalClicks ?? 0,
+              totalGenerators: (stats as Stats).totalGenerators ?? 0,
+            },
+            generatorCounts:
+              (state.generatorCounts as Record<string, number> | undefined) ?? {},
+            clickUpgradeLevels:
+              (state.clickUpgradeLevels as Record<string, number> | undefined) ?? {},
+            baseClickPower:
+              typeof state.baseClickPower === "number"
+                ? state.baseClickPower
+                : CLICKER_TUNING.baseClickPowerDefault,
+            runCharge: typeof state.runCharge === "number" ? state.runCharge : 0,
+            cachedTotalCps:
+              typeof state.cachedTotalCps === "number" ? state.cachedTotalCps : 0,
+            arenaIdleRatePerSec:
+              typeof state.arenaIdleRatePerSec === "number" ? state.arenaIdleRatePerSec : 0,
+            totalArcSurges:
+              typeof state.totalArcSurges === "number" ? state.totalArcSurges : 0,
+          });
+        }
         return normalizeCosmeticState({ ...state, audio: mergedAudio });
       },
       merge: (persistedState, currentState) => {
@@ -1229,8 +1519,15 @@ export const useGameStore = create<GameState>()(
         unlockedAchievements: state.unlockedAchievements,
         totalGoldenSpent: state.totalGoldenSpent,
         blackHoleCaptures: state.blackHoleCaptures,
+        totalArcSurges: state.totalArcSurges,
         // Per-item levels persist with the rest of the save.
         itemLevels: state.itemLevels,
+        generatorCounts: state.generatorCounts,
+        clickUpgradeLevels: state.clickUpgradeLevels,
+        baseClickPower: state.baseClickPower,
+        runCharge: state.runCharge,
+        cachedTotalCps: state.cachedTotalCps,
+        arenaIdleRatePerSec: state.arenaIdleRatePerSec,
       }),
     }
   )

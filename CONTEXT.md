@@ -10,6 +10,8 @@ Read only the relevant context file(s) for the area you're working in.
 
 This is a **physics-driven idle clicker** built on real Matter.js simulation, not a scripted animation.
 
+**Workshop layer (Plan C separation on `feature/pendulum-cookie`)**: Dedicated Pump button in the Workshop panel + generator CPS earn Momentum. Run Charge and workshop synergy multiply arena run earnings. The arena is a launchable physics spectacle, not the primary click target. Arc Surge is the random ×7 click frenzy.
+
 ### Quick Task → File Map
 
 | Task you need to do                              | Read these first (in order) |
@@ -20,6 +22,7 @@ This is a **physics-driven idle clicker** built on real Matter.js simulation, no
 | Change scoring, tokens, golden, modifiers        | `game/hit-tokens-modifiers.md` + `game/CONTEXT.md` |
 | Change camera, view math, or rendering           | `game/CONTEXT.md` (view + render section) + `render.ts` |
 | Change what persists or idle/offline earnings    | `state/CONTEXT.md` + store.ts |
+| Workshop clicks, generators, Arc Surge, CPS     | `state/clickerEngine.ts` + `game/clickerEconomy.ts` + `components/WorkshopPanel.tsx` |
 | Change UI layout or add a new panel              | `components/CONTEXT.md` (the thin parts) |
 | Add or change sounds                             | `audio/CONTEXT.md` |
 | Understand the entire 60fps game loop            | `components/CONTEXT.md` + `game/CONTEXT.md` |
@@ -29,6 +32,8 @@ This is a **physics-driven idle clicker** built on real Matter.js simulation, no
 ## Core Mental Model
 
 This is a **physics-driven idle clicker** built on real Matter.js simulation, not a scripted animation.
+
+**Workshop layer (Plan C separation on `feature/pendulum-cookie`)**: Dedicated Pump button in the Workshop panel + generator CPS earn Momentum. Run Charge and workshop synergy multiply arena run earnings. The arena is a launchable physics spectacle, not the primary click target. Arc Surge is the random ×7 click frenzy.
 
 The entire experience revolves around one core loop:
 

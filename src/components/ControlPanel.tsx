@@ -4,6 +4,7 @@ import { useEquippedAttachment, useEquippedPendulum, useEquippedSite } from "../
 import { playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { useT, useLang, locName } from "../i18n";
+import { WORKSHOP_CLICKER_ENABLED } from "../config/features";
 
 const AUTO_RUN_DELAY_MS = 1500;
 
@@ -168,6 +169,12 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             {isRunning && !runStalled ? t.controls.running : buttonLabel}
           </span>
         </button>
+
+        {WORKSHOP_CLICKER_ENABLED && isRunning && !runStalled && (
+          <p className="text-center text-[10px] leading-snug text-brand-300/90">
+            Workshop power multiplies arena payouts. Watch the spectacle.
+          </p>
+        )}
 
         {autoRun && canLaunch && countdown > 0 && (
           <div className="text-center text-xs text-slate-400">

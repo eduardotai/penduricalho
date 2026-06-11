@@ -20,7 +20,23 @@ export const en = {
       `${description} Stacks for ${seconds}s (max ${maxSeconds}s).`,
     combo: "Combo",
     hintBefore: "Tap ",
-    hintAfter: " to launch the Bob. Hit the glowing orbs to earn momentum.",
+    hintAfter: " to launch a swing into the arena.",
+  },
+  workshop: {
+    title: "Workshop",
+    subtitle: "Pump for active income. Generators run passively. Launch swings to multiply earnings.",
+    pumpLabel: "Pump",
+    clickStreak: "Click streak",
+    runCharge: "Run charge",
+    tabBuild: "Build",
+    tabUpgrades: "Upgrades",
+    buy: "Buy",
+    locked: "Locked",
+    level: "Lv",
+    cpsLabel: "Passive",
+    cpsShort: "Passive",
+    arcSurgeActive: (sec: number) => `Arc Surge! ×7 clicks · ${sec}s`,
+    arcSurgeHud: "Arc Surge — frantic clicks!",
   },
   controls: {
     runAgain: "Run Again",
@@ -115,15 +131,15 @@ export const en = {
   },
   tutorial: {
     title: "How to Play",
-    subtitle: "Set up a rig, launch the swing, ride the snap.",
+    subtitle: "Pump the workshop, launch arena swings, ride the snap.",
     steps: [
       {
         title: "Build your rig",
         body: "Open the Shop and pick a Bob (the swinging weight), a Rope, and a Site (the arena it swings in).",
       },
       {
-        title: "Launch the swing",
-        body: "Tap Start Run. The Bob gets one push and swings on its own — no clicking grind, the physics does the work.",
+        title: "Launch a swing",
+        body: "Pump the workshop to build power and Run Charge. Then tap Start Run to launch the rig into the arena and watch the physics spectacle. Your workshop multipliers boost the earnings.",
       },
       {
         title: "Hit the glowing orbs",
@@ -282,6 +298,8 @@ export const en = {
     totalSwings: "Swings",
     totalHits: "Hits",
     bestCombo: "Best Combo",
+    totalClicks: "Total Clicks",
+    totalGenerators: "Generators Built",
   } as Record<StatKey, string>,
 
   // --- Achievements (Cookie Clicker inspired) --------------------------------
@@ -301,6 +319,7 @@ export const en = {
       runs: "Runs",
       collection: "Collection",
       feats: "Feats",
+      workshop: "Workshop",
       secret: "Secret",
     },
 
@@ -343,6 +362,12 @@ export const en = {
     "first-snap": { name: "First Snap", description: "Complete a run that ends with a snap finale." },
     "arc-reactor": { name: "Arc Reactor", description: "Own a rope with a special behavior." },
 
+    // Workshop
+    "first-pump": { name: "First Pump", description: "Click the Workshop 100 times." },
+    "factory-floor": { name: "Factory Floor", description: "Buy 25 generators total." },
+    "passive-tycoon": { name: "Passive Tycoon", description: "Reach 100 passive Momentum per second." },
+    "surge-rider": { name: "Surge Rider", description: "Trigger 5 Arc Surges." },
+
     // Secret
     "zen-master": { name: "Zen Master", description: "Reach a combo of 150. (Secret)", hint: "True mastery of the swing." },
     "momentum-singularity": { name: "Momentum Singularity", description: "Reach 25,000,000 total Momentum. (Secret)" },
@@ -369,7 +394,23 @@ export const pt: UIStrings = {
       `${description} Acumula por ${seconds}s (máx. ${maxSeconds}s).`,
     combo: "Combo",
     hintBefore: "Toque em ",
-    hintAfter: " para jogar o Bob. Acerte as bolinhas brilhantes para ganhar momentum.",
+    hintAfter: " para lançar um balanço na arena.",
+  },
+  workshop: {
+    title: "Oficina",
+    subtitle: "Bombeie para renda ativa. Geradores rodam passivamente. Lance balanços para multiplicar ganhos.",
+    pumpLabel: "Bombear",
+    clickStreak: "Sequência",
+    runCharge: "Carga da rodada",
+    tabBuild: "Máquinas",
+    tabUpgrades: "Upgrades",
+    buy: "Comprar",
+    locked: "Bloqueado",
+    level: "Nv",
+    cpsLabel: "Passivo",
+    cpsShort: "Passivo",
+    arcSurgeActive: (sec: number) => `Surto de Arco! ×7 cliques · ${sec}s`,
+    arcSurgeHud: "Surto de Arco — clique frenético!",
   },
   controls: {
     runAgain: "Rodar de novo",
@@ -464,15 +505,19 @@ export const pt: UIStrings = {
   },
   tutorial: {
     title: "Como Jogar",
-    subtitle: "Monte o equipamento, lance a balançada e curta o rompimento.",
+    subtitle: "Bombeie a oficina, lance balanços na arena, curta o rompimento.",
     steps: [
       {
         title: "Monte seu equipamento",
         body: "Abra a Loja e escolha um Bob (o peso que balança), uma Linha e um Cenário (a arena onde ele balança).",
       },
       {
-        title: "Lance a balançada",
-        body: "Toque em Iniciar. O Bob recebe um empurrão e balança sozinho — sem ficar clicando, a física faz o trabalho.",
+        title: "Prepare a arena",
+        body: "Toque em Iniciar para preparar o campo — o bob só se move quando você clicar nele.",
+      },
+      {
+        title: "Lance um balanço",
+        body: "Bombeie a oficina para acumular poder e Carga de Rodada. Depois toque Iniciar para lançar o aparelho na arena e assistir ao espetáculo de física. Os multiplicadores da sua oficina aumentam os ganhos.",
       },
       {
         title: "Acerte as bolinhas brilhantes",
@@ -631,6 +676,8 @@ export const pt: UIStrings = {
     totalSwings: "Balançadas",
     totalHits: "Acertos",
     bestCombo: "Melhor Combo",
+    totalClicks: "Cliques totais",
+    totalGenerators: "Máquinas compradas",
   },
 
   // --- Achievements (Cookie Clicker inspired) --------------------------------
@@ -650,6 +697,7 @@ export const pt: UIStrings = {
       runs: "Rodadas",
       collection: "Coleção",
       feats: "Façanhas",
+      workshop: "Oficina",
       secret: "Secretas",
     },
 
@@ -691,6 +739,11 @@ export const pt: UIStrings = {
     "black-hole-diver": { name: "Mergulhador de Buraco Negro", description: "Alimente um bob na singularidade." },
     "first-snap": { name: "Primeiro Estalo", description: "Complete uma rodada que termina com um finale de estalo." },
     "arc-reactor": { name: "Reator de Arco", description: "Possua uma corda com comportamento especial." },
+
+    "first-pump": { name: "Primeiro Bombear", description: "Clique na Oficina 100 vezes." },
+    "factory-floor": { name: "Chão de Fábrica", description: "Compre 25 máquinas no total." },
+    "passive-tycoon": { name: "Magnata Passivo", description: "Alcance 100 de momentum passivo por segundo." },
+    "surge-rider": { name: "Surfista do Surto", description: "Ative 5 Surtos de Arco." },
 
     // Secret
     "zen-master": { name: "Mestre Zen", description: "Alcance um combo de 150. (Secreta)", hint: "Verdadeira maestria do balanço." },

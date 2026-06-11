@@ -111,14 +111,16 @@ export function startIdleEngine(): () => void {
     const prev = s.idleRatePerSec;
     const next =
       prev <= 0 ? inst : prev * (1 - RATE_EMA_ALPHA) + inst * RATE_EMA_ALPHA;
-    s.setIdleRate(next);
+    s.setArenaIdleRate(next);
     sampleAt = t;
     sampleTotal = total;
   }
 
   function eligible(): boolean {
     const s = store.getState();
-    return s.idleRatePerSec > 0 && (s.isRunning || s.autoRun);
+    const workshop = s.cachedTotalCps > 0;
+    const arena = s.arenaIdleRatePerSec > 0 && (s.isRunning || s.autoRun);
+    return workshop || arena;
   }
 
   // Credit `ms` of away time at the current rate. `reportMs` (>0) raises the
@@ -127,7 +129,12 @@ export function startIdleEngine(): () => void {
     if (ms <= 0) return;
     const s = store.getState();
     if (!eligible()) return;
-    earnAcc += s.idleRatePerSec * (ms / 1000);
+    const workshop = s.cachedTotalCps * (ms / 1000);
+    const arena =
+      s.arenaIdleRatePerSec > 0 && (s.isRunning || s.autoRun)
+        ? s.arenaIdleRatePerSec * (ms / 1000)
+        : 0;
+    earnAcc += workshop + arena;
     const gain = Math.floor(earnAcc);
     earnAcc -= gain;
     s.applyIdleEarnings(gain, reportMs >= MIN_REPORT_MS ? reportMs : 0);

@@ -14,6 +14,7 @@ import {
   formatStretchBudget,
   getMaterialProfile,
 } from "../game/attachmentPhysics";
+import { meetsUnlock } from "../game/clickerEconomy";
 import {
   bulkLevelUpCost,
   itemScoreMult,
@@ -33,6 +34,9 @@ import type {
 } from "../types";
 
 type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "stats";
+
+/** Gear shop tabs only — workshop items use WorkshopPanel. */
+type GearItemKind = Exclude<ItemKind, "generator" | "clickUpgrade">;
 
 interface CustomizeProps {
   open: boolean;
@@ -151,7 +155,7 @@ function ItemList({
   buyAmount = 1,
   setBuyAmount,
 }: {
-  kind: ItemKind;
+  kind: GearItemKind;
   buyAmount?: BuyAmount;
   setBuyAmount?: (n: BuyAmount) => void;
 }) {
@@ -300,7 +304,7 @@ function BuyAmountSelector({
 }
 
 interface RowProps {
-  kind: ItemKind;
+  kind: GearItemKind;
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
   previewSkin: BobSkinDef;
   stats: StatsT;
@@ -327,7 +331,7 @@ function Row({
   const t = useT();
   const lang = useLang();
   const itemLevels = useGameStore((s) => s.itemLevels);
-  const locked = item.unlock ? !meetsUnlock(stats, item.unlock) : false;
+  const locked = !meetsUnlock(item.unlock, stats);
   const canAfford = momentum >= item.cost;
   const name = locName(lang, kind, item.id, item.name);
   const description = locDesc(lang, kind, item.id, item.description);
@@ -511,7 +515,7 @@ function ItemStats({
   kind,
   item,
 }: {
-  kind: ItemKind;
+  kind: GearItemKind;
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
 }) {
   const t = useT();
@@ -678,10 +682,6 @@ function StatCard({
       </div>
     </div>
   );
-}
-
-function meetsUnlock(stats: StatsT, gate: UnlockGate): boolean {
-  return stats[gate.stat] >= gate.gte;
 }
 
 function unlockText(t: UIStrings, lang: Lang, gate: UnlockGate): string {

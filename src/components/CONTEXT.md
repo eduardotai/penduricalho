@@ -57,10 +57,11 @@ Rough per-frame order (very important to preserve):
 15. Write back to store (runMomentum, combo, activeModifiers, etc.)
 16. Check stall / end-run conditions
 
-### Input Model
+### Input Model (Post Plan C)
 
-- **Drag to swing**: While not running or early in run, you can grab the bob/rope area and fling it. Uses pointer capture + a `dragRef`.
-- **Click to launch**: If not dragging, a click in the grab zone starts a run with an automatic tangential impulse.
+- **Drag to swing**: Grab the bob/rope to manually influence the swing (fun flavor during spectator runs).
+- **Launch**: "Start Run" from the control panel actually launches the rig with impulse. The arena is a spectator physics spectacle.
+- Workshop pumping happens exclusively via the dedicated Pump button in `WorkshopPanel` (not on the canvas bob).
 - Golden token spend is detected via `goldenTokenConsumeEpoch` changing.
 
 There is also a "suppress launch impulse" path for pure manual drags.

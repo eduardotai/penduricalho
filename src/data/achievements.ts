@@ -19,6 +19,7 @@ export const ACHIEVEMENT_CATEGORIES: readonly AchievementCategory[] = [
   "runs",
   "collection",
   "feats",
+  "workshop",
   "secret",
 ] as const;
 
@@ -198,6 +199,32 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     requirement: { type: "custom", id: "hasAnyBehaviorAttachment" },
   },
 
+  // === WORKSHOP (4) ===
+  {
+    id: "first-pump",
+    category: "workshop",
+    icon: "👆",
+    requirement: { type: "stat", stat: "totalClicks", gte: 100 },
+  },
+  {
+    id: "factory-floor",
+    category: "workshop",
+    icon: "🏭",
+    requirement: { type: "stat", stat: "totalGenerators", gte: 25 },
+  },
+  {
+    id: "passive-tycoon",
+    category: "workshop",
+    icon: "📊",
+    requirement: { type: "workshopCps", gte: 100 },
+  },
+  {
+    id: "surge-rider",
+    category: "workshop",
+    icon: "⚡",
+    requirement: { type: "counter", counter: "totalArcSurges", gte: 5 },
+  },
+
   // === SECRET (2) ===
   {
     id: "zen-master",
@@ -285,10 +312,24 @@ export function evaluateAchievement(
       target = req.min;
       break;
     }
+    case "workshopCps": {
+      const val = (snapshot as { cachedTotalCps?: number }).cachedTotalCps ?? 0;
+      progress = Math.max(0, Math.min(val, req.gte));
+      target = req.gte;
+      break;
+    }
     case "counter": {
-      const val = req.counter === "totalGoldenSpent"
-        ? snapshot.totalGoldenSpent
-        : snapshot.blackHoleCaptures;
+      const anySnap = snapshot as {
+        totalGoldenSpent: number;
+        blackHoleCaptures: number;
+        totalArcSurges?: number;
+      };
+      const val =
+        req.counter === "totalGoldenSpent"
+          ? anySnap.totalGoldenSpent
+          : req.counter === "totalArcSurges"
+            ? anySnap.totalArcSurges ?? 0
+            : anySnap.blackHoleCaptures;
       progress = Math.max(0, Math.min(val, req.gte));
       target = req.gte;
       break;
@@ -337,6 +378,8 @@ export function getAllAchievementProgress(snapshot: {
   totalRuns: number;
   bestRunMomentum: number;
   totalGoldenTokens: number;
+  cachedTotalCps?: number;
+  totalArcSurges?: number;
   unlocked: Record<string, number>;
 }): Record<string, AchievementProgress> {
   const out: Record<string, AchievementProgress> = {};
@@ -350,6 +393,8 @@ export function getAllAchievementProgress(snapshot: {
       totalRuns: snapshot.totalRuns,
       bestRunMomentum: snapshot.bestRunMomentum,
       totalGoldenTokens: snapshot.totalGoldenTokens,
+      cachedTotalCps: snapshot.cachedTotalCps,
+      totalArcSurges: snapshot.totalArcSurges,
       unlocked: snapshot.unlocked,
     });
   }

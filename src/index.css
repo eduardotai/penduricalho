@@ -116,3 +116,14 @@ select {
   animation: buff-exit 480ms cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
 }
+
+@keyframes float-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2.5rem);
+  }
+}

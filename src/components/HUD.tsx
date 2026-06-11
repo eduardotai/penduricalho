@@ -8,6 +8,7 @@ import {
 } from "../game/modifiers";
 import { FormattedNumber, FormattedNumberInline } from "./FormattedNumber";
 import { useT, useLang, locName, locDesc } from "../i18n";
+import { WORKSHOP_CLICKER_ENABLED } from "../config/features";
 
 export function HUDStats() {
   const t = useT();
@@ -20,6 +21,10 @@ export function HUDStats() {
   const totalGoldenTokens = useGameStore((s) => s.totalGoldenTokens);
   const goldenTokenBonusMs = useGameStore((s) => s.goldenTokenBonusMs);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
+  const cachedTotalCps = useGameStore((s) => s.cachedTotalCps);
+  const clickCombo = useGameStore((s) => s.clickCombo);
+  const arcSurgeUntil = useGameStore((s) => s.arcSurgeUntil);
+  const surgeActive = arcSurgeUntil > Date.now();
 
   const showRunCard = isRunning || runMomentum > 0;
   const goldenActive = activeModifiers.find((m) => m.defId === "token-bonus");
@@ -36,7 +41,26 @@ export function HUDStats() {
           value={momentum}
           className="font-display text-xl font-bold text-brand-300 sm:text-3xl"
         />
+        {WORKSHOP_CLICKER_ENABLED && cachedTotalCps > 0 && (
+          <div className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+            {t.workshop.cpsShort}{" "}
+            <FormattedNumberInline value={Math.floor(cachedTotalCps * 10) / 10} />
+            /s
+          </div>
+        )}
       </div>
+
+      {WORKSHOP_CLICKER_ENABLED && surgeActive && (
+        <div className="rounded-xl border border-amber-400/50 bg-amber-500/20 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-100">
+          {t.workshop.arcSurgeHud}
+        </div>
+      )}
+
+      {WORKSHOP_CLICKER_ENABLED && clickCombo.count > 2 && !isRunning && (
+        <div className="rounded-xl border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-[9px] text-brand-200">
+          {t.workshop.clickStreak} {clickCombo.count}
+        </div>
+      )}
 
       {showRunCard && (
         <div

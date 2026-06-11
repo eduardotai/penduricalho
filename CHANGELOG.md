@@ -6,6 +6,40 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Workshop / Arena Separation (Plan C) - 2026-06-xx
+
+### Changed
+- **Clean separation of clicker from arena** (executed Plan C from design session). The Workshop now has a dedicated, prominent **Pump** button as the primary high-frequency active earner (Momentum + Run Charge + click combos + Arc Surge). The physics arena is a deliberate launchable spectacle: "Start Run" actually launches the swing; zone earnings during runs are amplified by workshop CPS synergy and Run Charge, but canvas clicks no longer award workshop Momentum or drive the main grind.
+- Removed all "bob is the cookie" hybrid machinery: `bobInteractRef`, `hitTestCookieBob`, `applyCookieKick`, cookiePumpEpoch watchers, pending cookie arming logic, and the special "arm then click bob to start" flow.
+- Deleted `cookieKick.ts`. Auto-pump behavior in `clickerEngine` (tied to arena runs) removed.
+- **WorkshopPanel**: Big Pump button + live streak / Run Charge feedback at the top. The panel is now the clear home of active + passive workshop progression.
+- Updated all tutorial, hint, control, and achievement-adjacent strings (EN + PT) to describe the separated model ("Pump the workshop, launch arena swings").
+- Deleted `ArenaClickHint` component.
+- `cookiePump` / `registerClick` are now pure workshop actions (no longer auto-start runs).
+- **Workshop hidden behind a feature flag**: the entire workshop clicker layer (right-side panel, mobile panel, passive CPS engine, Arc Surge procs, HUD CPS/surge/streak readouts, "Workshop power" control hint) is disabled via `WORKSHOP_CLICKER_ENABLED` in `src/config/features.ts`. All code and persisted save data remain intact — flip the flag to `true` to restore everything.
+
+### Fixed
+- **Bobs no longer tunnel through boundary walls during a mouse hand-swing** (all walled maps). Matter.js solves constraints *before* collision detection, so a hard yank from the manual-drag spring could move the bob farther than the wall's 200px thickness in a single step — ending the step beyond the wall with no collision event ever generated (a shallower overshoot buried it past the wall midline and the resolver expelled it outward). Two-layer fix: the drag-spring target is now clamped inside the cage bounds (inset by bob radius, broken walls stay open), and a new per-step `containDynamicBobsInBounds` guard snaps any dynamic bob whose center crossed a standing wall's inner face back to the surface, landing the standard wall hit on a fresh crossing.
+- Re-wired bob grab/hand-swing: the Plan C refactor left `tryBeginBobDrag` defined but never called from `onPointerDown`, so the drag spring (and its grab-starts-a-run path) was unreachable and clicking the bob just fell through to camera handling.
+- Start Run / Run Again / Auto-Run actually launch again: restored the launch-impulse branch (normal slingshot via `launchPendulum`, belt entry kick, rocket velocity bleed, launch sound + "LAUNCH!" text) that the intermediate no-auto-launch commit removed — Plan C's "the arena is a spectacle you launch into" had the comment but not the code.
+- Removed the dead `setIdleRate` store action, which set `idleRatePerSec` without the workshop CPS contribution; all idle-rate writers now share one `combinedIdleRate` helper so the two income sources can't drift.
+- `syncIdleRateFromWorkshop` no longer notifies the store every 100ms tick when the rate is unchanged; `cookiePump` folds its two `set` calls into one.
+- Workshop panel rendered its subtitle twice; `Customize` had a private copy of `meetsUnlock` (now imported from `clickerEconomy`); dropped the orphaned `clickBobToSwing` / `clickBobArenaHint` strings left from the deleted `ArenaClickHint`.
+
+### Migration
+- Legacy transient fields (`pendingCookiePump`, related arming state) cleaned from the store. Existing saves continue to work.
+
+## [Unreleased] - Workshop Clicker Layer (Path A) - 2026-06-01
+
+### Added
+- **Workshop panel**: Pump button (always-on clicks), 8 generators (passive CPS), 5 click upgrades.
+- **Run Charge**: clicks fill a bar consumed on Start Run for up to ×3 arena multiplier.
+- **Arc Surge**: random ×7 click frenzy windows (Cookie Clicker-style golden cookie).
+- Combined offline idle: workshop CPS always accrues away; arena EMA adds when auto-run is on.
+- Save migration v21 → v22; 4 new Workshop achievements.
+- Branch: `feature/pendulum-cookie` (merge when ready — `main` unchanged until then).
+- **Cookie-click swing**: Start Run only arms the arena; click the bob on the canvas to earn Momentum and push the physics swing (no auto-launch). (This tight hybrid was later cleanly separated in Plan C.)
+
 ## [Unreleased] - Achievements System (Cookie Clicker inspired) - 2026-06-xx
 
 ### Added
