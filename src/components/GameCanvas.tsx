@@ -132,7 +132,6 @@ import {
   tickEffects,
 } from "../game/effects";
 import { itemScoreMult } from "../game/levels";
-import { applyCookieKick } from "../game/cookieKick";
 import { useT, useLang, locName } from "../i18n";
 
 const RUN_END_SPEED_THRESHOLD = 0.45;
@@ -147,9 +146,6 @@ const AUTO_RUN_DELAY_MS = 1500;
 // live zoom so the on-screen feel stays constant at any camera distance.
 const GRAB_PAD_PX = 46;
 const GRAB_ROPE_CORRIDOR_PX = 40;
-/** Cookie-click target: generous hit area on the tip bob only. */
-const COOKIE_HIT_PAD_PX = 56;
-const COOKIE_TAP_THRESHOLD_PX = 14;
 // Grace window after a Mechanic Belt ejects its bob at the conveyor exit, during
 // which the escape check can't hard-end the run — lets the thrown bob fly its
 // full arc / bounce around the cage instead of being reset the instant it clips
@@ -242,19 +238,11 @@ export default function GameCanvas() {
   const lastAutoZoomRef = useRef<number | null>(null);
   const pendulumHandleRef = useRef<PendulumHandle | null>(null);
   const prepRunPendingRef = useRef(false);
-  const lastCookiePumpEpochRef = useRef(0);
   // Direct manipulation: while the player is grabbing the bob (mouse or touch)
   // this holds the captured pointer id and its current target position in world
   // coordinates. The simulation effect springs the grabbed bob toward this
   // point each frame, so the rope can be swung by hand. `null` when not held.
   const dragRef = useRef<{ pointerId: number; worldX: number; worldY: number } | null>(null);
-  const bobInteractRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    worldX: number;
-    worldY: number;
-  } | null>(null);
   // Set when a manual grab starts a fresh run, so the launch handler skips its
   // automatic slingshot impulse and lets the player's drag drive the swing.
   const suppressLaunchImpulseRef = useRef(false);
@@ -283,11 +271,6 @@ export default function GameCanvas() {
     if (runStartId === 0) return;
     prepRunPendingRef.current = true;
   }, [runStartId]);
-
-  const cookiePumpEpoch = useGameStore((s) => s.cookiePumpEpoch);
-  useEffect(() => {
-    lastCookiePumpEpochRef.current = cookiePumpEpoch;
-  }, [cookiePumpEpoch]);
 
   // Auto-Run: kick a new run as soon as the launch button would be available —
   // either no run is active or the current run has stalled past the point of
@@ -400,22 +383,6 @@ export default function GameCanvas() {
       );
     }
 
-    /** Cookie Clicker target: tip bob only. */
-    function hitTestCookieBob(pt: { x: number; y: number }): { x: number; y: number } | null {
-      const handle = pendulumHandleRef.current;
-      if (!handle || handle.snapped) return null;
-      const tip = handle.bobs[handle.bobs.length - 1];
-      if (!tip) return null;
-      const store = useGameStore.getState();
-      const world = worldAtScreen(pt);
-      const worldPerPx = 1 / (viewRef.current.coverScale * store.cameraZoom);
-      const r = getEffectiveBobRadius(handle) + COOKIE_HIT_PAD_PX * worldPerPx;
-      if (Math.hypot(world.x - tip.position.x, world.y - tip.position.y) <= r) {
-        return world;
-      }
-      return null;
-    }
-
     function startBobDrag(e: PointerEvent, world: { x: number; y: number }) {
       dragRef.current = { pointerId: e.pointerId, worldX: world.x, worldY: world.y };
       container!.setPointerCapture?.(e.pointerId);
@@ -473,20 +440,10 @@ export default function GameCanvas() {
       if (blockedTarget(e.target)) return;
       const pt = cssPoint(e.clientX, e.clientY);
       if (!pt) return;
-      const cookieWorld = hitTestCookieBob(pt);
-      if (cookieWorld) {
-        bobInteractRef.current = {
-          pointerId: e.pointerId,
-          startX: pt.x,
-          startY: pt.y,
-          worldX: cookieWorld.x,
-          worldY: cookieWorld.y,
-        };
-        container!.setPointerCapture?.(e.pointerId);
-        container!.style.cursor = "pointer";
-        e.preventDefault();
-        return;
-      }
+      // Grabbing the bob/rope outranks camera control: the hand-swing is how
+      // an idle rig gets launched (the drag spring's startRun fires once the
+      // constraint attaches), so it must win over pan/pinch on mouse and touch.
+      if (tryBeginBobDrag(e, pt)) return;
       const touch = e.pointerType === "touch";
       // Mouse/pen only pan while Space is held (preserve desktop behavior);
       // touch always drives the camera since the canvas has no tap action.
@@ -513,19 +470,6 @@ export default function GameCanvas() {
     }
 
     function onPointerMove(e: PointerEvent) {
-      const interact = bobInteractRef.current;
-      if (interact && interact.pointerId === e.pointerId && !dragRef.current) {
-        const pt = cssPoint(e.clientX, e.clientY);
-        if (pt) {
-          const moved = Math.hypot(pt.x - interact.startX, pt.y - interact.startY);
-          if (moved >= COOKIE_TAP_THRESHOLD_PX) {
-            bobInteractRef.current = null;
-            startBobDrag(e, { x: interact.worldX, y: interact.worldY });
-          }
-        }
-        return;
-      }
-
       const drag = dragRef.current;
       if (drag && drag.pointerId === e.pointerId) {
         const pt = cssPoint(e.clientX, e.clientY);
@@ -590,22 +534,6 @@ export default function GameCanvas() {
     }
 
     function endPointer(e: PointerEvent) {
-      const interact = bobInteractRef.current;
-      if (interact && interact.pointerId === e.pointerId) {
-        bobInteractRef.current = null;
-        container!.releasePointerCapture?.(e.pointerId);
-        setPanCursor(spaceHeld.current);
-        const pt = cssPoint(e.clientX, e.clientY);
-        const moved =
-          pt != null
-            ? Math.hypot(pt.x - interact.startX, pt.y - interact.startY)
-            : 0;
-        if (moved < COOKIE_TAP_THRESHOLD_PX) {
-          useGameStore.getState().cookiePump();
-        }
-        return;
-      }
-
       if (dragRef.current?.pointerId === e.pointerId) {
         dragRef.current = null;
         container!.releasePointerCapture?.(e.pointerId);
@@ -638,7 +566,6 @@ export default function GameCanvas() {
       pointers.clear();
       pinchPrevDist = 0;
       dragRef.current = null;
-      bobInteractRef.current = null;
       setPanCursor(false);
     }
 
@@ -1863,6 +1790,84 @@ export default function GameCanvas() {
       for (const shard of shards) sweepBob(shard);
     }
 
+    // --- Boundary-wall tunneling guard (every walled map) ----------------
+    // The dynamic bobs normally resolve wall contacts through Matter, but
+    // Matter solves constraints BEFORE collision detection: one hard yank from
+    // the manual-drag spring (or any other single-step impulse) can carry a
+    // bob farther than the wall's thickness in one step, so the step ends with
+    // the bob beyond the wall and no contact pair was ever generated. A
+    // shallower overshoot buries its center past the wall's midline and the
+    // resolver then expels it OUTWARD. Either way it "passes" the wall. So
+    // after every physics step, any dynamic bob whose center has crossed a
+    // standing wall's inner face is snapped back to the wall surface; the step
+    // it first crosses also lands the standard wall hit (damage + bumper
+    // bounce). While it stays pressed across the face — e.g. held there by the
+    // drag spring — it just stays clamped: one crossing, one hit, mirroring
+    // the kinematic chain-bob containment.
+    const boundaryCrossSides = new Map<number, Set<BoundarySide>>();
+    function containDynamicBobsInBounds(now: number) {
+      if (wallField.walls.length === 0) return;
+      const { minX, minY, maxX, maxY } = wallField.bounds;
+      const fallbackR = getEffectiveBobRadius(pendulumHandle);
+
+      const contain = (bob: Matter.Body) => {
+        const r = bob.circleRadius ?? fallbackR;
+        let x = bob.position.x;
+        let y = bob.position.y;
+        const crossed: { wall: BoundaryWall; side: BoundarySide }[] = [];
+        const left = wallForSide("left");
+        if (left && x < minX) {
+          x = minX + r;
+          crossed.push({ wall: left, side: "left" });
+        }
+        const right = wallForSide("right");
+        if (right && x > maxX) {
+          x = maxX - r;
+          crossed.push({ wall: right, side: "right" });
+        }
+        const top = wallForSide("top");
+        if (top && y < minY) {
+          y = minY + r;
+          crossed.push({ wall: top, side: "top" });
+        }
+        const bottom = wallForSide("bottom");
+        if (bottom && y > maxY) {
+          y = maxY - r;
+          crossed.push({ wall: bottom, side: "bottom" });
+        }
+
+        if (crossed.length === 0) {
+          boundaryCrossSides.delete(bob.id);
+          return;
+        }
+
+        const prevSides = boundaryCrossSides.get(bob.id);
+        Matter.Body.setPosition(bob, { x, y });
+        const curSides = new Set<BoundarySide>();
+        for (const { wall, side } of crossed) {
+          curSides.add(side);
+          if (!prevSides || !prevSides.has(side)) {
+            handleWallHit(wall.body, bob, now);
+          } else {
+            // Sustained press: bleed the outward velocity component so it
+            // can't keep accumulating against the clamp.
+            const vn =
+              bob.velocity.x * wall.normal.x + bob.velocity.y * wall.normal.y;
+            if (vn < 0) {
+              Matter.Body.setVelocity(bob, {
+                x: bob.velocity.x - vn * wall.normal.x,
+                y: bob.velocity.y - vn * wall.normal.y,
+              });
+            }
+          }
+        }
+        boundaryCrossSides.set(bob.id, curSides);
+      };
+
+      for (const bob of pendulumHandle.bobs) contain(bob);
+      for (const shard of shards) contain(shard);
+    }
+
     // --- Behavior bobs ---------------------------------------------------
 
     // hunter (Ravager): steer every freed bob toward the nearest live circle so
@@ -2610,6 +2615,11 @@ export default function GameCanvas() {
     const ringTunnelGuard = () => sweepRingTunneling(performance.now());
     Matter.Events.on(engineHandle.engine, "afterUpdate", ringTunnelGuard);
 
+    // Catch bobs that out-ran the boundary walls within a step (drag-spring
+    // whips most of all) and pin them back inside before the frame renders.
+    const boundaryTunnelGuard = () => containDynamicBobsInBounds(performance.now());
+    Matter.Events.on(engineHandle.engine, "afterUpdate", boundaryTunnelGuard);
+
     let lastT = performance.now();
     let raf = 0;
     const ctx = canvas.getContext("2d")!;
@@ -2631,34 +2641,6 @@ export default function GameCanvas() {
       store.expireModifiers(now);
       store.decayCombo(now, 1800);
 
-      if (
-        store.cookiePumpEpoch !== lastCookiePumpEpochRef.current &&
-        store.isRunning &&
-        !pendulumHandle.snapped &&
-        pendulumHandle.bobs.length > 0
-      ) {
-        lastCookiePumpEpochRef.current = store.cookiePumpEpoch;
-        applyCookieKick(
-          pendulumHandle,
-          attachment,
-          aggregateEffects(store.activeModifiers, store.persistentBonuses),
-          store.clickCombo.count
-        );
-        const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
-        const gain = store.lastCookieGain;
-        if (gain > 0) {
-          emitHit(effects, tip.position, now, {
-            color: "#93c5fd",
-            points: gain,
-            intensity: 0.75 + Math.min(store.clickCombo.count, 30) * 0.02,
-          });
-        }
-        playGameSound("ui-click", {
-          volume: 0.65,
-          pitch: 0.92 + Math.min(store.clickCombo.count, 25) * 0.028,
-        });
-      }
-
       // --- Manual swing: spring the grabbed bob toward the pointer ----------
       // A live grab (mouse or touch) pulls the tip bob toward the world point
       // under the player's finger, so the rope swings by hand. Disabled for a
@@ -2678,7 +2660,8 @@ export default function GameCanvas() {
           // physics enforce. Pulling inward is allowed (the line goes slack and
           // gravity drops the bob), exactly like a real rope.
           const pivot = pendulumHandle.pivot.position;
-          const bobLinkLen = Math.max(4, getEffectiveBobRadius(pendulumHandle) * 0.35);
+          const bobR = getEffectiveBobRadius(pendulumHandle);
+          const bobLinkLen = Math.max(4, bobR * 0.35);
           const maxReach = rigReach(pendulumHandle) + bobLinkLen;
           let tx = drag!.worldX - pivot.x;
           let ty = drag!.worldY - pivot.y;
@@ -2688,8 +2671,21 @@ export default function GameCanvas() {
             tx *= s;
             ty *= s;
           }
-          const targetX = pivot.x + tx;
-          const targetY = pivot.y + ty;
+          let targetX = pivot.x + tx;
+          let targetY = pivot.y + ty;
+          // The cage bounds the hand too. Matter solves constraints BEFORE
+          // collision detection, so a spring target inside/behind a wall drags
+          // the bob into it — and a hard whip moves it farther than the wall's
+          // thickness in one step, ending the step beyond the wall with no
+          // contact ever generated. Clamp the target so the whole bob stays
+          // inside every standing wall; broken sides stay open.
+          if (wallField.walls.length > 0) {
+            const { minX, minY, maxX, maxY } = wallField.bounds;
+            if (wallForSide("left") && targetX < minX + bobR) targetX = minX + bobR;
+            if (wallForSide("right") && targetX > maxX - bobR) targetX = maxX - bobR;
+            if (wallForSide("top") && targetY < minY + bobR) targetY = minY + bobR;
+            if (wallForSide("bottom") && targetY > maxY - bobR) targetY = maxY - bobR;
+          }
 
           if (!dragConstraint) {
             dragConstraint = Matter.Constraint.create({
@@ -2939,13 +2935,21 @@ export default function GameCanvas() {
         destroyTokenField(engineHandle.world, tokenField);
         resetBehaviorRunState();
         if (suppressLaunchImpulseRef.current) {
+          // A hand-swing started this run: no slingshot, no reset-to-rest. The
+          // bob stays under the player's grip and their drag drives the swing.
           suppressLaunchImpulseRef.current = false;
-        } else {
-          // Armed run: arena is ready but the bob stays at rest until cookie clicks.
+        } else if (ropeBehavior?.kind === "belt" && beltTunnel) {
           resetPendulumToRest(pendulumHandle);
-        }
-        if (store.consumePendingCookiePump()) {
-          store.cookiePump();
+          applyBeltLaunchKick(
+            pendulumHandle,
+            beltTunnel,
+            ropeBehavior.beltKickSpeed ?? 20
+          );
+        } else {
+          // Plan C separation: the Workshop Pump is the dedicated earner; the
+          // arena is a spectacle you actually launch into, so Start Run imparts
+          // the initial impulse directly.
+          launchPendulum(pendulumHandle, attachment, pendulum, effects$);
         }
         store.registerSwing();
         runIdleMs = 0;
@@ -2953,9 +2957,21 @@ export default function GameCanvas() {
         speedRampAppliedMult = 1;
         syncEchoBobs(0);
         maneuvers.reset();
+        // Rocket has no launch slingshot: bleed the kick down to a seed so the
+        // continuous thrust (rocketTick) builds the swing from near-still. We
+        // keep a sliver of the launch direction so the first thrust has a
+        // tangent to push along.
         if (behavior?.kind === "rocket") {
+          for (const bob of pendulumHandle.bobs) {
+            Matter.Body.setVelocity(bob, {
+              x: bob.velocity.x * 0.1,
+              y: bob.velocity.y * 0.1,
+            });
+          }
           rocketLaunchAt = now;
         }
+        playGameSound("launch");
+        emitManeuver(effects, pendulumHandle.bobs[0].position, effectText.launch, now);
       }
 
       if (tokenLaunchPendingRef.current > 0) {
@@ -3347,6 +3363,7 @@ export default function GameCanvas() {
       Matter.Events.off(engineHandle.engine, "collisionStart", handleCollision);
       Matter.Events.off(engineHandle.engine, "afterUpdate", clampSwingSpeed);
       Matter.Events.off(engineHandle.engine, "afterUpdate", ringTunnelGuard);
+      Matter.Events.off(engineHandle.engine, "afterUpdate", boundaryTunnelGuard);
       destroyHitZones(engineHandle.world, field);
       destroyTokenField(engineHandle.world, tokenField);
       destroyWallField(engineHandle.world, wallField);

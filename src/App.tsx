@@ -15,7 +15,7 @@ import { useGameStore } from "./state/store";
 import { startIdleEngine } from "./state/idleEngine";
 import { startClickerEngine } from "./state/clickerEngine";
 import WorkshopPanel from "./components/WorkshopPanel";
-import ArenaClickHint from "./components/ArenaClickHint";
+import { WORKSHOP_CLICKER_ENABLED } from "./config/features";
 
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -67,7 +67,12 @@ export default function App() {
   // and a wall-clock reconcile grants offline progress on return. See
   // state/idleEngine.ts.
   useEffect(() => startIdleEngine(), []);
-  useEffect(() => startClickerEngine(), []);
+  // Workshop clicker layer is feature-flagged: no panel, no passive CPS, no
+  // Arc Surge procs while disabled. Flip WORKSHOP_CLICKER_ENABLED to restore.
+  useEffect(
+    () => (WORKSHOP_CLICKER_ENABLED ? startClickerEngine() : undefined),
+    []
+  );
 
   useEffect(() => {
     useGameStore.getState().recomputeWorkshop();
@@ -174,7 +179,6 @@ export default function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
-      <ArenaClickHint />
       {/* On mobile the overlay spans the screen: stats pinned top, controls as a
           bottom action bar. At md+ it collapses back to the left sidebar. */}
       <aside
@@ -189,9 +193,11 @@ export default function App() {
           <HUDStats />
         </div>
         <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 md:gap-3">
-          <div className="pointer-events-auto min-h-0 md:hidden">
-            <WorkshopPanel />
-          </div>
+          {WORKSHOP_CLICKER_ENABLED && (
+            <div className="pointer-events-auto min-h-0 md:hidden">
+              <WorkshopPanel />
+            </div>
+          )}
           <div className="pointer-events-none flex shrink-0 justify-center md:block">
             <div
               ref={controlsRef}
@@ -206,11 +212,13 @@ export default function App() {
           </div>
         </div>
       </aside>
-      <aside
-        className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] md:flex"
-      >
-        <WorkshopPanel />
-      </aside>
+      {WORKSHOP_CLICKER_ENABLED && (
+        <aside
+          className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] md:flex"
+        >
+          <WorkshopPanel />
+        </aside>
+      )}
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} onOpenTutorial={openTutorial} />

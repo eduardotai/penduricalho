@@ -78,6 +78,8 @@ Zones have `basePoints * multiplier * current pointMult from modifiers`.
 
 **Persistent bonuses** (from Golden Token) are stored separately in the store and survive across runs until they expire.
 
+**Plan C separation note**: The workshop clicker (Pump + generators) is now cleanly separated from the arena physics loop. Workshop pumps no longer drive canvas bob taps or auto-arm runs. Arena scoring still receives `activeWorkshopSynergyMult` and Run Charge burst on launch.
+
 ### Belt Tunnel (`beltTunnel.ts`)
 Completely separate movement model for the "Mechanic Belt" rope behavior.
 

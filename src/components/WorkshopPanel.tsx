@@ -29,6 +29,21 @@ export default function WorkshopPanel() {
     ? Math.max(0, Math.ceil((arcSurgeUntil - Date.now()) / 1000))
     : 0;
 
+  const clickCombo = useGameStore((s) => s.clickCombo);
+  const runCharge = useGameStore((s) => s.runCharge);
+  const cookiePump = useGameStore((s) => s.cookiePump);
+  const lastCookieGain = useGameStore((s) => s.lastCookieGain);
+
+  const clickStreak = clickCombo.count;
+  const runChargePct = Math.floor((runCharge / 100) * 100); // runChargeMax is 100 in tuning
+
+  function handlePump() {
+    const gain = cookiePump();
+    if (gain > 0) {
+      playUiClick();
+    }
+  }
+
   return (
     <div className="pointer-events-auto flex max-h-[min(70dvh,32rem)] flex-col gap-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/85 p-3 backdrop-blur-md sm:max-h-none sm:p-4">
       <div>
@@ -37,9 +52,6 @@ export default function WorkshopPanel() {
         </h2>
         <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
           {t.workshop.subtitle}
-        </p>
-        <p className="mt-1 rounded-lg border border-brand-500/25 bg-brand-500/10 px-2 py-1.5 text-[10px] font-medium text-brand-200">
-          {t.workshop.clickBobHint}
         </p>
         <p className="mt-1 text-[10px] text-slate-500">
           {t.workshop.cpsLabel}{" "}
@@ -53,6 +65,40 @@ export default function WorkshopPanel() {
           {t.workshop.arcSurgeActive(surgeLeft)}
         </div>
       )}
+
+      {/* Dedicated Workshop Pump (Plan C separation — primary high-frequency earner) */}
+      <button
+        type="button"
+        onClick={handlePump}
+        className="group w-full rounded-2xl border border-brand-500/60 bg-gradient-to-b from-brand-600/90 to-brand-700 px-4 py-3 text-center font-display text-lg font-bold uppercase tracking-[2px] text-white shadow-lg transition active:scale-[0.985] active:shadow-brand-500/40 hover:from-brand-500 hover:to-brand-600"
+      >
+        <div className="flex items-center justify-center gap-2">
+          <span>🖐️</span>
+          <span>{t.workshop.pumpLabel}</span>
+        </div>
+        {lastCookieGain > 0 && (
+          <div className="mt-0.5 text-[10px] font-semibold tracking-normal text-brand-200/90">
+            +<FormattedNumberInline value={lastCookieGain} />
+          </div>
+        )}
+      </button>
+
+      {/* Workshop power summary (feeds arena runs) */}
+      <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-2 py-1 text-[10px] text-slate-400">
+        <div>
+          {t.workshop.clickStreak}: <span className="font-semibold text-slate-200">{clickStreak}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span>{t.workshop.runCharge}</span>
+          <div className="h-1.5 w-12 overflow-hidden rounded bg-slate-700">
+            <div
+              className="h-1.5 rounded bg-brand-400 transition-all"
+              style={{ width: `${Math.max(4, runChargePct)}%` }}
+            />
+          </div>
+          <span className="tabular-nums text-slate-300">{runCharge.toFixed(0)}</span>
+        </div>
+      </div>
 
       <div className="flex gap-1 rounded-lg bg-slate-800/80 p-0.5">
         {(["build", "upgrades"] as const).map((id) => (

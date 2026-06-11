@@ -195,17 +195,15 @@ export interface GameState {
   lastArcSurgeSeq: number;
   totalArcSurges: number;
   /** Bumped each cookie bob click; GameCanvas applies physics kick. */
-  cookiePumpEpoch: number;
-  /** Set when a click arms a run; canvas credits click after arena prep. */
-  pendingCookiePump: boolean;
-  /** Transient: last cookiePump gain for canvas float text. */
+  /** Transient: last workshop pump gain (shown briefly on the Pump button). */
   lastCookieGain: number;
 
   addMomentum: (n: number) => void;
   registerClick: (now: number) => number;
-  /** Cookie-click the bob: earn momentum + queue a swing kick (no auto-launch). */
+  /** Workshop pump / click (Plan C): dedicated button in WorkshopPanel is the primary active earner.
+   *  Pure workshop action. No canvas coupling, no auto-arming of runs.
+   */
   cookiePump: () => number;
-  consumePendingCookiePump: () => boolean;
   buyGenerator: (id: string) => boolean;
   buyClickUpgrade: (id: string) => boolean;
   recomputeWorkshop: () => void;
@@ -294,8 +292,6 @@ export interface GameState {
   setAudioMusicEnabled: (enabled: boolean) => void;
   setAudioAmbientEnabled: (enabled: boolean) => void;
   // Idle engine hooks (see state/idleEngine.ts):
-  // Replace the smoothed earn rate (Momentum/sec) used for background accrual.
-  setIdleRate: (ratePerSec: number) => void;
   // Anchor the offline clock to `now` without crediting anything.
   touchActive: (now: number) => void;
   // Credit `amount` Momentum earned while idle and re-anchor the clock. When
@@ -446,6 +442,13 @@ function workshopSnapshot(s: GameState) {
   return { clickMult, workshopMult, extraBaseClick, cachedTotalCps };
 }
 
+// The single offline/idle rate the HUD and away-earnings read: workshop CPS
+// plus the arena's smoothed earn rate. Every writer of idleRatePerSec goes
+// through here so the two contributions can never drift apart.
+function combinedIdleRate(cachedTotalCps: number, arenaRatePerSec: number): number {
+  return Math.max(0, cachedTotalCps + arenaRatePerSec);
+}
+
 function normalizeCosmeticState(state: Record<string, unknown>): Record<string, unknown> {
   const owned = (state.owned as Owned | undefined) ?? initialOwned;
   const equipped = (state.equipped as Equipped | undefined) ?? initialEquipped;
@@ -559,8 +562,6 @@ export const useGameStore = create<GameState>()(
       arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
       lastArcSurgeSeq: 0,
       totalArcSurges: 0,
-      cookiePumpEpoch: 0,
-      pendingCookiePump: false,
       lastCookieGain: 0,
 
       // Achievements (new in v20)
@@ -582,19 +583,23 @@ export const useGameStore = create<GameState>()(
           const { cachedTotalCps } = workshopSnapshot(s);
           return {
             cachedTotalCps,
-            idleRatePerSec: Math.max(0, cachedTotalCps + s.arenaIdleRatePerSec),
+            idleRatePerSec: combinedIdleRate(cachedTotalCps, s.arenaIdleRatePerSec),
           };
         }),
 
       syncIdleRateFromWorkshop: () =>
-        set((s) => ({
-          idleRatePerSec: Math.max(0, s.cachedTotalCps + s.arenaIdleRatePerSec),
-        })),
+        set((s) => {
+          const idleRatePerSec = combinedIdleRate(s.cachedTotalCps, s.arenaIdleRatePerSec);
+          // Called every clicker tick (100ms): returning the state unchanged
+          // skips the store notify entirely when nothing moved.
+          if (idleRatePerSec === s.idleRatePerSec) return s;
+          return { idleRatePerSec };
+        }),
 
       setArenaIdleRate: (ratePerSec) =>
         set((s) => ({
           arenaIdleRatePerSec: Math.max(0, ratePerSec),
-          idleRatePerSec: Math.max(0, s.cachedTotalCps + ratePerSec),
+          idleRatePerSec: combinedIdleRate(s.cachedTotalCps, ratePerSec),
         })),
 
       decayClickCombo: (now) =>
@@ -614,26 +619,16 @@ export const useGameStore = create<GameState>()(
         get().checkAchievements();
       },
 
-      consumePendingCookiePump: () => {
-        const s = get();
-        if (!s.pendingCookiePump) return false;
-        set({ pendingCookiePump: false });
-        return true;
-      },
-
+      // Pure workshop pump action (Plan C). The dedicated Pump button in WorkshopPanel
+      // is now the only high-frequency earner. This no longer auto-arms or starts arena runs.
       cookiePump: () => {
         const now = Date.now();
-        const s = get();
-        if (!s.isRunning) {
-          get().startRun();
-          set({ pendingCookiePump: true });
-          return 0;
-        }
-        if (s.runStalled) {
-          set({ runStalled: false });
-        }
         const gain = get().registerClick(now);
-        set({ cookiePumpEpoch: s.cookiePumpEpoch + 1, lastCookieGain: gain });
+        set((s) =>
+          s.runStalled
+            ? { lastCookieGain: gain, runStalled: false }
+            : { lastCookieGain: gain }
+        );
         return gain;
       },
 
@@ -696,7 +691,7 @@ export const useGameStore = create<GameState>()(
             momentum: prev.momentum - cost,
             generatorCounts,
             cachedTotalCps,
-            idleRatePerSec: Math.max(0, cachedTotalCps + prev.arenaIdleRatePerSec),
+            idleRatePerSec: combinedIdleRate(cachedTotalCps, prev.arenaIdleRatePerSec),
             stats: {
               ...prev.stats,
               totalGenerators: prev.stats.totalGenerators + 1,
@@ -725,7 +720,7 @@ export const useGameStore = create<GameState>()(
             momentum: prev.momentum - cost,
             clickUpgradeLevels,
             cachedTotalCps: snap.cachedTotalCps,
-            idleRatePerSec: Math.max(0, snap.cachedTotalCps + prev.arenaIdleRatePerSec),
+            idleRatePerSec: combinedIdleRate(snap.cachedTotalCps, prev.arenaIdleRatePerSec),
           };
         });
         get().checkAchievements();
@@ -1018,7 +1013,6 @@ export const useGameStore = create<GameState>()(
             runMomentum: 0,
             combo: { count: 0, lastHitAt: 0 },
             runStalled: true,
-            pendingCookiePump: false,
             totalRuns: closingPrevious ? s.totalRuns + 1 : s.totalRuns,
             bestRunMomentum: closingPrevious
               ? Math.max(s.bestRunMomentum, s.runMomentum)
@@ -1241,9 +1235,6 @@ export const useGameStore = create<GameState>()(
       setAudioAmbientEnabled: (enabled) =>
         set((s) => ({ audio: { ...s.audio, ambientEnabled: enabled } })),
 
-      setIdleRate: (ratePerSec) =>
-        set({ idleRatePerSec: Math.max(0, ratePerSec) }),
-
       touchActive: (now) => set({ lastActiveAt: now }),
 
       applyIdleEarnings: (amount, reportMs) =>
@@ -1317,15 +1308,18 @@ export const useGameStore = create<GameState>()(
           arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
           lastArcSurgeSeq: 0,
           totalArcSurges: 0,
-          cookiePumpEpoch: 0,
-          pendingCookiePump: false,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 22,
+      version: 23,
       migrate: (persisted, version) => {
         const state = persisted as Record<string, unknown>;
+
+        // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
+        if (version < 23) {
+          delete (state as any).pendingCookiePump;
+        }
         const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
         const mergedAudio = {
           ...DEFAULT_AUDIO_SETTINGS,

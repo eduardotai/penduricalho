@@ -14,6 +14,7 @@ import {
   formatStretchBudget,
   getMaterialProfile,
 } from "../game/attachmentPhysics";
+import { meetsUnlock } from "../game/clickerEconomy";
 import {
   bulkLevelUpCost,
   itemScoreMult,
@@ -330,7 +331,7 @@ function Row({
   const t = useT();
   const lang = useLang();
   const itemLevels = useGameStore((s) => s.itemLevels);
-  const locked = item.unlock ? !meetsUnlock(stats, item.unlock) : false;
+  const locked = !meetsUnlock(item.unlock, stats);
   const canAfford = momentum >= item.cost;
   const name = locName(lang, kind, item.id, item.name);
   const description = locDesc(lang, kind, item.id, item.description);
@@ -681,10 +682,6 @@ function StatCard({
       </div>
     </div>
   );
-}
-
-function meetsUnlock(stats: StatsT, gate: UnlockGate): boolean {
-  return stats[gate.stat] >= gate.gte;
 }
 
 function unlockText(t: UIStrings, lang: Lang, gate: UnlockGate): string {

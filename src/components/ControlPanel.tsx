@@ -4,6 +4,7 @@ import { useEquippedAttachment, useEquippedPendulum, useEquippedSite } from "../
 import { playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { useT, useLang, locName } from "../i18n";
+import { WORKSHOP_CLICKER_ENABLED } from "../config/features";
 
 const AUTO_RUN_DELAY_MS = 1500;
 
@@ -165,13 +166,13 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             {isRunning && !runStalled && (
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
             )}
-            {isRunning && !runStalled ? t.controls.clickBobToSwing : buttonLabel}
+            {isRunning && !runStalled ? t.controls.running : buttonLabel}
           </span>
         </button>
 
-        {isRunning && !runStalled && (
+        {WORKSHOP_CLICKER_ENABLED && isRunning && !runStalled && (
           <p className="text-center text-[10px] leading-snug text-brand-300/90">
-            {t.controls.clickBobArenaHint}
+            Workshop power multiplies arena payouts. Watch the spectacle.
           </p>
         )}
 
