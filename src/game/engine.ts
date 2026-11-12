@@ -124,9 +124,6 @@ export interface WallField {
   rings: RingDescriptor[];
 }
 
-/** Baseline hits a breakable wall absorbs (at the lightest rig). */
-export const WALL_MAX_HP = 3;
-
 /**
  * Wall durability scales with the rig's bob weight — heavier bobs slam harder,
  * so the arena's walls are built proportionally tougher to match them. A

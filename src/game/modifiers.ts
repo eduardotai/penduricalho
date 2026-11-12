@@ -1,10 +1,6 @@
 import type { ActiveModifier, ModifierEffects, PersistentBonus } from "../types";
 import { MODIFIER_MAP } from "../data/modifiers";
 
-export function isExpired(mod: ActiveModifier, now: number): boolean {
-  return mod.expiresAt <= now;
-}
-
 export function getRemainingMs(mod: ActiveModifier, now: number): number {
   return Math.max(0, mod.expiresAt - now);
 }
@@ -14,10 +10,6 @@ export function getPersistentRemainingMs(
   now: number
 ): number {
   return Math.max(0, bonus.expiresAt - now);
-}
-
-export function isPersistentExpired(bonus: PersistentBonus, now: number): boolean {
-  return bonus.expiresAt <= now;
 }
 
 /** Sum remaining ms across all live persistent layers for one modifier defId. */

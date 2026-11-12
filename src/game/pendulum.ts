@@ -1038,10 +1038,6 @@ export function propagateRopeWhip(handle: PendulumHandle, force: Vec2, gain = 0.
   });
 }
 
-export function nudgeBob(bob: Matter.Body, force: Vec2) {
-  Matter.Body.applyForce(bob, bob.position, force);
-}
-
 /**
  * Natural air resistance for a winding-down rig. Soft rope constraints under
  * gravity never fully come to rest on their own — they trade a little energy
