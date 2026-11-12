@@ -46,12 +46,8 @@ import {
   rigReach,
   feedBeltRope,
   reelBeltRope,
-  beltPayoutRatio,
   resetBeltPayout,
   isBeltTunnelAttachment,
-  feedBeltVirtual,
-  reelBeltVirtual,
-  beltVirtualPayoutRatio,
   resetBeltVirtual,
   type PendulumHandle,
 } from "../game/pendulum";
@@ -2292,9 +2288,7 @@ export default function GameCanvas() {
       // free projectile until the next launch (which clears beltRideEjected).
       if (beltRideEjected) return;
 
-      const trackAccel = ropeBehavior.beltTrackAccel ?? 0.07;
       const conveyorSpeed = (ropeBehavior.beltConveyorSpeed ?? 22) * WORLD_SCALE;
-      const lookahead = ropeBehavior.beltLookahead ?? 0.035;
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
 
       // --- Grip fade: when bob speed is low for a while, the conveyor loses its hold ---

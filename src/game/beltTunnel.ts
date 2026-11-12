@@ -178,7 +178,6 @@ export function nearestTunnelProgress(
 
   // Local search with hysteresis window (~18% of total length on each side)
   const searchRadius = 0.18;
-  const centerIdx = Math.floor(hintT * (n - 1));
 
   let bestD = Infinity;
   let bestT = hintT;

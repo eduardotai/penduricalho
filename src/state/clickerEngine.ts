@@ -1,6 +1,5 @@
 import { useGameStore } from "./store";
 import {
-  CLICKER_TUNING,
   isArcSurgeActive,
   nextArcSurgeAt,
 } from "../game/clickerEconomy";
