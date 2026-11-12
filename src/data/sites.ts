@@ -1,4 +1,8 @@
 import type { SiteDef } from "../types";
+import { HIT_ZONE_SCALE } from "../game/worldConstants";
+
+/** Multiplier-circle radius range: 18–30 design px, scaled to the 3× world. */
+const ZONE_RADIUS: [number, number] = [18 * HIT_ZONE_SCALE, 30 * HIT_ZONE_SCALE];
 
 export const SITES: SiteDef[] = [
   {
@@ -8,7 +12,7 @@ export const SITES: SiteDef[] = [
       "Open workbench — nothing cages the bobs. When the rope snaps they fly clear off the bench; once they're gone, just run again.",
     gravity: 1,
     hitZoneCount: 90,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "workshop",
     walls: "none",
     cost: 0,
@@ -20,7 +24,7 @@ export const SITES: SiteDef[] = [
       "A small walled arena. A rope snap sends the bobs ricocheting — slam a wall hard enough and it shatters, kicking the bob with an extra impulse.",
     gravity: 1,
     hitZoneCount: 150,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "bumper-cage",
     walls: "breakable",
     cageScale: 1,
@@ -35,7 +39,7 @@ export const SITES: SiteDef[] = [
       "A medium walled arena — same shatter-and-ricochet rules as the Bumper Cage, but with a roomier cage that lets freed bobs carom further before they break out.",
     gravity: 1,
     hitZoneCount: 150,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "bumper-arena",
     walls: "breakable",
     cageScale: 1.45,
@@ -50,7 +54,7 @@ export const SITES: SiteDef[] = [
       "A large walled arena — the same breakable walls, now wrapped around a sprawling cage. Freed bobs ricochet for ages, racking up wall breaks before they finally escape.",
     gravity: 1,
     hitZoneCount: 150,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "bumper-colosseum",
     walls: "breakable",
     cageScale: 1.9,
@@ -65,7 +69,7 @@ export const SITES: SiteDef[] = [
       "An open field ringed by concentric circular walls centered on the mount. Multiplier circles spawn between the rings and deep inside the core — thread the bob through the rotating gaps to reach the richest layers, then watch the snap finale ricochet through every ring on the way out.",
     gravity: 1,
     hitZoneCount: 170,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "layers",
     walls: "breakable",
     wallShape: "rings",
@@ -81,7 +85,7 @@ export const SITES: SiteDef[] = [
       "A singularity lurks somewhere off-center, dragging every bob toward its core with a relentless pull. Breakable walls keep the bobs ricocheting until they shatter — feed the bob into the event horizon and you can launch again from the brink.",
     gravity: 1,
     hitZoneCount: 150,
-    hitZoneRadius: [18, 30],
+    hitZoneRadius: ZONE_RADIUS,
     background: "black-hole",
     walls: "breakable",
     cageScale: 1.45,

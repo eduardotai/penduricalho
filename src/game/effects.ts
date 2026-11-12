@@ -1,4 +1,21 @@
 import type { Vec2 } from "../types";
+import { WORLD_SCALE } from "./worldConstants";
+
+/**
+ * Effects are drawn in world space, which is WORLD_SCALE× the original
+ * 1280×800 design field. Every size, speed, and offset below is authored in
+ * design px and multiplied by this so particles, flashes, and floating text
+ * keep their designed on-screen size instead of shrinking to 1–2 px.
+ */
+export const EFFECT_SCALE = WORLD_SCALE;
+const E = (designPx: number) => designPx * EFFECT_SCALE;
+
+/** Floating "+N" / maneuver label font size in world units (18 design px; the
+ * old 14 px read too small once the default camera zooms out to ~0.3×). */
+export const FLOAT_TEXT_FONT_SIZE = E(18);
+/** Hit-flash ring stroke width and expansion, in world units. */
+export const HIT_FLASH_LINE_WIDTH = E(3);
+export const HIT_FLASH_EXPAND = E(60);
 
 export interface Particle {
   x: number;
@@ -41,7 +58,7 @@ export function emitHit(
   const count = 12 + Math.floor((options.intensity ?? 1) * 6);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 1.5 + Math.random() * 3 * (options.intensity ?? 1);
+    const speed = E(1.5 + Math.random() * 3 * (options.intensity ?? 1));
     state.particles.push({
       x: at.x,
       y: at.y,
@@ -50,14 +67,14 @@ export function emitHit(
       life: 0,
       maxLife: 500 + Math.random() * 300,
       color: options.color,
-      size: 2 + Math.random() * 3,
+      size: E(2 + Math.random() * 3),
     });
   }
   state.floats.push({
     x: at.x,
-    y: at.y - 8,
+    y: at.y - E(8),
     value: `+${options.points}`,
-    vy: -0.35,
+    vy: E(-0.35),
     life: 0,
     maxLife: 700,
     color: options.color,
@@ -65,7 +82,7 @@ export function emitHit(
   state.hitFlashes.push({
     x: at.x,
     y: at.y,
-    radius: 6,
+    radius: E(6),
     until: now + 220,
     color: options.color,
   });
@@ -75,9 +92,9 @@ export function emitHit(
 export function emitManeuver(state: EffectsState, at: Vec2, label: string, now: number) {
   state.floats.push({
     x: at.x,
-    y: at.y - 16,
+    y: at.y - E(16),
     value: label,
-    vy: -0.5,
+    vy: E(-0.5),
     life: 0,
     maxLife: 1100,
     color: "#fde68a",
@@ -99,7 +116,7 @@ export function tickEffects(state: EffectsState, dtMs: number, now: number) {
     p.life += dtMs;
     p.x += p.vx * (dtMs / 16);
     p.y += p.vy * (dtMs / 16);
-    p.vy += 0.05 * (dtMs / 16);
+    p.vy += E(0.05) * (dtMs / 16);
     p.vx *= 0.985;
     if (p.life >= p.maxLife) state.particles.splice(i, 1);
   }
