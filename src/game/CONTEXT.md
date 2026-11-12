@@ -138,7 +138,7 @@ Located in `src/components/GameCanvas.tsx`, function `frame(now)` starting ~line
 **Canonical order (do not reorder lightly)**:
 
 1. Store read + `expireModifiers` + `decayCombo` + hit-stop timeScale
-2. Manual drag spring (temporary constraint while player is grabbing)
+2. Manual grab (stiff temporary constraint on the nearest rope node while the player is holding; see `ropeGrab.ts`)
 3. `aggregateEffects(...)` + `behaviorScales()` + apply size/weight/length scales + `fluxTick`
 4. Belt payout feed (before physics stretch read)
 5. Durability drain + snap decision (the big block that calls `snapRope`)

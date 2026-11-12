@@ -82,7 +82,7 @@ There is also a "suppress launch impulse" path for pure manual drags.
 Refs exist because you cannot put this kind of state in React state or even Zustand without destroying performance or creating feedback loops:
 
 - `pendulumHandleRef`, `engineHandle`, `wallField`, `field` (hit zones), `tokenField`, `effects` — the live Matter + game objects
-- `dragRef`, `dragConstraint` (live spring while player is hand-swinging)
+- `dragRef`, `dragConstraint`, `dragGrab` (stiff grab on the held rope node while the player is hand-swinging; throw on release)
 - `launchPendingRef`, `tokenLaunchPendingRef`, `lastTokenEpochRef` — cross-frame action queues
 - `userAdjustedCameraRef`, `lastAutoZoomRef` — camera behavior flags
 - `runIdleMs`, `runStallLowMs`, `hitStopUntil`, `snappedAt`, and dozens of per-behavior counters (`lastDashAt`, `homingEats`, `durability`, `beltGrip`, etc.)

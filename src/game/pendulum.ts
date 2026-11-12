@@ -55,6 +55,22 @@ export function bobRadius(pendulum: PendulumDef): number {
   return pendulum.bobRadius ?? DEFAULT_BOB_RADIUS;
 }
 
+/**
+ * Stiffness for rope links. The mass-derived value from resolveConstraintParams
+ * is honored when it is stiffer than the material's, but never softens a link
+ * below the material tuning. (At the 3× world scale the mass-derived value sits
+ * at its 0.04 floor for every shipped rig, so using it raw made the bob hang on
+ * a rubber band.)
+ */
+function ropeLinkStiffness(materialStiffness: number, calculatedStiffness: number): number {
+  return Math.min(1, Math.max(materialStiffness, calculatedStiffness));
+}
+
+/** The rope→bob link is a touch stiffer than the rope so the bob doesn't lag the tail. */
+function bobLinkStiffness(materialStiffness: number, calculatedStiffness: number): number {
+  return Math.min(1, ropeLinkStiffness(materialStiffness, calculatedStiffness) + 0.05);
+}
+
 function buildRopeChain(
   composite: Matter.Composite,
   pivot: Matter.Body,
@@ -90,7 +106,7 @@ function buildRopeChain(
       bodyA: prev,
       bodyB: node,
       length: segLen,
-      stiffness: material.stiffness,
+      stiffness: ropeLinkStiffness(material.stiffness, stiffness),
       damping: material.damping,
       label: `rope-${i}`,
     });
@@ -237,7 +253,7 @@ export function buildPendulum(
         bodyA: ropeTail,
         bodyB: bob,
         length: bobLinkLen,
-        stiffness: Math.min(1, stiffness + 0.05),
+        stiffness: bobLinkStiffness(ropeMaterial.stiffness, stiffness),
         damping,
         label: "rope-bob",
       });
@@ -306,7 +322,7 @@ export function buildPendulum(
         bodyA: ropeTail,
         bodyB: tipBob,
         length: bobLinkLen,
-        stiffness: Math.min(1, stiffness + 0.05),
+        stiffness: bobLinkStiffness(ropeMaterial.stiffness, stiffness),
         damping,
         label: "rope-bob",
       });
@@ -617,7 +633,10 @@ export function syncAttachmentConstraintPhysics(
     bobMass,
     gravityY
   );
-  link.stiffness = stiffness;
+  link.stiffness =
+    handle.ropeSegments.length > 0
+      ? bobLinkStiffness(handle.ropePhysics.profile.stiffness, stiffness)
+      : stiffness;
   link.damping = damping;
 }
 
@@ -642,8 +661,41 @@ export function tickAttachmentPhysics(handle: PendulumHandle) {
   applyAttachmentPhysics(handle, handle.physics);
 }
 
+/**
+ * Solver iterations for this rig. Long segmented ropes need more passes for the
+ * Gauss-Seidel solver to propagate tension from the pivot to the bob, so scale
+ * with the segment count (24 links → 8). Never below the engine's old fixed 4.
+ */
 export function attachmentConstraintIterations(handle: PendulumHandle): number {
-  return recommendedConstraintIterations(handle.physics.profile);
+  const recommended = recommendedConstraintIterations(handle.physics.profile);
+  const bySegments = Math.ceil(handle.ropeSegments.length / 3);
+  return Math.min(10, Math.max(4, recommended, bySegments));
+}
+
+/**
+ * Keep every rope link within its material's `maxStretchRatio` after the solver
+ * runs. Walks from the pivot outward and pulls each child body back onto the
+ * limit (position only; velocity is kept so the swing keeps its energy). Without
+ * this, a heavy bob on light rope nodes stretched steel rope by 30–40%.
+ * No-op for rigid rods, the belt, and a snapped rope.
+ */
+export function enforceRopeStretchLimit(handle: PendulumHandle) {
+  if (handle.snapped || handle.ropeSegments.length === 0) return;
+  const ratio = Math.max(1, handle.ropePhysics.profile.maxStretchRatio);
+  for (const c of handle.constraints) {
+    const a = c.bodyA;
+    const b = c.bodyB;
+    if (!a || !b || b.isStatic) continue;
+    if (!/^rope-(\d+|bob)$/.test(c.label ?? "")) continue;
+    const max = (c.length ?? 0) * ratio;
+    if (max <= 0) continue;
+    const dx = b.position.x - a.position.x;
+    const dy = b.position.y - a.position.y;
+    const d = Math.hypot(dx, dy);
+    if (d <= max || d < 1e-6) continue;
+    const k = max / d;
+    Matter.Body.setPosition(b, { x: a.position.x + dx * k, y: a.position.y + dy * k });
+  }
 }
 
 export function setPendulumWeightScale(handle: PendulumHandle, scale: number) {
