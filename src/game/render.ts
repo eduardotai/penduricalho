@@ -261,12 +261,6 @@ export function drawBlackHole(
   ctx.restore();
 }
 
-/** @deprecated Use drawSiteBackground + drawSiteAnchor for camera zoom support. */
-export function drawSite(rc: RenderContext, site: SiteDef, anchor: Vec2) {
-  drawSiteBackground(rc, site);
-  drawSiteAnchor(rc, anchor);
-}
-
 const ZONE_TIERS = [
   { fill: "#34d399", glow: "#6ee7b7", core: "#ecfdf5" },
   { fill: "#38bdf8", glow: "#7dd3fc", core: "#f0f9ff" },

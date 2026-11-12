@@ -1530,5 +1530,3 @@ export const useGameStore = create<GameState>()(
     }
   )
 );
-
-export const COMBO_DECAY_WINDOW_MS = COMBO_DECAY_MS;

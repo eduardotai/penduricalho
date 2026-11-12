@@ -512,6 +512,3 @@ export function applyBeltTunnelContainment(
     }
   }
 }
-
-// Back-compat alias (old name still works during transition)
-export { applyBeltTunnelContainment as applyBeltTunnelWalls };

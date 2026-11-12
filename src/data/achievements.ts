@@ -246,11 +246,6 @@ export const ACHIEVEMENT_MAP = new Map<string, AchievementDef>(
   ACHIEVEMENTS.map((a) => [a.id, a] as const)
 );
 
-/** Returns a stable display order for a category (used by UI). */
-export function getCategoryOrder(cat: AchievementCategory): number {
-  return ACHIEVEMENT_CATEGORIES.indexOf(cat);
-}
-
 /**
  * Pure evaluator. Takes a snapshot of the relevant state pieces (avoids pulling
  * the entire Zustand store into pure data land).
@@ -399,11 +394,6 @@ export function getAllAchievementProgress(snapshot: {
     });
   }
   return out;
-}
-
-/** Count of visible (non-hidden or already unlocked) achievements. */
-export function countVisibleAchievements(unlocked: Record<string, number>): number {
-  return ACHIEVEMENTS.filter((a) => !a.hidden || !!unlocked[a.id]).length;
 }
 
 /** Current global momentum multiplier from achievements (small permanent bonus). */

@@ -106,21 +106,3 @@ export const MODIFIERS: ModifierDef[] = [
 ];
 
 export const MODIFIER_MAP = new Map(MODIFIERS.map((m) => [m.id, m]));
-
-// Modifiers eligible for the legacy "random buff from a zone" path. Token-
-// granted physical modifiers are excluded — they only enter play via tokens.
-const RANDOM_ROLLABLE_IDS = new Set([
-  "power-twist",
-  "heavy-air",
-  "featherweight",
-  "golden-hour",
-  "overdrive",
-  "speed-ramp",
-  "bigger-bob",
-  "tiny-bob",
-]);
-const ROLLABLE_MODIFIERS = MODIFIERS.filter((m) => RANDOM_ROLLABLE_IDS.has(m.id));
-
-export function rollRandomModifier(): ModifierDef {
-  return ROLLABLE_MODIFIERS[Math.floor(Math.random() * ROLLABLE_MODIFIERS.length)];
-}

@@ -398,7 +398,3 @@ export function spawnExtraZones(
 export function destroyHitZones(world: Matter.World, field: HitZoneField) {
   for (const h of field.zones) Matter.World.remove(world, h.body);
 }
-
-export function findZoneByBody(field: HitZoneField, body: Matter.Body): HitZoneHandle | null {
-  return field.zones.find((z) => z.body === body) ?? null;
-}

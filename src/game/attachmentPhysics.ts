@@ -320,18 +320,3 @@ export function formatStretchBudget(profile: AttachmentMaterialProfile): string 
   if (pct >= 1) return `+${pct.toFixed(1)}%`;
   return `+${(pct * 10).toFixed(0)}‰`;
 }
-
-export const REFERENCE_BOB_MASS = 2.2;
-export const REFERENCE_GRAVITY = 1;
-
-export function resolveAttachmentDefPhysics(
-  attachment: AttachmentDef
-): Pick<AttachmentDef, "stiffness" | "damping"> {
-  const profile = getMaterialProfile(attachment);
-  return resolveConstraintParams(
-    profile,
-    attachment.length,
-    REFERENCE_BOB_MASS,
-    REFERENCE_GRAVITY
-  );
-}
