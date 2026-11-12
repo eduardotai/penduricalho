@@ -168,9 +168,11 @@ export const PENDULUMS: PendulumDef[] = [
     bobSpacing: 0,
     bobRadius: R(34),
     maxAngularVelocity: 0.45,
-    basePointMultiplier: 3.6,
+    // Was 3.6× for 4k, which out-earned every bob up to Tungsten (4.5× / 60k).
+    // Now a mid-game glass cannon: just above Breakable (3.0× / 15k), below Tungsten.
+    basePointMultiplier: 3.0,
     rarity: "rare",
-    cost: 4_000,
+    cost: 30_000,
     unlock: { stat: "bestCombo", gte: 10 },
     behavior: {
       kind: "nitro",
