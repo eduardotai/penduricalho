@@ -33,6 +33,8 @@ import {
   getOrderedBobBodies,
   positionChainBobs,
   tickAttachmentPhysics,
+  attachmentConstraintIterations,
+  enforceRopeStretchLimit,
   propagateRopeWhip,
   resetPendulumToRest,
   settleEmptyRope,
@@ -51,6 +53,15 @@ import {
   resetBeltVirtual,
   type PendulumHandle,
 } from "../game/pendulum";
+import {
+  GRAB_DAMPING,
+  GRAB_STIFFNESS,
+  pickGrabTarget,
+  pushPointerSample,
+  throwVelocity,
+  type GrabTarget,
+  type PointerSample,
+} from "../game/ropeGrab";
 import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
@@ -695,6 +706,8 @@ export default function GameCanvas() {
       1
     );
     pendulumHandleRef.current = pendulumHandle;
+    // Long segmented ropes need more solver passes than the engine's default 4.
+    engineHandle.engine.constraintIterations = attachmentConstraintIterations(pendulumHandle);
 
     const pendulumReach =
       attachment.length + pendulum.bobSpacing * Math.max(0, pendulum.bobCount - 1);
@@ -997,6 +1010,9 @@ export default function GameCanvas() {
       // Already frozen, or still inside the cooldown window — skip so sweeping
       // through several multiplier circles doesn't stack into fake lag.
       if (now < hitStopUntil) return;
+      // Never freeze physics under the player's hand: the pointer keeps moving,
+      // so a frozen rope would snap to catch up and feel like a stutter.
+      if (dragRef.current) return;
       if (now - lastHitStopAt < HIT_STOP_COOLDOWN_MS) return;
       lastHitStopAt = now;
       hitStopUntil = now + ms;
@@ -2602,6 +2618,11 @@ export default function GameCanvas() {
     };
     Matter.Events.on(engineHandle.engine, "afterUpdate", clampSwingSpeed);
 
+    // Hold rope links to their material's stretch limit after every solver
+    // step, so heavy bobs don't turn steel rope into a rubber band.
+    const ropeStretchGuard = () => enforceRopeStretchLimit(pendulumHandle);
+    Matter.Events.on(engineHandle.engine, "afterUpdate", ropeStretchGuard);
+
     // Catch fast bobs that would otherwise tunnel through the Layers map's thin
     // ring walls between fixed steps. Runs every physics step (including while
     // snapped, when the freed bobs ricochet out through the rings) so a crossing
@@ -2618,13 +2639,16 @@ export default function GameCanvas() {
     let raf = 0;
     const ctx = canvas.getContext("2d")!;
 
-    // The live spring that pulls the bob toward the player's pointer during a
-    // hand-swing. Created lazily on the first dragging frame, torn down on
-    // release. Kept here so it survives across frames within this run's effect.
+    // The live grab that holds the rope under the player's pointer during a
+    // hand-swing. Created lazily on the first dragging frame on the rope node
+    // nearest the pointer, torn down on release (with a throw). Kept here so it
+    // survives across frames within this run's effect.
     let dragConstraint: Matter.Constraint | null = null;
+    let dragGrab: GrabTarget | null = null;
+    const dragSamples: PointerSample[] = [];
 
     function frame(now: number) {
-      const inHitStop = now < hitStopUntil;
+      const inHitStop = now < hitStopUntil && !dragRef.current;
       // During hit-stop we still keep `lastT` moving forward so we don't
       // dump a huge accumulated delta into particles/effects the frame the
       // freeze ends — instead we just feed dt=0 to everything.
@@ -2647,16 +2671,24 @@ export default function GameCanvas() {
       if (dragging) {
         const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
         if (tip) {
-          // The rope can never be stretched by the hand: the player only sets
-          // the swing ANGLE. Clamp the grab target onto the pivot-centered reach
-          // circle (full rope + bob-link length) so pulling outward just rotates
-          // the taut line, never extends it — the same fixed length the running
-          // physics enforce. Pulling inward is allowed (the line goes slack and
-          // gravity drops the bob), exactly like a real rope.
           const pivot = pendulumHandle.pivot.position;
           const bobR = getEffectiveBobRadius(pendulumHandle);
           const bobLinkLen = Math.max(4, bobR * 0.35);
-          const maxReach = rigReach(pendulumHandle) + bobLinkLen;
+          if (!dragGrab) {
+            // Hold the rope where the player grabbed it: the nearest rope node
+            // (or the tip bob), not always the tip.
+            dragGrab = pickGrabTarget(
+              pendulumHandle,
+              { x: drag!.worldX, y: drag!.worldY },
+              rigReach(pendulumHandle) + bobLinkLen
+            );
+          }
+          // The rope can never be stretched by the hand: the player only sets
+          // the swing ANGLE. Clamp the grab target onto the pivot-centered reach
+          // circle of the held point so pulling outward just rotates the taut
+          // line, never extends it. Pulling inward is allowed (the line below
+          // the hand goes slack), exactly like a real rope.
+          const maxReach = dragGrab?.reach ?? rigReach(pendulumHandle) + bobLinkLen;
           let tx = drag!.worldX - pivot.x;
           let ty = drag!.worldY - pivot.y;
           const d = Math.hypot(tx, ty);
@@ -2682,12 +2714,13 @@ export default function GameCanvas() {
           }
 
           if (!dragConstraint) {
+            dragSamples.length = 0;
             dragConstraint = Matter.Constraint.create({
               pointA: { x: targetX, y: targetY },
-              bodyB: tip,
+              bodyB: dragGrab?.body ?? tip,
               pointB: { x: 0, y: 0 },
-              stiffness: 0.2,
-              damping: 0.12,
+              stiffness: GRAB_STIFFNESS,
+              damping: GRAB_DAMPING,
               length: 0,
               label: "manual-drag",
             });
@@ -2705,10 +2738,22 @@ export default function GameCanvas() {
             runStallLowMs = 0;
           }
           dragConstraint.pointA = { x: targetX, y: targetY };
+          pushPointerSample(dragSamples, { t: now, x: targetX, y: targetY });
         }
       } else if (dragConstraint) {
+        // Release: throw the held point with the hand's recent velocity so the
+        // rope whips instead of just drifting off the spring.
+        const held = dragConstraint.bodyB;
         Matter.Composite.remove(engineHandle.world, dragConstraint);
         dragConstraint = null;
+        if (held && !pendulumHandle.snapped) {
+          const v = throwVelocity(dragSamples);
+          if (v.x !== 0 || v.y !== 0) Matter.Body.setVelocity(held, v);
+        }
+        dragGrab = null;
+        dragSamples.length = 0;
+      } else {
+        dragGrab = null;
       }
 
       const effects$ = aggregateEffects(store.activeModifiers, store.persistentBonuses);
@@ -2920,13 +2965,18 @@ export default function GameCanvas() {
         // Reroll every hit zone (new positions and new multipliers) so each
         // new run gets a fresh playfield. Stale tokens from a prior run go
         // with it — they shouldn't survive into a new launch.
-        regenerateHitZones(
-          engineHandle.world,
-          field,
-          pendulumReach,
-          spawnClearance
-        );
-        destroyTokenField(engineHandle.world, tokenField);
+        // A run started by grabbing the idle rig keeps the field the player is
+        // looking at: rerolling circles and wiping tokens under their hand made
+        // the scene jump the moment they grabbed the rope.
+        if (!suppressLaunchImpulseRef.current) {
+          regenerateHitZones(
+            engineHandle.world,
+            field,
+            pendulumReach,
+            spawnClearance
+          );
+          destroyTokenField(engineHandle.world, tokenField);
+        }
         resetBehaviorRunState();
         if (suppressLaunchImpulseRef.current) {
           // A hand-swing started this run: no slingshot, no reset-to-rest. The
@@ -3356,6 +3406,7 @@ export default function GameCanvas() {
       cancelAnimationFrame(raf);
       Matter.Events.off(engineHandle.engine, "collisionStart", handleCollision);
       Matter.Events.off(engineHandle.engine, "afterUpdate", clampSwingSpeed);
+      Matter.Events.off(engineHandle.engine, "afterUpdate", ropeStretchGuard);
       Matter.Events.off(engineHandle.engine, "afterUpdate", ringTunnelGuard);
       Matter.Events.off(engineHandle.engine, "afterUpdate", boundaryTunnelGuard);
       destroyHitZones(engineHandle.world, field);
@@ -3368,6 +3419,7 @@ export default function GameCanvas() {
       destroyEngine(engineHandle);
       pendulumHandleRef.current = null;
       dragConstraint = null;
+      dragGrab = null;
       dragRef.current = null;
       suppressLaunchImpulseRef.current = false;
     };

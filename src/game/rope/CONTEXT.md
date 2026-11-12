@@ -10,7 +10,7 @@ This is one of the most intricate subsystems because ropes are both **visual** a
 
 - `index.ts` — Re-exports only.
 - `materials.ts` — `RopeMaterialProfile` + base materials + per-item overrides.
-- `physics.ts` — `RopePhysicsState` + `applyRopeMaterialForces` (the Hooke's law + damping implementation).
+- `physics.ts` — `RopePhysicsState` + `applyRopeMaterialForces` (read-only stretch measurement for rendering; it applies no forces).
 
 ---
 
@@ -23,8 +23,8 @@ This is one of the most intricate subsystems because ropes are both **visual** a
   nodeMassRatio,
   stiffness,           // constraint stiffness (0.58 elastic → 1.0 rod)
   damping,
-  maxStretchRatio,     // 1.002 (rod) → 1.35 (elastic)
-  nonlinearGain,       // elastic only — extra force when stretched hard
+  maxStretchRatio,     // 1.002 (rod) → 1.35 (elastic); enforced per link by enforceRopeStretchLimit
+  nonlinearGain,       // elastic only — currently unused
   frictionAir,
   loadRating,          // used for durability scaling
   durabilitySeconds,   // base lifetime under reference weight
@@ -44,9 +44,11 @@ drain = (bobWeight / loadRating) * (1 / durabilitySeconds) * behaviorMult
 ## How a Normal Rope Is Built (`pendulum.ts` → `buildRopeChain`)
 
 1. Create N lightweight circle bodies (`rope-${i}`) with `COLLISION.ROPE` category.
-2. Create constraints between them (and from pivot to first node, last node to bob).
+2. Create constraints between them (and from pivot to first node, last node to bob). Link stiffness is `max(material.stiffness, mass-derived stiffness)`; the rope→bob link adds +0.05.
 3. Store the original `restLengths` in `RopePhysicsState`.
-4. Every frame: `applyRopeMaterialForces` measures current distance vs rest, applies corrective forces.
+4. `attachmentConstraintIterations(handle)` sets the engine's solver passes (scales with segment count: 24 links → 8, floor 4, cap 10).
+5. After every physics step (`afterUpdate`): `enforceRopeStretchLimit` pulls any link longer than `length × maxStretchRatio` back onto the limit (position only, velocity kept).
+6. Every frame: `applyRopeMaterialForces` only measures the current stretch for visuals.
 
 Rope nodes are **not** the visual line. The visual is drawn as a thick polyline in the renderer (with slight sag for heavy bobs).
 
@@ -56,7 +58,11 @@ Rope nodes are **not** the visual line. The visual is drawn as a thick polyline 
 
 Tracks per-constraint rest lengths + live `stretchRatio` (used for visuals and some behaviors).
 
-`applyRopeMaterialForces` is the heart of the soft rope simulation. It implements a spring + damping model with an optional nonlinear region for elastic ropes.
+Matter's constraints do the physics; `applyRopeMaterialForces` only reads stretch. The hard stretch cap lives in `pendulum.ts` (`enforceRopeStretchLimit`).
+
+## Hand grab (`src/game/ropeGrab.ts`)
+
+Holding the pointer on the rig grabs the **nearest rope node or the tip bob** with a stiff temporary constraint (`GRAB_STIFFNESS` 0.75). The target is clamped to that node's reach from the pivot, so the hand can't stretch the rope. On release the held body gets the pointer's average velocity over the last ~70 ms (`throwVelocity`, capped at 52), which gives the whip. Hit-stop is skipped while a grab is active. Grabbing an idle rig starts a run without rerolling the circles or clearing tokens. The Mechanic Belt can't be grabbed.
 
 ---
 
