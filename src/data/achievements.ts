@@ -260,7 +260,7 @@ export function evaluateAchievement(
     unlocked: Record<string, number>; // for the unlocked flag
   }
 ): AchievementProgress {
-  const unlocked = !!snapshot.unlocked[def.id];
+  const alreadyUnlocked = !!snapshot.unlocked[def.id];
   const req = def.requirement;
 
   let progress = 0;
@@ -331,9 +331,15 @@ export function evaluateAchievement(
     }
     case "custom": {
       if (req.id === "hasLegendary") {
-        const hasLeg = [...PENDULUM_MAP.values(), ...ATTACHMENT_MAP.values(), ...SKIN_MAP.values(), ...SHAPE_MAP.values()].some(
-          (d: any) => d.rarity === "legendary" && isOwned(snapshot.owned, d.id, (d as any).cost !== undefined ? "pendulum" : "skin")
-        );
+        // Check each catalogue against its own owned list (the old version
+        // mapped every priced item to "pendulum", so legendary ropes never counted).
+        const legendaryIn = (defs: Iterable<{ id: string; rarity?: string }>, kind: ItemKind) =>
+          [...defs].some((d) => d.rarity === "legendary" && isOwned(snapshot.owned, d.id, kind));
+        const hasLeg =
+          legendaryIn(PENDULUM_MAP.values(), "pendulum") ||
+          legendaryIn(ATTACHMENT_MAP.values(), "attachment") ||
+          legendaryIn(SKIN_MAP.values(), "skin") ||
+          legendaryIn(SHAPE_MAP.values(), "shape");
         progress = hasLeg ? 1 : 0;
         target = 1;
       } else if (req.id === "hasAnyBehaviorBob") {
@@ -351,6 +357,11 @@ export function evaluateAchievement(
     }
   }
 
+  // An achievement is unlocked once its requirement is met (or it was unlocked
+  // earlier — unlocks are permanent even if a stat later drops). Previously this
+  // only echoed the saved map, so checkAchievements() never unlocked anything:
+  // the panel showed 100% while the count and the Momentum bonus stayed at 0.
+  const unlocked = alreadyUnlocked || (target > 0 && progress >= target);
   const percent = target > 0 ? Math.min(1, progress / target) : (unlocked ? 1 : 0);
   return { unlocked, progress: Math.floor(progress), target, percent };
 }
