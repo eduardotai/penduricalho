@@ -3,6 +3,7 @@ import { useGameStore } from "../state/store";
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_CATEGORIES,
+  getAchievementMomentumMult,
   getAllAchievementProgress,
 } from "../data/achievements";
 import type { AchievementCategory } from "../types";
@@ -28,6 +29,8 @@ export default function Achievements({ open, onClose }: Props) {
   const totalGoldenTokens = useGameStore((s) => s.totalGoldenTokens);
   const totalGoldenSpent = useGameStore((s) => s.totalGoldenSpent);
   const blackHoleCaptures = useGameStore((s) => s.blackHoleCaptures);
+  const cachedTotalCps = useGameStore((s) => s.cachedTotalCps);
+  const totalArcSurges = useGameStore((s) => s.totalArcSurges);
 
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -40,9 +43,22 @@ export default function Achievements({ open, onClose }: Props) {
       totalRuns,
       bestRunMomentum,
       totalGoldenTokens,
+      cachedTotalCps,
+      totalArcSurges,
       unlocked,
     }),
-    [stats, owned, totalGoldenSpent, blackHoleCaptures, totalRuns, bestRunMomentum, totalGoldenTokens, unlocked]
+    [
+      stats,
+      owned,
+      totalGoldenSpent,
+      blackHoleCaptures,
+      totalRuns,
+      bestRunMomentum,
+      totalGoldenTokens,
+      cachedTotalCps,
+      totalArcSurges,
+      unlocked,
+    ]
   );
 
   const progressMap = useMemo(() => getAllAchievementProgress(snapshot), [snapshot]);
@@ -75,13 +91,7 @@ export default function Achievements({ open, onClose }: Props) {
   const totalVisible = ACHIEVEMENTS.filter((a) => !a.hidden || !!unlocked[a.id]).length;
 
   // Small global bonus (recomputed live)
-  const bonusMult = useMemo(() => {
-    // We import the pure fn via a small re-export in selectors, but to avoid
-    // circular import noise we just compute here the same way.
-    const per = 0.0025;
-    const max = 0.12;
-    return 1 + Math.min(unlockedCount * per, max);
-  }, [unlockedCount]);
+  const bonusMult = getAchievementMomentumMult(unlockedCount);
 
   const bonusPct = Math.round((bonusMult - 1) * 1000) / 10;
 
