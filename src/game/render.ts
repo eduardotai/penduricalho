@@ -7,7 +7,12 @@ import type { HitZoneField } from "./hitZones";
 import type { TokenField } from "./tokens";
 import { getTokenLifeFraction } from "./tokens";
 import type { EffectsState } from "./effects";
-import { getShakeOffset } from "./effects";
+import {
+  FLOAT_TEXT_FONT_SIZE,
+  HIT_FLASH_EXPAND,
+  HIT_FLASH_LINE_WIDTH,
+  getShakeOffset,
+} from "./effects";
 import { drawBobSkinArt } from "./bobSkinArt";
 import { clipBobShape, fillBobShape, strokeBobShape } from "./bobShapePath";
 import { shadeColor, withAlpha } from "./bobRenderUtils";
@@ -729,7 +734,7 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     rc.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     rc.ctx.fill();
   }
-  rc.ctx.font = "bold 14px Inter, sans-serif";
+  rc.ctx.font = `bold ${FLOAT_TEXT_FONT_SIZE}px Inter, sans-serif`;
   rc.ctx.textAlign = "center";
   for (const f of eff.floats) {
     const a = 1 - f.life / f.maxLife;
@@ -739,9 +744,9 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
   for (const h of eff.hitFlashes) {
     const remaining = (h.until - rc.now) / 220;
     rc.ctx.strokeStyle = withAlpha(h.color, remaining * 0.6);
-    rc.ctx.lineWidth = 3;
+    rc.ctx.lineWidth = HIT_FLASH_LINE_WIDTH;
     rc.ctx.beginPath();
-    rc.ctx.arc(h.x, h.y, h.radius + (1 - remaining) * 60, 0, Math.PI * 2);
+    rc.ctx.arc(h.x, h.y, h.radius + (1 - remaining) * HIT_FLASH_EXPAND, 0, Math.PI * 2);
     rc.ctx.stroke();
   }
 }

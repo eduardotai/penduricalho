@@ -1,6 +1,15 @@
 /** Scale factor vs the original 1280×800 playfield. */
 export const WORLD_SCALE = 3;
 
+/**
+ * Multiplier-circle size vs their original design px. Deliberately below
+ * WORLD_SCALE: a full ×3 (×9 area) would flood the field and change hit rates
+ * a lot, while ×2 brings circles back to roughly bob size and readable on
+ * screen. Grid spacing in hitZones.ts uses the same factor so circles keep
+ * the same relative gaps.
+ */
+export const HIT_ZONE_SCALE = 2;
+
 export const VIRTUAL_WIDTH = 1280 * WORLD_SCALE;
 export const VIRTUAL_HEIGHT = 800 * WORLD_SCALE;
 

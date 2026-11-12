@@ -1,5 +1,6 @@
 import Matter from "matter-js";
 import type { HitZone, SiteDef, Vec2 } from "../types";
+import { HIT_ZONE_SCALE } from "./worldConstants";
 
 // Probability (per zone hit) of spawning a Token on the canvas. Tokens are a
 // visible, collectable thing now — not a silent buff — so we lean higher to
@@ -7,8 +8,9 @@ import type { HitZone, SiteDef, Vec2 } from "../types";
 const MODIFIER_CHANCE_BASE = 0.18;
 
 // Tightened automatically when a spawn band is shallow.
-const GRID_SPACING_DEFAULT = 88;
-const GRID_SPACING_MIN = 32;
+// Scaled with the circle radii so the relative gaps stay as designed.
+const GRID_SPACING_DEFAULT = 88 * HIT_ZONE_SCALE;
+const GRID_SPACING_MIN = 32 * HIT_ZONE_SCALE;
 
 interface SpawnBand {
   xMin: number;
