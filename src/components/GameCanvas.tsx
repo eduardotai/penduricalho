@@ -122,6 +122,8 @@ import {
   applyWorldCamera,
   computeViewTransform,
   screenToWorld,
+  visibleWorldRect,
+  zoneSpawnRect,
   type ViewTransform,
 } from "../game/viewTransform";
 import {
@@ -714,20 +716,28 @@ export default function GameCanvas() {
     const [, zoneRmax] = site.hitZoneRadius;
     const spawnClearance = Math.max(zoneRmax, bobRadius(pendulum));
 
-    // Spawn hit circles across the full cage, not just the central playfield.
-    // The cage matches the playfield at cageScale 1 and grows past it for
-    // larger arenas, so deriving the spawn rectangle from the wall field's
-    // bounds keeps circles spread over the whole enclosed area.
+    // Spawn hit circles across the cage. At cageScale 1 the cage matches the
+    // playfield, so circles cover the whole field. On bigger cages
+    // (cageScale > 1) most of the cage is off camera, so circles spawn in the
+    // on-screen part of it instead (see zoneSpawnRect), re-measured every run.
     const cageBounds = wallField.bounds;
+    const zoneSpawnBounds = () => {
+      const cam = useGameStore.getState();
+      return zoneSpawnRect(
+        {
+          x: cageBounds.minX,
+          y: cageBounds.minY,
+          w: cageBounds.maxX - cageBounds.minX,
+          h: cageBounds.maxY - cageBounds.minY,
+        },
+        visibleWorldRect(viewRef.current, ANCHOR, cam.cameraZoom, cam.cameraPanX, cam.cameraPanY),
+        site.cageScale ?? 1
+      );
+    };
     const field: HitZoneField = generateHitZones(
       engineHandle.world,
       site,
-      {
-        x: cageBounds.minX,
-        y: cageBounds.minY,
-        w: cageBounds.maxX - cageBounds.minX,
-        h: cageBounds.maxY - cageBounds.minY,
-      },
+      zoneSpawnBounds(),
       ANCHOR,
       pendulumReach,
       spawnClearance
@@ -2969,6 +2979,7 @@ export default function GameCanvas() {
         // looking at: rerolling circles and wiping tokens under their hand made
         // the scene jump the moment they grabbed the rope.
         if (!suppressLaunchImpulseRef.current) {
+          field.bounds = zoneSpawnBounds();
           regenerateHitZones(
             engineHandle.world,
             field,
