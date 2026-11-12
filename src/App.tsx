@@ -194,7 +194,7 @@ export default function App() {
         </div>
         <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 md:gap-3">
           {WORKSHOP_CLICKER_ENABLED && (
-            <div className="pointer-events-auto min-h-0 md:hidden">
+            <div className="pointer-events-auto min-h-0 max-h-[36dvh] overflow-y-auto overscroll-contain rounded-2xl md:hidden">
               <WorkshopPanel />
             </div>
           )}

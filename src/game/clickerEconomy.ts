@@ -30,13 +30,15 @@ export function clickUpgradeCost(baseCost: number, costMult: number, level: numb
   return Math.floor(baseCost * Math.pow(costMult, Math.max(0, level)));
 }
 
-export function generatorCps(
-  baseCps: number,
-  owned: number,
-  growth = 1.15
-): number {
+/**
+ * Passive CPS from `owned` copies of one generator: linear, `owned × baseCps`
+ * (global multipliers are applied once in computeTotalCps). The old
+ * `baseCps × 1.15^owned` compounded per copy, so income grew exponentially
+ * with count and outran the equally exponential costs.
+ */
+export function generatorCps(baseCps: number, owned: number): number {
   if (owned <= 0) return 0;
-  return baseCps * Math.pow(growth, owned);
+  return baseCps * owned;
 }
 
 export function clickUpgradeMultFromLevels(

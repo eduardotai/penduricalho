@@ -16,4 +16,4 @@
  * Player workshop progress (owned generators, upgrades) stays persisted in the
  * store either way, so re-enabling picks up exactly where the save left off.
  */
-export const WORKSHOP_CLICKER_ENABLED = false;
+export const WORKSHOP_CLICKER_ENABLED = true;
