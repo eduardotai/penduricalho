@@ -11,13 +11,22 @@ body,
 }
 
 body {
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "tnum" 1, "cv11" 1; /* steady tabular digits for counters */
   background:
-    radial-gradient(circle at 30% 20%, rgba(249, 115, 22, 0.08), transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(56, 189, 248, 0.06), transparent 50%),
-    #020617;
-  color: #f1f5f9;
+    radial-gradient(circle at 30% 20%, rgba(220, 170, 54, 0.10), transparent 55%),
+    radial-gradient(circle at 80% 85%, rgba(131, 86, 24, 0.12), transparent 55%),
+    #15100c;
+  color: #f3ebdd;
   overflow: hidden;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Fraunces Variable", Georgia, ui-serif, serif;
+  font-variation-settings: "SOFT" 50, "WONK" 0;
+  letter-spacing: 0.01em;
 }
 
 canvas {

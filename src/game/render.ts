@@ -19,6 +19,7 @@ import { shadeColor, withAlpha } from "./bobRenderUtils";
 import type { BeltTunnelPath } from "./beltTunnel";
 import { sampleTunnel, sampleTunnelTangent } from "./beltTunnel";
 import { WORLD_SCALE } from "./worldConstants";
+import { drawBrassBracket, drawWatchmakerBackdrop, type BackdropCamera } from "./watchmakerArt";
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
@@ -72,15 +73,10 @@ export function drawScreenBackdrop(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  site: SiteDef
+  site: SiteDef,
+  cam?: BackdropCamera
 ) {
-  const [top, bottom] = SITE_BACKGROUNDS[site.background] ?? SITE_BACKGROUNDS.workshop;
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-  drawGrid(ctx, width, height, 60);
+  drawWatchmakerBackdrop(ctx, width, height, site, cam);
 }
 
 export function drawSiteBackground(rc: RenderContext, site: SiteDef) {
@@ -94,12 +90,7 @@ export function drawSiteBackground(rc: RenderContext, site: SiteDef) {
 }
 
 export function drawSiteAnchor(rc: RenderContext, anchor: Vec2) {
-  rc.ctx.save();
-  rc.ctx.fillStyle = "#475569";
-  rc.ctx.fillRect(anchor.x - 60, anchor.y - 24, 120, 16);
-  rc.ctx.fillStyle = "#334155";
-  rc.ctx.fillRect(anchor.x - 50, anchor.y - 10, 100, 6);
-  rc.ctx.restore();
+  drawBrassBracket(rc.ctx, anchor, rc.now);
 }
 
 /**
@@ -266,12 +257,13 @@ export function drawBlackHole(
   ctx.restore();
 }
 
+// Watch-jewel tiers (emerald → ruby), each set in a brass bezel.
 const ZONE_TIERS = [
-  { fill: "#34d399", glow: "#6ee7b7", core: "#ecfdf5" },
-  { fill: "#38bdf8", glow: "#7dd3fc", core: "#f0f9ff" },
-  { fill: "#a78bfa", glow: "#c4b5fd", core: "#f5f3ff" },
-  { fill: "#fb923c", glow: "#fdba74", core: "#fff7ed" },
-  { fill: "#f472b6", glow: "#f9a8d4", core: "#fdf2f8" },
+  { fill: "#0f7a55", glow: "#3fd69a", core: "#d9fff0" },
+  { fill: "#1c4fa8", glow: "#5f9bff", core: "#e3edff" },
+  { fill: "#6a2c9e", glow: "#b77bff", core: "#f3e8ff" },
+  { fill: "#b8730f", glow: "#ffc25a", core: "#fff4d6" },
+  { fill: "#a3122c", glow: "#ff5a76", core: "#ffe1e6" },
 ] as const;
 
 function zoneTier(basePoints: number) {
@@ -295,14 +287,17 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
 
     rc.ctx.save();
 
-    const glowR = z.radius + 8 + pulse * 4;
+    // Additive glow: hits bloom instead of just tinting.
+    const glowR = z.radius * (flashActive ? 2.1 : 1.45) + pulse * z.radius * 0.12;
     const glow = rc.ctx.createRadialGradient(x, y, z.radius * 0.35, x, y, glowR);
-    glow.addColorStop(0, withAlpha(tier.glow, flashActive ? 0.5 : 0.22 + pulse * 0.1));
+    glow.addColorStop(0, withAlpha(tier.glow, flashActive ? 0.65 : 0.16 + pulse * 0.08));
     glow.addColorStop(1, withAlpha(tier.glow, 0));
+    rc.ctx.globalCompositeOperation = "lighter";
     rc.ctx.fillStyle = glow;
     rc.ctx.beginPath();
     rc.ctx.arc(x, y, glowR, 0, Math.PI * 2);
     rc.ctx.fill();
+    rc.ctx.globalCompositeOperation = "source-over";
 
     for (let i = 0; i < bonusRings; i++) {
       const ringR = z.radius + 5 + i * 4 + pulse * 1.5;
@@ -334,8 +329,13 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
     }
     rc.ctx.fillStyle = bodyGrad;
     rc.ctx.fill();
-    rc.ctx.lineWidth = 2;
-    rc.ctx.strokeStyle = flashActive ? "#fef3c7" : withAlpha(tier.fill, 0.9);
+    // Brass bezel
+    const bezel = rc.ctx.createLinearGradient(x - z.radius, y - z.radius, x + z.radius, y + z.radius);
+    bezel.addColorStop(0, flashActive ? "#fff7d6" : "#f6dc8c");
+    bezel.addColorStop(0.5, "#a8741f");
+    bezel.addColorStop(1, flashActive ? "#fff1b8" : "#e2bb63");
+    rc.ctx.lineWidth = Math.max(2, z.radius * 0.16);
+    rc.ctx.strokeStyle = bezel;
     rc.ctx.stroke();
 
     rc.ctx.beginPath();
@@ -365,14 +365,6 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
     rc.ctx.lineWidth = 1;
     rc.ctx.stroke();
 
-    const tickLen = z.radius * 0.22;
-    rc.ctx.strokeStyle = withAlpha("#ffffff", flashActive ? 0.5 : 0.2);
-    rc.ctx.beginPath();
-    rc.ctx.moveTo(x - tickLen, y);
-    rc.ctx.lineTo(x + tickLen, y);
-    rc.ctx.moveTo(x, y - tickLen);
-    rc.ctx.lineTo(x, y + tickLen);
-    rc.ctx.stroke();
 
     // Zones that can drop loot: dashed arc on the rim (not a separate floating orb).
     if (tokenGlow && !flashActive) {
@@ -448,7 +440,7 @@ export function drawTokens(rc: RenderContext, field: TokenField) {
 
     rc.ctx.rotate(-spin);
     rc.ctx.fillStyle = "rgba(15,23,42,0.88)";
-    rc.ctx.font = `bold ${def.isGolden ? 12 : 10}px Inter, sans-serif`;
+    rc.ctx.font = `bold ${def.isGolden ? 12 : 10}px "Inter Variable", sans-serif`;
     rc.ctx.textAlign = "center";
     rc.ctx.textBaseline = "middle";
     rc.ctx.fillText(tokenGlyph(def.kind), 0, 0.5);
@@ -727,6 +719,8 @@ function drawBobSpecular(
 }
 
 export function drawEffects(rc: RenderContext, eff: EffectsState) {
+  rc.ctx.save();
+  rc.ctx.globalCompositeOperation = "lighter";
   for (const p of eff.particles) {
     const a = 1 - p.life / p.maxLife;
     rc.ctx.fillStyle = withAlpha(p.color, a);
@@ -734,7 +728,8 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     rc.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     rc.ctx.fill();
   }
-  rc.ctx.font = `bold ${FLOAT_TEXT_FONT_SIZE}px Inter, sans-serif`;
+  rc.ctx.restore();
+  rc.ctx.font = `600 ${FLOAT_TEXT_FONT_SIZE}px "Fraunces Variable", Georgia, serif`;
   rc.ctx.textAlign = "center";
   for (const f of eff.floats) {
     const a = 1 - f.life / f.maxLife;
