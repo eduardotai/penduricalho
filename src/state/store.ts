@@ -10,8 +10,8 @@ import {
   ATTACHMENT_MAP,
 } from "../data/attachments";
 import { STARTER_SITE_ID, SITE_MAP } from "../data/sites";
-import { STARTER_SKIN_ID, SKIN_MAP, BOB_SKINS } from "../data/bobSkins";
-import { STARTER_SHAPE_ID, SHAPE_MAP, BOB_SHAPES } from "../data/bobShapes";
+import { STARTER_SKIN_ID, SKIN_MAP } from "../data/bobSkins";
+import { STARTER_SHAPE_ID, SHAPE_MAP } from "../data/bobShapes";
 import { MODIFIER_MAP } from "../data/modifiers";
 import {
   cappedAdditiveDuration,
@@ -31,12 +31,10 @@ import { DEFAULT_LANG, type Lang } from "../i18n/lang";
 import {
   ACHIEVEMENTS,
   getAllAchievementProgress,
-  getAchievementMomentumMult,
 } from "../data/achievements";
 import { bulkLevelUpCost } from "../game/levels";
 import { GENERATORS, GENERATOR_MAP } from "../data/generators";
 import {
-  CLICK_UPGRADES,
   CLICK_UPGRADE_MAP,
   CLICK_UPGRADE_EFFECTS,
 } from "../data/clickUpgrades";

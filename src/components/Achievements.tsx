@@ -3,13 +3,11 @@ import { useGameStore } from "../state/store";
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_CATEGORIES,
-  ACHIEVEMENT_MAP,
   getAllAchievementProgress,
 } from "../data/achievements";
 import type { AchievementCategory } from "../types";
 import { useT, useLang } from "../i18n";
 import { FormattedNumber } from "./FormattedNumber";
-import type { Stats, Owned } from "../types";
 
 interface Props {
   open: boolean;
