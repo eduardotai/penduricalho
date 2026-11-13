@@ -102,8 +102,42 @@ const CLASSIC_BRAND: Palette = {
   "950": "#431407",
 };
 
+
+const SHADE_STEPS: Shade[] = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
+
+function mixHex(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (n: number, sh: number) => (n >> sh) & 255;
+  const m = (sh: number) => Math.round(ch(pa, sh) + (ch(pb, sh) - ch(pa, sh)) * t);
+  return `#${((1 << 24) | (m(16) << 16) | (m(8) << 8) | m(0)).toString(16).slice(1)}`;
+}
+
+/**
+ * Builds a full 50–950 ramp from anchor shades (any subset that includes 50
+ * and 950), interpolating the missing ones in RGB between their neighbours.
+ */
+export function ramp(anchors: Partial<Palette> & { "50": string; "950": string }): Palette {
+  const out = {} as Palette;
+  const known = SHADE_STEPS.filter((s) => anchors[s]);
+  for (const [i, s] of SHADE_STEPS.entries()) {
+    if (anchors[s]) {
+      out[s] = anchors[s]!;
+      continue;
+    }
+    const lo = [...known].reverse().find((k) => SHADE_STEPS.indexOf(k) < i)!;
+    const hi = known.find((k) => SHADE_STEPS.indexOf(k) > i)!;
+    const li = SHADE_STEPS.indexOf(lo);
+    const hiI = SHADE_STEPS.indexOf(hi);
+    out[s] = mixHex(anchors[lo]!, anchors[hi]!, (i - li) / (hiI - li));
+  }
+  return out;
+}
+
 const SANS = '"Inter Variable", ui-sans-serif, system-ui, sans-serif';
 const SERIF = '"Fraunces Variable", Georgia, ui-serif, serif';
+const CINZEL = '"Cinzel Variable", Georgia, ui-serif, serif';
+const ORBITRON = '"Orbitron Variable", "Inter Variable", ui-sans-serif, sans-serif';
 
 export const DEFAULT_THEME_ID = "classic";
 
@@ -198,6 +232,125 @@ export const THEMES: ThemeDef[] = [
       "radial-gradient(circle at 30% 20%, rgba(220, 170, 54, 0.10), transparent 55%), radial-gradient(circle at 80% 85%, rgba(131, 86, 24, 0.12), transparent 55%), #15100c",
     metaColor: "#15100c",
     swatch: ["#3b2a1b", "#dcaa36", "#a3122c"],
+  },
+  {
+    id: "observatory",
+    name: { en: "Observatory", pt: "Observatório" },
+    description: {
+      en: "Midnight sky and silver: twinkling stars, a turning star chart, an armillary pivot and planets for circles.",
+      pt: "Céu da meia-noite e prata: estrelas cintilando, carta celeste girando, pivô armilar e planetas no lugar dos círculos.",
+    },
+    cost: 60_000,
+    palette: {
+      slate: ramp({
+        "50": "#f4f6fd",
+        "100": "#e6ebf8",
+        "200": "#cdd5ee",
+        "400": "#8d99c4",
+        "600": "#4a5584",
+        "800": "#1b2247",
+        "900": "#10163a",
+        "950": "#070a1f",
+      }),
+      // Starlight silver-blue.
+      brand: ramp({
+        "50": "#f1f6ff",
+        "200": "#cfe0ff",
+        "300": "#aac6ff",
+        "400": "#82a7ff",
+        "500": "#5f86f0",
+        "600": "#4766d1",
+        "800": "#2a3a86",
+        "950": "#111842",
+      }),
+      amber: ramp({ "50": "#fffaf0", "300": "#ffe3a8", "500": "#f2c46b", "700": "#a87f35", "950": "#30220a" }),
+      yellow: ramp({ "50": "#fffdf0", "300": "#fff0a8", "500": "#f2dc6b", "700": "#a89535", "950": "#302a0a" }),
+    },
+    fonts: { sans: SANS, display: CINZEL, heading: CINZEL },
+    pageBackground:
+      "radial-gradient(circle at 25% 15%, rgba(95, 134, 240, 0.12), transparent 55%), radial-gradient(circle at 80% 85%, rgba(176, 75, 214, 0.10), transparent 55%), #070a1f",
+    metaColor: "#070a1f",
+    swatch: ["#0d1433", "#82a7ff", "#f2c25c"],
+  },
+  {
+    id: "neon",
+    name: { en: "Neon Arcade", pt: "Fliperama Neon" },
+    description: {
+      en: "Synthwave night: striped sun, scrolling grid, scanlines, a neon-tube pivot and glowing rings.",
+      pt: "Noite synthwave: sol listrado, grade em movimento, scanlines, pivô de tubo neon e anéis brilhantes.",
+    },
+    cost: 100_000,
+    palette: {
+      slate: ramp({
+        "50": "#fbf3ff",
+        "100": "#f3e3fb",
+        "200": "#e2c6f2",
+        "400": "#a77fc2",
+        "600": "#5c3a78",
+        "800": "#2a1240",
+        "900": "#1a0a2a",
+        "950": "#0c0316",
+      }),
+      // Hot magenta.
+      brand: ramp({
+        "50": "#fff0fb",
+        "200": "#ffc2ee",
+        "300": "#ff94e0",
+        "400": "#ff5fd3",
+        "500": "#f532c0",
+        "600": "#d01ea0",
+        "800": "#7c0f60",
+        "950": "#33042a",
+      }),
+      // Accents go electric cyan so they pop against magenta.
+      amber: ramp({ "50": "#effeff", "300": "#9ff6ff", "500": "#3fe0f2", "700": "#1a8a99", "950": "#062a30" }),
+      yellow: ramp({ "50": "#f7fff0", "300": "#d6ff9f", "500": "#a8f23f", "700": "#5f991a", "950": "#1c3006" }),
+    },
+    fonts: { sans: SANS, display: ORBITRON, heading: ORBITRON },
+    pageBackground:
+      "radial-gradient(circle at 50% 70%, rgba(255, 63, 209, 0.14), transparent 55%), radial-gradient(circle at 20% 10%, rgba(63, 242, 255, 0.08), transparent 50%), #0c0316",
+    metaColor: "#0c0316",
+    swatch: ["#3a0a4a", "#ff3fd1", "#3ff2ff"],
+  },
+  {
+    id: "greenhouse",
+    name: { en: "Greenhouse", pt: "Estufa" },
+    description: {
+      en: "A Victorian glasshouse at dusk: iron arches, light shafts, swaying ferns, a copper hook and garden berries.",
+      pt: "Uma estufa vitoriana ao entardecer: arcos de ferro, feixes de luz, samambaias balançando, gancho de cobre e frutinhas do jardim.",
+    },
+    cost: 150_000,
+    palette: {
+      slate: ramp({
+        "50": "#f3f8f3",
+        "100": "#e4efe5",
+        "200": "#c9dccb",
+        "400": "#8aa891",
+        "600": "#4a6653",
+        "800": "#1f3328",
+        "900": "#14231b",
+        "950": "#0a140f",
+      }),
+      // Polished copper.
+      brand: ramp({
+        "50": "#fdf4ee",
+        "200": "#f6d2bb",
+        "300": "#eeae88",
+        "400": "#e28a5c",
+        "500": "#cc6c3d",
+        "600": "#ad552e",
+        "800": "#6e3320",
+        "950": "#2e140b",
+      }),
+      // Honey.
+      amber: ramp({ "50": "#fffaeb", "300": "#f8de8a", "500": "#e6b445", "700": "#9c7525", "950": "#2c1f08" }),
+      yellow: ramp({ "50": "#fbfdea", "300": "#e6f08a", "500": "#c4d645", "700": "#7f8f25", "950": "#232a08" }),
+    },
+    fonts: { sans: SANS, display: SERIF, heading: SERIF },
+    pageBackground:
+      "radial-gradient(circle at 25% 10%, rgba(243, 230, 176, 0.10), transparent 55%), radial-gradient(circle at 80% 85%, rgba(63, 143, 74, 0.12), transparent 55%), #0a140f",
+    metaColor: "#0a140f",
+    swatch: ["#16302a", "#cc6c3d", "#8f1028"],
   },
 ];
 

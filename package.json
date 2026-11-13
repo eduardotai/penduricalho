@@ -10,8 +10,10 @@
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/cinzel": "^5.3.0",
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/orbitron": "^5.3.0",
     "@vercel/analytics": "^2.0.1",
     "howler": "^2.2.4",
     "matter-js": "^0.20.0",

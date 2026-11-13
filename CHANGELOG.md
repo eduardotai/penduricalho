@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - **Themes tab in the Shop.** Visual themes are bought with Momentum and equipped like any other item. "Classic" (the original look) is free; **Watchmaker's Bench / Joalheria do Relojoeiro** (walnut and brass UI, Fraunces + Inter fonts, wood/lamp/gear backdrop, brass pivot with a ruby bearing, jewel-cut circles in brass bezels, additive particles) costs 25K. Ported from the `experiment/visual-watchmaker` draft into a theme system: Tailwind `slate`/`brand`/`amber`/`yellow` are CSS variables per theme (so the amber/yellow buttons now follow the theme too), and the canvas art comes from `src/game/themes/`.
 
+- **Three more Shop themes**: **Observatório / Observatory** (60K: midnight sky, twinkling stars, turning star chart, silver armillary pivot, planets with rings; Cinzel headings), **Fliperama Neon / Neon Arcade** (100K: synthwave sun, scrolling grid, skyline, scanlines, neon-tube pivot, glowing rings; Orbitron headings), **Estufa / Greenhouse** (150K: Victorian glasshouse at dusk, light shafts, swaying ferns, pollen, copper hook with a vine, garden berries with leaves; Fraunces italic headings).
+
 ### Migration
 - Save v24: new `ownedThemes` (default `["classic"]`) and `themeId` (default `"classic"`). v23 saves load unchanged otherwise.
 

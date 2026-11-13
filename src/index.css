@@ -28,9 +28,32 @@ h3 {
 
 html[data-theme="watchmaker"] h1,
 html[data-theme="watchmaker"] h2,
-html[data-theme="watchmaker"] h3 {
+html[data-theme="watchmaker"] h3,
+html[data-theme="greenhouse"] h1,
+html[data-theme="greenhouse"] h2,
+html[data-theme="greenhouse"] h3 {
   font-variation-settings: "SOFT" 50, "WONK" 0;
   letter-spacing: 0.01em;
+}
+
+html[data-theme="greenhouse"] h1,
+html[data-theme="greenhouse"] h2,
+html[data-theme="greenhouse"] h3 {
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-style: italic;
+}
+
+html[data-theme="observatory"] h1,
+html[data-theme="observatory"] h2,
+html[data-theme="observatory"] h3 {
+  letter-spacing: 0.04em;
+}
+
+html[data-theme="neon"] h1,
+html[data-theme="neon"] h2,
+html[data-theme="neon"] h3 {
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px rgb(var(--c-brand-500) / 0.55);
 }
 
 canvas {
