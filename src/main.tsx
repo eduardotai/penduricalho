@@ -5,6 +5,8 @@ import App from "./App";
 // browser only downloads a face when a theme actually uses it.
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/cinzel";
+import "@fontsource-variable/orbitron";
 import "./index.css";
 import { useGameStore } from "./state/store";
 import { applyTheme } from "./lib/applyTheme";

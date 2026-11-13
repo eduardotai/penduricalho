@@ -124,3 +124,18 @@ test("the persisted save is v24 and carries the theme fields", () => {
   assert.deepEqual(raw.state.ownedThemes, [DEFAULT_THEME_ID, "watchmaker"]);
   assert.equal(raw.state.themeId, "watchmaker");
 });
+
+test("ramp keeps anchors and interpolates the gaps", async () => {
+  const { ramp } = await import("../src/data/themes");
+  const r = ramp({ "50": "#ffffff", "950": "#000000", "500": "#808080" });
+  assert.equal(r["50"], "#ffffff");
+  assert.equal(r["500"], "#808080");
+  assert.equal(r["950"], "#000000");
+  assert.equal(Object.keys(r).length, 11);
+  // 700 is 2 of the 5 shade steps from 500 (#808080, 128) to 950 (#000000): 128 × 0.6 ≈ 77 = 0x4d.
+  assert.equal(r["700"], "#4d4d4d");
+});
+
+test("the shop sells at least four paid themes", () => {
+  assert.ok(THEMES.filter((t) => t.cost > 0).length >= 4);
+});

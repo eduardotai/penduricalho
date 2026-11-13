@@ -120,4 +120,6 @@ decoration), particle blending and the "+N" font come from the active
 `yellow` + fonts) is CSS variables from `src/data/themes.ts`, applied by
 `src/lib/applyTheme.ts`. To add a theme: add a `ThemeDef` in `data/themes.ts`
 and a `RenderTheme` in `game/themes/<id>.ts`, register it in
-`game/themes/index.ts` (tests/themes.test.ts fails if one is missing).
+`game/themes/index.ts` (tests/themes.test.ts fails if one is missing). Shared
+helpers (seeded RNG, cached offscreen layers, vignette) are in `game/themes/artUtils.ts`;
+cache anything static (grain, stars, frames) so the backdrop stays cheap per frame.
