@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] - Global boosts
 
+### Changed
+- **Workshop panel collapsed by default**: on desktop it hides off the right edge behind a small `‹ 🔧` tab, slides in on click, and a `›` button tucks it away again, so the arena gets the room. On mobile a small **Oficina / Workshop** pill above the controls opens and closes it. The open/closed choice is kept in a separate `penduricalho-ui-prefs` localStorage key (the game save is untouched). The tab pulses until the workshop has been opened once, and the tutorial says where it is.
+
 ### Added
 - **Boosts / Multiplicadores tab in the Shop**: one-time global income upgrades. **Mola Mestra / Master Mainspring ×2** (1M) and **Turbilhão / Tourbillon ×3** (25M, needs ×2) — ×6 together. They multiply zone hits, pumps and generator CPS (and so offline idle) together with the prestige Cogs bonus and the achievement bonus; the tab shows the live breakdown. Prestige resets them.
 

@@ -16,6 +16,8 @@ import { useGameStore } from "./state/store";
 import { startIdleEngine } from "./state/idleEngine";
 import { startClickerEngine } from "./state/clickerEngine";
 import WorkshopPanel from "./components/WorkshopPanel";
+import { useUiPrefs } from "./state/uiPrefs";
+import { useT } from "./i18n";
 import { WORKSHOP_CLICKER_ENABLED } from "./config/features";
 
 export default function App() {
@@ -23,6 +25,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [prestigeOpen, setPrestigeOpen] = useState(false);
+  const t = useT();
+  const workshopOpen = useUiPrefs((s) => s.workshopOpen);
+  const workshopSeen = useUiPrefs((s) => s.workshopSeen);
+  const toggleWorkshop = useUiPrefs((s) => s.toggleWorkshop);
   // Auto-open the How-to-Play tutorial once for first-time players, then leave
   // it reopenable from the controls. tutorialSeen is read once on mount so a
   // mid-session dismiss doesn't fight the initial state.
@@ -207,8 +213,30 @@ export default function App() {
         </div>
         <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 md:gap-3">
           {WORKSHOP_CLICKER_ENABLED && (
-            <div className="pointer-events-auto min-h-0 max-h-[36dvh] overflow-y-auto overscroll-contain rounded-2xl md:hidden">
-              <WorkshopPanel />
+            <div className="pointer-events-none flex min-h-0 flex-col items-center gap-1 md:hidden">
+              {/* Mobile: collapsed to a small tab by default; tap to open. */}
+              <button
+                type="button"
+                data-testid="workshop-toggle-mobile"
+                onClick={toggleWorkshop}
+                aria-expanded={workshopOpen}
+                aria-controls="workshop-panel-mobile"
+                aria-label={workshopOpen ? t.workshop.close : t.workshop.open}
+                className={`pointer-events-auto flex min-h-[36px] items-center gap-1.5 rounded-full border border-slate-700/70 bg-slate-900/85 px-4 text-[11px] font-bold uppercase tracking-widest text-brand-300 shadow-lg backdrop-blur-md ${
+                  !workshopSeen ? "animate-pulse" : ""
+                }`}
+              >
+                <span aria-hidden>{workshopOpen ? "▾" : "▴"}</span>
+                {t.workshop.title}
+              </button>
+              {workshopOpen && (
+                <div
+                  id="workshop-panel-mobile"
+                  className="pointer-events-auto min-h-0 max-h-[36dvh] w-full overflow-y-auto overscroll-contain rounded-2xl"
+                >
+                  <WorkshopPanel />
+                </div>
+              )}
             </div>
           )}
           <div className="pointer-events-none flex shrink-0 justify-center md:block">
@@ -227,11 +255,49 @@ export default function App() {
         </div>
       </aside>
       {WORKSHOP_CLICKER_ENABLED && (
-        <aside
-          className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] md:flex"
-        >
-          <WorkshopPanel />
-        </aside>
+        <>
+          {/* Desktop: slides in from the right edge; collapsed by default so
+              the arena gets the space. */}
+          <aside
+            id="workshop-panel-desktop"
+            aria-hidden={!workshopOpen}
+            className={`pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] transition-transform duration-300 ease-out md:flex ${
+              workshopOpen ? "translate-x-0" : "invisible translate-x-full"
+            }`}
+          >
+            <div className="relative">
+              <button
+                type="button"
+                data-testid="workshop-collapse"
+                onClick={toggleWorkshop}
+                aria-label={t.workshop.close}
+                aria-controls="workshop-panel-desktop"
+                aria-expanded={workshopOpen}
+                className="pointer-events-auto absolute -left-9 top-1/2 flex h-14 w-8 -translate-y-1/2 items-center justify-center rounded-l-xl border border-r-0 border-slate-700/70 bg-slate-900/85 text-lg font-bold text-brand-300 backdrop-blur-md hover:text-white"
+              >
+                ›
+              </button>
+              <WorkshopPanel />
+            </div>
+          </aside>
+          {!workshopOpen && (
+            <button
+              type="button"
+              data-testid="workshop-open"
+              onClick={toggleWorkshop}
+              aria-label={t.workshop.open}
+              aria-controls="workshop-panel-desktop"
+              aria-expanded={false}
+              title={t.workshop.title}
+              className={`absolute right-0 top-1/2 z-10 hidden h-24 w-9 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-slate-700/70 bg-slate-900/85 pr-[env(safe-area-inset-right)] text-brand-300 shadow-lg backdrop-blur-md hover:text-white md:flex ${
+                !workshopSeen ? "animate-pulse" : ""
+              }`}
+            >
+              <span className="text-lg font-bold leading-none" aria-hidden>‹</span>
+              <span className="text-sm leading-none" aria-hidden>🔧</span>
+            </button>
+          )}
+        </>
       )}
       <HUD buffsBottomOffset={buffsBottomOffset} />
       <Customize open={customizeOpen} onClose={closeCustomize} />
