@@ -55,6 +55,8 @@ import {
   CircleDashed,
   Disc3,
   Link2,
+  Footprints,
+  Magnet,
 } from "lucide-react";
 
 export type IconComponent = ComponentType<LucideProps>;
@@ -125,6 +127,8 @@ export const ACHIEVEMENT_ICONS: Record<string, IconComponent> = {
   "singularity-bob": Disc3,
   "perfect-match": Link2,
   "set-collector": Layers,
+  moonwalker: Footprints,
+  "storm-chaser": Magnet,
 };
 
 export const GENERATOR_ICONS: Record<string, IconComponent> = {
