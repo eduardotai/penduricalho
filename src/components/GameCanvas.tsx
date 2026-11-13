@@ -62,6 +62,12 @@ import {
   type GrabTarget,
   type PointerSample,
 } from "../game/ropeGrab";
+import {
+  chaosBounds,
+  frenzyMultipliers as frenzyStatMultipliers,
+  lerpChaos,
+  rollChaosTargets,
+} from "../game/bobBehaviors";
 import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
@@ -805,15 +811,7 @@ export default function GameCanvas() {
 
     // Roster-wide stat extremes — the Chaos Bob's random churn is bounded by
     // the lightest/heaviest, smallest/largest, slowest/fastest rigs that exist.
-    const rosterRadii = PENDULUMS.map((p) => p.bobRadius);
-    const rosterWeights = PENDULUMS.map((p) => p.weight);
-    const rosterAngVels = PENDULUMS.map((p) => p.maxAngularVelocity);
-    const minRosterRadius = Math.min(...rosterRadii);
-    const maxRosterRadius = Math.max(...rosterRadii);
-    const minRosterWeight = Math.min(...rosterWeights);
-    const maxRosterWeight = Math.max(...rosterWeights);
-    const minRosterAngVel = Math.min(...rosterAngVels);
-    const maxRosterAngVel = Math.max(...rosterAngVels);
+    const rosterChaosBounds = chaosBounds(PENDULUMS);
 
     // --- Behavior-rope run-local state (the rope analog of the bob behaviors) ---
     const ropeBehavior = attachment.behavior;
@@ -2035,13 +2033,7 @@ export default function GameCanvas() {
     // frenzy combo stacks → (speedMult, sizeMult). Shared by the speed scaler
     // and the per-frame bob-size scaling so both track the same combo count.
     function frenzyMultipliers(): { speed: number; size: number } {
-      if (behavior?.kind !== "frenzy") return { speed: 1, size: 1 };
-      const maxStacks = behavior.maxComboStacks ?? 20;
-      const stacks = Math.min(useGameStore.getState().combo.count, maxStacks);
-      return {
-        speed: 1 + stacks * (behavior.comboSpeedPerStack ?? 0.015),
-        size: 1 + stacks * (behavior.comboSizePerStack ?? 0.015),
-      };
+      return frenzyStatMultipliers(behavior, useGameStore.getState().combo.count);
     }
 
     // splitter (Breakable): the more pieces it has shed, the smaller, shorter,
@@ -2226,22 +2218,28 @@ export default function GameCanvas() {
     // blend the current multipliers toward them so the rig is in constant flux.
     function chaosTick(now: number, dt: number) {
       if (behavior?.kind !== "chaos") return;
-      const baseR = bobRadius(pendulum);
-      const baseW = pendulum.weight;
-      const baseAV = pendulum.maxAngularVelocity;
-      const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
       if (now - lastChaosRollAt > (behavior.chaosRerollMs ?? 900)) {
         lastChaosRollAt = now;
-        chaosSizeTarget = rand(minRosterRadius, maxRosterRadius) / baseR;
-        chaosWeightTarget = rand(minRosterWeight, maxRosterWeight) / baseW;
-        chaosCapTarget = rand(minRosterAngVel, maxRosterAngVel) / baseAV;
-        chaosRopeTarget = rand(0.6, 1.5);
+        const t = rollChaosTargets(rosterChaosBounds, {
+          radius: bobRadius(pendulum),
+          weight: pendulum.weight,
+          angVel: pendulum.maxAngularVelocity,
+        });
+        chaosSizeTarget = t.size;
+        chaosWeightTarget = t.weight;
+        chaosCapTarget = t.cap;
+        chaosRopeTarget = t.rope;
       }
-      const a = 1 - Math.exp(-(behavior.chaosLerpRate ?? 3) * (dt / 1000));
-      chaosSizeCur += (chaosSizeTarget - chaosSizeCur) * a;
-      chaosWeightCur += (chaosWeightTarget - chaosWeightCur) * a;
-      chaosCapCur += (chaosCapTarget - chaosCapCur) * a;
-      chaosRopeCur += (chaosRopeTarget - chaosRopeCur) * a;
+      const next = lerpChaos(
+        { size: chaosSizeCur, weight: chaosWeightCur, cap: chaosCapCur, rope: chaosRopeCur },
+        { size: chaosSizeTarget, weight: chaosWeightTarget, cap: chaosCapTarget, rope: chaosRopeTarget },
+        behavior.chaosLerpRate ?? 3,
+        dt
+      );
+      chaosSizeCur = next.size;
+      chaosWeightCur = next.weight;
+      chaosCapCur = next.cap;
+      chaosRopeCur = next.rope;
     }
 
     // --- Behavior ropes --------------------------------------------------

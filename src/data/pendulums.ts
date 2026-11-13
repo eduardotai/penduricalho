@@ -210,15 +210,20 @@ export const PENDULUMS: PendulumDef[] = [
     bobSpacing: 0,
     bobRadius: R(26),
     maxAngularVelocity: 0.5,
-    basePointMultiplier: 2.8,
+    // Was 2.8× with a +1.5%/stack ramp capped at 20: the headless income sim
+    // (scripts/sim-income.mjs) put it at ~0.45–0.55× Tungsten for more money.
+    // Now a combo bet: about level with Tungsten (0.95×) on a plain launch and
+    // ~1.2× when a hand-swing keeps the chain alive; at 25 stacks it swings
+    // 1.6× faster at 2× size.
+    basePointMultiplier: 5.0,
     rarity: "legendary",
     cost: 75_000,
     unlock: { stat: "bestCombo", gte: 25 },
     behavior: {
       kind: "frenzy",
-      comboSpeedPerStack: 0.015,
-      comboSizePerStack: 0.015,
-      maxComboStacks: 20,
+      comboSpeedPerStack: 0.025,
+      comboSizePerStack: 0.04,
+      maxComboStacks: 25,
     },
   },
   {
@@ -298,7 +303,11 @@ export const PENDULUMS: PendulumDef[] = [
     bobSpacing: 0,
     bobRadius: R(22),
     maxAngularVelocity: 0.6,
-    basePointMultiplier: 2.6,
+    // Was 2.6×, the worst late bob (~0.4–0.6× Tungsten at 2.5× the price): its
+    // churn averages a mid-roster size, so it hits far less than Tungsten.
+    // 7.5× makes it the top earner on average (~1.1× Tungsten on launches,
+    // ~1.4× hand-swung) with the widest run-to-run spread — still a gamble.
+    basePointMultiplier: 7.5,
     rarity: "legendary",
     cost: 150_000,
     unlock: { stat: "totalMomentum", gte: 200000 },

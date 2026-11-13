@@ -70,6 +70,10 @@ See dedicated `src/game/rope/CONTEXT.md`.
 
 Zones have `basePoints * multiplier * current pointMult from modifiers`.
 
+### Bob behavior stat math (`bobBehaviors.ts`)
+- `frenzyMultipliers(behavior, combo)`, `chaosBounds`, `rollChaosTargets`, `lerpChaos` — pure helpers used by GameCanvas and by the headless income sim, so balance numbers measure what the game runs.
+- Balance: `node scripts/sim-income.mjs [rope] [site] [runs] [launch|hand]` prints points/s per bob vs cost (`tests/support/incomeSim.ts`; behaviors other than Frenzy/Chaos/Nitro are scored as plain swings). `tests/bobBalance.test.ts` guards the late-tier curve.
+
 ### Tokens & Modifiers (`tokens.ts`, `modifiers.ts`)
 - `TokenField` manages the drifting physical pickups.
 - `ActiveModifier[]` in the store are the live effects.
