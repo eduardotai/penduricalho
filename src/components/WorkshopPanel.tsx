@@ -169,7 +169,7 @@ export default function WorkshopPanel() {
                 </span>
                 <span className="flex shrink-0 flex-col items-end">
                   <span className="font-mono text-[11px] font-bold text-brand-300">
-                    <FormattedNumberInline value={cost} />
+                    <FormattedNumberInline value={cost} interactive={false} />
                   </span>
                   <span className="font-mono text-[9px] text-slate-400">×{owned}</span>
                 </span>
@@ -202,7 +202,7 @@ export default function WorkshopPanel() {
                 </span>
                 <span className="flex shrink-0 flex-col items-end">
                   <span className="font-mono text-[11px] font-bold text-brand-300">
-                    <FormattedNumberInline value={cost} />
+                    <FormattedNumberInline value={cost} interactive={false} />
                   </span>
                   <span className="font-mono text-[9px] text-slate-400">
                     {t.workshop.level} {level}

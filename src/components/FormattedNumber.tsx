@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   formatNumber,
-  hasAbbrevTier,
+  numberCanToggle,
   type NumberDisplayStyle,
 } from "../lib/formatNumber";
 import { useLang, useT } from "../i18n";
@@ -12,6 +12,12 @@ type FormattedNumberProps = {
   prefix?: string;
   className?: string;
   style?: NumberDisplayStyle;
+  /**
+   * When false, always render a <span> even if the value can toggle
+   * between short/words. Use this when the number sits inside a <button>
+   * (React forbids a button nested in another button).
+   */
+  interactive?: boolean;
 };
 
 export function FormattedNumber({
@@ -19,13 +25,14 @@ export function FormattedNumber({
   prefix = "",
   className = "",
   style: controlledStyle,
+  interactive = true,
 }: FormattedNumberProps) {
   const t = useT();
   const lang = useLang();
   const [internalStyle, setInternalStyle] =
     useState<NumberDisplayStyle>("short");
   const style = controlledStyle ?? internalStyle;
-  const canToggle = hasAbbrevTier(value) && controlledStyle === undefined;
+  const canToggle = numberCanToggle(value, { style: controlledStyle, interactive });
 
   const toggle = useCallback(() => {
     if (!canToggle) return;
@@ -54,14 +61,17 @@ export function FormattedNumber({
 export function FormattedNumberInline({
   value,
   className,
+  interactive,
 }: {
   value: number;
   className?: string;
+  interactive?: boolean;
 }) {
   return (
     <FormattedNumber
       value={value}
       className={`inline font-inherit ${className ?? ""}`}
+      interactive={interactive}
     />
   );
 }

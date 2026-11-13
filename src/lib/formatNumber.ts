@@ -120,6 +120,18 @@ export function hasAbbrevTier(n: number): boolean {
 }
 
 /**
+ * Whether FormattedNumber should render a toggle <button>. False when the
+ * caller asked for a fixed style, disabled interaction (the number sits
+ * inside another button), or the value has no abbreviation tier.
+ */
+export function numberCanToggle(
+  value: number,
+  opts: { style?: NumberDisplayStyle; interactive?: boolean } = {},
+): boolean {
+  return (opts.interactive ?? true) && hasAbbrevTier(value) && opts.style === undefined;
+}
+
+/**
  * Compact, readable number for HUD / shop / stats (e.g. 4.66 No, 1.2M).
  * With `words`, uses full names (e.g. 4.66 nonillion).
  */

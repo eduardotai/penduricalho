@@ -6,6 +6,11 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Nested number buttons
+
+### Fixed
+- **Shop and Workshop costs no longer nest a button inside a button.** Abbreviated numbers (1K+) were a clickable toggle, so the Level Up key and each Workshop buy row triggered a React warning and were invalid HTML. Those in-button costs now stay plain text; numbers elsewhere still toggle between 25K and 25 thousand.
+
 ## [Unreleased] - Frame budget
 
 ### Changed
