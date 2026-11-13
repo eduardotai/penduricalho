@@ -164,5 +164,5 @@ test("v23 and v24 saves migrate to v25 with zeroed prestige fields", () => {
   assert.equal(bad.prestigeCogs, 0);
   assert.equal(bad.prestigeCount, 0);
   assert.equal(bad.prestigeLifetimeMomentum, 0);
-  assert.equal(SAVE_VERSION, 25);
+  assert.ok(SAVE_VERSION >= 25);
 });

@@ -3,6 +3,7 @@ import { drawBobSkin } from "../game/render";
 import { bobRadius } from "../game/pendulum";
 import { FormattedNumber } from "./FormattedNumber";
 import ThemeShop from "./ThemeShop";
+import GlobalUpgradeShop from "./GlobalUpgradeShop";
 import { formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
 import { playGameSound, playUiClick } from "../audio/soundMap";
@@ -34,7 +35,7 @@ import type {
   UnlockGate,
 } from "../types";
 
-type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "theme" | "stats";
+type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "boost" | "theme" | "stats";
 
 /** Gear shop tabs only — workshop items use WorkshopPanel. */
 type GearItemKind = Exclude<ItemKind, "generator" | "clickUpgrade">;
@@ -60,6 +61,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
     { id: "site", label: t.customize.tabSite },
     { id: "skin", label: t.customize.tabSkin },
     { id: "shape", label: t.customize.tabShape },
+    { id: "boost", label: t.customize.tabBoost },
     { id: "theme", label: t.customize.tabTheme },
     { id: "stats", label: t.customize.tabStats },
   ];
@@ -127,6 +129,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
           {tab === "site" && <ItemList kind="site" />}
           {tab === "skin" && <ItemList kind="skin" />}
           {tab === "shape" && <ItemList kind="shape" />}
+          {tab === "boost" && <GlobalUpgradeShop />}
           {tab === "theme" && <ThemeShop />}
           {tab === "stats" && <StatsTab />}
         </div>

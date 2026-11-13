@@ -7,6 +7,8 @@
  * grants the difference between that and the cogs already held, so the sqrt
  * keeps later resets from snowballing.
  */
+import { globalUpgradeMult } from "../data/globalUpgrades";
+
 export const PRESTIGE_TUNING = {
   /** Momentum per "cog²": 100K → 1 cog, 1M → 3, 10M → 10, 100M → 31, 1B → 100. */
   unit: 100_000,
@@ -50,13 +52,15 @@ export function momentumForTotalCogs(n: number): number {
 
 export interface IncomeMultInput {
   prestigeCogs: number;
+  /** Owned global upgrade ids (data/globalUpgrades.ts). */
+  globalUpgrades?: readonly string[];
 }
 
 /**
- * Global income multiplier applied to every Momentum source that scales
+ * Global income multiplier (prestige × owned global upgrades) applied to every Momentum source that scales
  * (zone hits, workshop clicks, generator CPS and so offline idle). Multiplies
  * with the achievement bonus, item levels and workshop multipliers.
  */
 export function globalIncomeMult(s: IncomeMultInput): number {
-  return prestigeMult(s.prestigeCogs);
+  return prestigeMult(s.prestigeCogs) * globalUpgradeMult(s.globalUpgrades);
 }
