@@ -3,6 +3,13 @@ import Matter from "matter-js";
 import { useGameStore, CAMERA_ZOOM_MIN, COMBO_DECAY_MS } from "../state/store";
 import { globalIncomeMult, scaleFlatBonus } from "../game/prestige";
 import {
+  applyInterpolation,
+  createInterpSnapshot,
+  restoreBodies,
+  runnerAlpha,
+  snapshotBodies,
+} from "../game/renderInterp";
+import {
   resolveEquippedCosmetics,
   useEquippedAttachment,
   useEquippedPendulum,
@@ -248,6 +255,8 @@ const RING_WALL_BOUNCE_MAX_SPEED = 38 * WORLD_SCALE;
 const RING_MULTI_HIT_COOLDOWN_MS = 45;
 // Flat momentum bonus for shattering a wall.
 const WALL_BREAK_BONUS = 70;
+/** Bodies that moved further than this in one step were teleported: draw them as-is. */
+const INTERP_MAX_JUMP = 160;
 // Breakable Bob shed pieces chip walls slowly — ~3 shard slams ≈ one full bob hit.
 const WALL_SHARD_DAMAGE = 1 / 3;
 // How far past the field edge a freed bob must drift to count as "escaped".
@@ -2817,6 +2826,15 @@ export default function GameCanvas() {
     const boundaryTunnelGuard = () => containDynamicBobsInBounds(performance.now());
     Matter.Events.on(engineHandle.engine, "afterUpdate", boundaryTunnelGuard);
 
+    // Render interpolation (high-refresh screens): remember every moving
+    // body's pose before each fixed physics step, then draw between that and
+    // the current pose (see game/renderInterp.ts). Draw-only; restored in the
+    // frame's `finally`, so physics results are unchanged.
+    const interpSnap = createInterpSnapshot();
+    const snapForInterp = () =>
+      snapshotBodies(Matter.Composite.allBodies(engineHandle.world), interpSnap);
+    Matter.Events.on(engineHandle.engine, "beforeUpdate", snapForInterp);
+
     let lastT = performance.now();
     let raf = 0;
     const ctx = canvas.getContext("2d")!;
@@ -3564,6 +3582,11 @@ export default function GameCanvas() {
 
       tickEffects(effects, dt, now);
 
+      const interpSaved = applyInterpolation(
+        interpSnap,
+        runnerAlpha(engineHandle.runner),
+        INTERP_MAX_JUMP
+      );
       try {
         const view = viewRef.current;
         const dpr = canvas.width / Math.max(1, view.displayWidth);
@@ -3684,6 +3707,8 @@ export default function GameCanvas() {
         ctx.restore();
       } catch (err) {
         console.error("[GameCanvas] render frame failed:", err);
+      } finally {
+        restoreBodies(interpSaved);
       }
 
       raf = requestAnimationFrame(frame);
@@ -3698,6 +3723,7 @@ export default function GameCanvas() {
       Matter.Events.off(engineHandle.engine, "afterUpdate", ropeStretchGuard);
       Matter.Events.off(engineHandle.engine, "afterUpdate", ringTunnelGuard);
       Matter.Events.off(engineHandle.engine, "afterUpdate", boundaryTunnelGuard);
+      Matter.Events.off(engineHandle.engine, "beforeUpdate", snapForInterp);
       destroyHitZones(engineHandle.world, field);
       destroyTokenField(engineHandle.world, tokenField);
       destroyWallField(engineHandle.world, wallField);
