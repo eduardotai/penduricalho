@@ -240,7 +240,8 @@ export const en = {
     statBestCombo: "Best Combo",
     statCollection: "Collection",
     statDangerZone: "Danger Zone",
-    resetConfirm: "Reset all progress? This cannot be undone.",
+    resetConfirm:
+      "Reset ALL progress and start a brand-new game?\n\nThis wipes everything: Momentum, every bob, rope and map, Workshop upgrades and levels, achievements, Prestige Cogs, ×2/×3 boosts, and purchased themes (back to Classic). Audio settings and the camera go back to default.\n\nThis cannot be undone.",
     resetSave: "Reset Save",
   },
   prestige: {
@@ -682,7 +683,8 @@ export const pt: UIStrings = {
     statBestCombo: "Melhor Combo",
     statCollection: "Coleção",
     statDangerZone: "Zona de Perigo",
-    resetConfirm: "Apagar todo o progresso? Não dá para desfazer.",
+    resetConfirm:
+      "Apagar TODO o progresso e começar um jogo novo?\n\nIsso apaga tudo: Momentum, todos os bobs, cordas e mapas, upgrades e níveis da Oficina, conquistas, Engrenagens de prestígio, boosts ×2/×3 e os temas comprados (volta ao Clássico). Áudio e câmera voltam ao padrão.\n\nNão dá para desfazer.",
     resetSave: "Apagar progresso",
   },
   prestige: {
