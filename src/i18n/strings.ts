@@ -507,7 +507,7 @@ export const pt: UIStrings = {
     cogsHud: (cogs, pct) => `⚙ ${cogs} Engrenage${cogs === 1 ? "m" : "ns"} +${pct}%`,
     incomeMultHud: (mult) => `Renda ×${mult}`,
     incomeMultTitle: (prestige, boosts, ach, total) =>
-      `Multiplicador de renda em cada acerto: Prestígio ×${prestige} · Impulsos ×${boosts} · Conquistas ×${ach} = ×${total}. Bônus de quebra de parede, combo e manobras recebem Prestígio × Impulsos.`,
+      `Multiplicador de renda em cada acerto: Prestígio ×${prestige} · Multiplicadores ×${boosts} · Conquistas ×${ach} = ×${total}. Bônus de quebra de parede, combo e manobras recebem Prestígio × Multiplicadores.`,
     bonusDuration: (seconds) => `Bônus dura +${seconds}s`,
     buffStacksTitle: (description, seconds, maxSeconds) =>
       `${description} Acumula por ${seconds}s (máx. ${maxSeconds}s).`,
@@ -756,7 +756,7 @@ export const pt: UIStrings = {
     statCollection: "Coleção",
     statDangerZone: "Zona de Perigo",
     resetConfirm:
-      "Apagar TODO o progresso e começar um jogo novo?\n\nIsso apaga tudo: Momentum, todos os bobs, cordas e mapas, upgrades e níveis da Oficina, conquistas, Engrenagens de prestígio, boosts ×2/×3 e os temas comprados (volta ao Clássico). Áudio e câmera voltam ao padrão.\n\nNão dá para desfazer.",
+      "Apagar TODO o progresso e começar um jogo novo?\n\nIsso apaga tudo: Momentum, todos os bobs, cordas e mapas, upgrades e níveis da Oficina, conquistas, Engrenagens de prestígio, multiplicadores ×2/×3 e os temas comprados (volta ao Clássico). Áudio e câmera voltam ao padrão.\n\nNão dá para desfazer.",
     resetSave: "Apagar progresso",
   },
   prestige: {

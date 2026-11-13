@@ -3,7 +3,6 @@ import { Play, SlidersHorizontal, CircleHelp } from "lucide-react";
 import { useGameStore } from "../state/store";
 import { useLang, useT } from "../i18n";
 import { formatNumber } from "../lib/formatNumber";
-import { PendulumGlyph } from "./ui/icons";
 
 interface Props {
   open: boolean;
@@ -98,11 +97,6 @@ export default function TitleScreen({ open, onEnter, onHowTo, onSettings }: Prop
         </div>
       </div>
       <p className="blink-soft mt-6 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">{t.title.pressAnyKey}</p>
-
-      <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-slate-600">
-        <PendulumGlyph size={12} />
-        redesign · test build
-      </div>
     </div>
   );
 }
