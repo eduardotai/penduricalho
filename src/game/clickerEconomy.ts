@@ -11,7 +11,9 @@ export const CLICKER_TUNING = {
   clickComboMax: 100,
   clickComboDecayMs: 800,
   clickComboBonusPerStack: 0.01,
-  runChargePerClick: 0.05,
+  // 0.5 → a full charge (×3 run burst) takes 200 pumps, ~40-70 s of steady
+  // clicking. 0.05 needed 2,000 pumps, so the burst was effectively unreachable.
+  runChargePerClick: 0.5,
   runChargeMax: 100,
   runBurstMaxMult: 2,
   clickDuringRunFactor: 0.75,

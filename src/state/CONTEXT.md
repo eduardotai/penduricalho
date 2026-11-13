@@ -79,7 +79,7 @@ There are also raw selectors for when you need the id only.
 ## Idle Engine (`idleEngine.ts`)
 
 - Runs a simple EMA to track "momentum per second" during foreground play.
-- On tab hidden / reload, `reconcileIdle` uses the stored `idleRatePerSec` + wall time delta to grant offline earnings.
+- On tab hidden / reload, `idleEngine` grants offline earnings for the wall-time gap: workshop generator CPS always (recomputed on load from the save, so upgrades, prestige Cogs and global boosts apply), plus `arenaIdleRatePerSec` only when Auto-Run is on. The arena EMA excludes workshop CPS, so the two never double count (`offlineGain`).
 - Capped only by real elapsed time (no artificial offline cap).
 
 This is why `idleRatePerSec` and the last reconciliation timestamp are persisted.

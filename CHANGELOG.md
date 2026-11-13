@@ -8,7 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] - Global boosts
 
+### Fixed
+- **Offline workshop income**: closing the page now always credits workshop generator income for the time away (CPS recomputed from the loaded save, including workshop upgrades, prestige Cogs and global boosts), with the "while you were away" toast. Before, nothing was credited unless Auto-Run was on. The arena's smoothed rate is still added only with Auto-Run, and that rate no longer includes generator income, so nothing is counted twice.
+
 ### Changed
+- **Run charge**: each pump adds 0.5 charge (was 0.05), so the full ×3 run burst takes 200 pumps instead of 2,000.
 - **Workshop panel collapsed by default**: on desktop it hides off the right edge behind a small `‹ 🔧` tab, slides in on click, and a `›` button tucks it away again, so the arena gets the room. On mobile a small **Oficina / Workshop** pill above the controls opens and closes it. The open/closed choice is kept in a separate `penduricalho-ui-prefs` localStorage key (the game save is untouched). The tab pulses until the workshop has been opened once, and the tutorial says where it is.
 
 ### Added
