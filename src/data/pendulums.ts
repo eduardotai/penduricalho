@@ -317,6 +317,99 @@ export const PENDULUMS: PendulumDef[] = [
       chaosLerpRate: 3,
     },
   },
+
+  // ------------------------------------------------------------------
+  // Late-game bobs (past the 150k Chaos Bob). Radius/weight/speed stay inside
+  // the existing roster extremes so the Chaos Bob's churn bounds don't move.
+  // Multipliers are tuned with the headless sim (scripts/sim-income.mjs).
+  // ------------------------------------------------------------------
+  {
+    id: "pulsar-bob",
+    name: "Pulsar Bob",
+    description:
+      "A neutron star on a string. Every 1.5s it fires a shockwave that pops every orb around it at half value.",
+    weight: 4,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(26),
+    maxAngularVelocity: 0.5,
+    basePointMultiplier: 4.4,
+    rarity: "legendary",
+    cost: 300_000,
+    unlock: { stat: "totalMomentum", gte: 400_000 },
+    behavior: { kind: "pulsar", pulseMs: 1500, pulseRadius: S(150), popValue: 0.5 },
+  },
+  {
+    id: "comet-bob",
+    name: "Comet Bob",
+    description:
+      "Drags a wide blazing tail. Orbs the tail sweeps through pop at 80% value, so near misses still score.",
+    weight: 3.5,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(24),
+    maxAngularVelocity: 0.6,
+    basePointMultiplier: 7.2,
+    rarity: "legendary",
+    cost: 750_000,
+    unlock: { stat: "totalMomentum", gte: 1_000_000 },
+    behavior: { kind: "comet", trailMs: 600, trailRadiusFraction: 2.5, popValue: 0.8 },
+  },
+  {
+    id: "midas-bob",
+    name: "Midas Bob",
+    description:
+      "Golden touch. Each orb it pops gilds the nearest orb: +1x multiplier per stack, up to +3x. Chain the gold.",
+    weight: 5,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(30),
+    maxAngularVelocity: 0.45,
+    basePointMultiplier: 8.7,
+    rarity: "legendary",
+    cost: 1_500_000,
+    unlock: { stat: "totalMomentum", gte: 2_000_000 },
+    behavior: { kind: "midas", gildStep: 1, maxGild: 3 },
+  },
+  {
+    id: "prism-bob",
+    name: "Prism Bob",
+    description:
+      "Splits every hit into light. Each orb it pops arcs to the 2 nearest orbs and pops them at half value.",
+    weight: 3,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(22),
+    maxAngularVelocity: 0.56,
+    basePointMultiplier: 12,
+    rarity: "legendary",
+    cost: 3_000_000,
+    unlock: { stat: "totalMomentum", gte: 4_000_000 },
+    behavior: { kind: "prism", chainCount: 2, chainRange: S(320), popValue: 0.5 },
+  },
+  {
+    id: "singularity-bob",
+    name: "Singularity Bob",
+    description:
+      "A tiny black hole. Pulls orbs and tokens into its path and swells with every hit (up to +80% size per run).",
+    weight: 6,
+    bobCount: 1,
+    bobSpacing: 0,
+    bobRadius: R(20),
+    maxAngularVelocity: 0.5,
+    basePointMultiplier: 2,
+    rarity: "legendary",
+    cost: 5_000_000,
+    unlock: { stat: "totalMomentum", gte: 7_000_000 },
+    behavior: {
+      kind: "singularity",
+      growthPerHit: 0.025,
+      growthMax: 0.8,
+      pullRadius: S(300),
+      pullStrength: 2.6,
+      tokenPullStrength: 4,
+    },
+  },
 ];
 
 export const PENDULUM_MAP = new Map(PENDULUMS.map((p) => [p.id, p]));

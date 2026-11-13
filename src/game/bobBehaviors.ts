@@ -77,3 +77,75 @@ export function lerpChaos(cur: ChaosStats, target: ChaosStats, lerpRate: number,
     rope: cur.rope + (target.rope - cur.rope) * a,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Late-game bobs (Pulsar, Comet, Midas, Prism, Singularity). Pure helpers
+// shared by GameCanvas and the headless income sim.
+// ---------------------------------------------------------------------------
+
+interface ZoneLike {
+  zone: { id: string; position: { x: number; y: number }; radius: number; multiplier: number };
+}
+
+/** Zones whose circle overlaps a disc of `radius` around `at` (Pulsar shockwave). */
+export function zonesInRadius<T extends ZoneLike>(zones: readonly T[], at: { x: number; y: number }, radius: number): T[] {
+  return zones.filter((h) => Math.hypot(h.zone.position.x - at.x, h.zone.position.y - at.y) <= radius + h.zone.radius);
+}
+
+/** Up to `count` nearest other zones within `maxDist` of `from` (Prism arc chain). */
+export function nearestZones<T extends ZoneLike>(
+  zones: readonly T[],
+  from: T,
+  count: number,
+  maxDist: number
+): T[] {
+  const p = from.zone.position;
+  return zones
+    .filter((h) => h !== from)
+    .map((h) => ({ h, d: Math.hypot(h.zone.position.x - p.x, h.zone.position.y - p.y) }))
+    .filter((e) => e.d <= maxDist)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, Math.max(0, count))
+    .map((e) => e.h);
+}
+
+export interface TrailPoint {
+  x: number;
+  y: number;
+  t: number;
+}
+
+/** Comet: append the bob's position and drop points older than `trailMs`. */
+export function pushTrail(trail: TrailPoint[], at: { x: number; y: number }, now: number, trailMs: number) {
+  trail.push({ x: at.x, y: at.y, t: now });
+  while (trail.length && now - trail[0].t > trailMs) trail.shift();
+}
+
+/** Zones touched by any trail point (each point is a circle of `radius`). */
+export function zonesOnTrail<T extends ZoneLike>(zones: readonly T[], trail: readonly TrailPoint[], radius: number): T[] {
+  if (!trail.length) return [];
+  return zones.filter((h) =>
+    trail.some((p) => Math.hypot(h.zone.position.x - p.x, h.zone.position.y - p.y) <= radius + h.zone.radius)
+  );
+}
+
+/**
+ * Midas: add one gild stack to a zone (each stack adds `gildStep` to its
+ * multiplier, up to `maxGild` stacks). A relocated zone keeps its stacks'
+ * worth only until it is popped: relocateZone rerolls the multiplier, and the
+ * caller clears `gild` then. Returns true if a stack was added.
+ */
+export function gildZone(zone: { multiplier: number; gild?: number }, behavior: BobBehavior): boolean {
+  const max = behavior.maxGild ?? 3;
+  const cur = zone.gild ?? 0;
+  if (cur >= max) return false;
+  zone.gild = cur + 1;
+  zone.multiplier = +(zone.multiplier + (behavior.gildStep ?? 1)).toFixed(2);
+  return true;
+}
+
+/** Singularity: size multiplier after `hits` real hits this run. */
+export function singularityScale(behavior: BobBehavior | undefined, hits: number): number {
+  if (behavior?.kind !== "singularity") return 1;
+  return 1 + Math.min(behavior.growthMax ?? 0.8, Math.max(0, hits) * (behavior.growthPerHit ?? 0.025));
+}

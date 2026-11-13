@@ -320,6 +320,7 @@ export function relocateZone(
   handle.zone.basePoints = Math.round(randomBetween(1, 5));
   handle.zone.multiplier = +(randomBetween(1, 1.5)).toFixed(2);
   handle.zone.modifierChance = MODIFIER_CHANCE_BASE + Math.random() * 0.1;
+  handle.zone.gild = 0;
 }
 
 /**
@@ -382,6 +383,7 @@ export function regenerateHitZones(
     handle.zone.basePoints = Math.round(randomBetween(1, 5));
     handle.zone.multiplier = +(randomBetween(1, 1.5)).toFixed(2);
     handle.zone.modifierChance = MODIFIER_CHANCE_BASE + Math.random() * 0.1;
+    handle.zone.gild = 0;
     handle.hitFlashUntil = 0;
   }
 }

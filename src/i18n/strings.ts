@@ -429,6 +429,8 @@ export const en = {
     "factory-floor": { name: "Factory Floor", description: "Buy 25 generators total." },
     "passive-tycoon": { name: "Passive Tycoon", description: "Reach 100 passive Momentum per second." },
     "surge-rider": { name: "Surge Rider", description: "Trigger 5 Arc Surges." },
+    "neutron-star": { name: "Neutron Star", description: "Own the Pulsar Bob." },
+    "event-horizon-bob": { name: "Event Horizon", description: "Own the Singularity Bob." },
 
     // Secret
     "zen-master": { name: "Zen Master", description: "Reach a combo of 150. (Secret)", hint: "True mastery of the swing." },
@@ -868,6 +870,8 @@ export const pt: UIStrings = {
     "factory-floor": { name: "Chão de Fábrica", description: "Compre 25 máquinas no total." },
     "passive-tycoon": { name: "Magnata Passivo", description: "Alcance 100 de momentum passivo por segundo." },
     "surge-rider": { name: "Surfista do Surto", description: "Ative 5 Surtos de Arco." },
+    "neutron-star": { name: "Estrela de Nêutrons", description: "Tenha o Bob Pulsar." },
+    "event-horizon-bob": { name: "Horizonte de Eventos", description: "Tenha o Bob Singularidade." },
 
     // Secret
     "zen-master": { name: "Mestre Zen", description: "Alcance um combo de 150. (Secreta)", hint: "Verdadeira maestria do balanço." },
