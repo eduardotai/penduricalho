@@ -54,11 +54,25 @@ export const SITES: SiteDef[] = [
     id: "bumper-colosseum",
     name: "Bumper Colosseum",
     description:
-      "A large walled arena — the same breakable walls, now wrapped around a sprawling cage. Freed bobs ricochet for ages, racking up wall breaks before they finally escape.",
+      "A large walled arena with three bumpers orbiting just past the rope's reach. A freed bob (or one swung hard enough to stretch the rope into the orbit) that hits a bumper gets batted back with a kick, pinball style, and keeps scoring.",
     gravity: 1,
     hitZoneCount: 150,
     hitZoneRadius: ZONE_RADIUS,
     background: "bumper-colosseum",
+    // Outside the swing circle, so strung play on a stiff rope is unchanged
+    // (income sim: 0% on titan cable); stretchy ropes can reach them on hard
+    // launches, and freed bobs get batted back in after a snap.
+    mechanic: {
+      kind: "bumpers",
+      count: 3,
+      orbitGap: 260,
+      radius: 70,
+      periodMs: -7000,
+      boost: 1.15,
+      maxSpeed: 165,
+      cooldownMs: 250,
+      minHitSpeed: 6,
+    },
     walls: "breakable",
     cageScale: 1.9,
     wallDurabilityMult: 0.4,
