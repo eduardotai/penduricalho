@@ -6,6 +6,14 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - New maps
+
+### Added
+- **Three late maps, each with its own mechanic and top gauge**: **Moon Base** (150k, gravity tides between 40% and 100% on a 9s cycle), **Conveyor Yard** (500k, every orb drifts sideways and wraps around, flipping every 6s; scrolling chevrons on the floor) and **Magnet Storm** (1.5M, a 1.6s magnetic pulse every 5.1s drags nearby orbs and drops to the bob). All three are walled (cage 1.45, like the Bumper Arena).
+- Sim (titan cable, launches, Tungsten / Chaos / Midas pts/s): Bumper Arena 202 / 230 / 332; Moon Base 169 / 315 / 295; Conveyor Yard 172 / 183 / 280; Magnet Storm 201 / 343 / 289. By hand the conveyor and the storm pay about 2x the arena, because they keep feeding fresh orbs into the swing circle.
+- Achievements **Moonwalker** (unlock the Moon Base) and **Storm Chaser** (unlock the Magnet Storm).
+- `scripts/sim-maps.mjs`: pts/s per map for a set of bobs.
+
 ## [Unreleased] - Rig combos
 
 ### Added

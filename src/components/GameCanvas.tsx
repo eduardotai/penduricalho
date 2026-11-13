@@ -91,9 +91,16 @@ import {
   createGustSchedule,
   gustAt,
   springRebound,
+  conveyorAt,
+  magnetPulseAt,
+  shiftZones,
+  tideAt,
   type GustState,
 } from "../game/mapMechanics";
 import {
+  drawConveyorChevrons,
+  drawMagnetPulse,
+  drawMapGauge,
   drawBumpers,
   drawMapHint,
   drawSpringWalls,
@@ -1091,6 +1098,12 @@ export default function GameCanvas() {
     let gustSchedule = gustMechanic ? createGustSchedule(gustMechanic) : null;
     let gustEpoch = performance.now();
     let gustNow: GustState | null = null;
+    // Moon Base tides, Conveyor Yard drift and Magnet Storm pulses all run on
+    // the same per-run clock as the gusts (`now - gustEpoch`), only while running.
+    const tideMechanic = site.mechanic?.kind === "tides" ? site.mechanic : null;
+    const conveyorMechanic = site.mechanic?.kind === "conveyor" ? site.mechanic : null;
+    const pulseMechanic = site.mechanic?.kind === "magnetPulses" ? site.mechanic : null;
+    let conveyorOffset = 0;
     // Orbiting bumpers (Bumper Colosseum): they orbit on the wall clock, so
     // they keep circling between runs; only the contact state resets.
     const bumperMechanic = site.mechanic?.kind === "bumpers" ? site.mechanic : null;
@@ -2129,10 +2142,10 @@ export default function GameCanvas() {
     // onto the bob); tokens just get easier to scoop. Pull eases with distance.
     function magnetPull(
       dt: number,
-      override?: { pullStrength: number; tokenPullStrength: number }
+      override?: { pullStrength: number; tokenPullStrength: number; radius?: number }
     ) {
       if ((!behavior && !override) || dt <= 0) return;
-      const radius = behavior?.pullRadius ?? 780;
+      const radius = override?.radius ?? behavior?.pullRadius ?? 780;
       const comboPull = override ? 1 : (rigCombo?.pullMult ?? 1);
       const zoneStrength =
         (override?.pullStrength ?? behavior?.pullStrength ?? 2.4) * comboPull * (dt / 1000);
@@ -2990,7 +3003,12 @@ export default function GameCanvas() {
         pendulumHandle,
         effects$.ropeLengthMult * scales.rope * ropeBehaviorLenMult(now)
       );
-      setGravity(engineHandle, site.gravity * effects$.accelerationMult);
+      setGravity(
+        engineHandle,
+        site.gravity *
+          effects$.accelerationMult *
+          (tideMechanic && useGameStore.getState().isRunning ? tideAt(tideMechanic, now - gustEpoch).mult : 1)
+      );
       // Mass-per-area: how dense the bob currently is relative to a plain rig.
       // >1 reads heavy (dark core), <1 reads hollow. Drives the render cue so a
       // small heavy bob looks distinct from a small light one.
@@ -3084,6 +3102,19 @@ export default function GameCanvas() {
         // down when the chain breaks). No-op (target 1) for non-frenzy bobs.
         applyFrenzyScale(frenzyMultipliers().speed);
         // Lodestone: drag nearby circles + loose tokens toward the bob.
+        if (pulseMechanic) {
+          // Magnet Storm: the map's own pulse, on top of any bob/modifier pull.
+          const pulse = magnetPulseAt(pulseMechanic, now - gustEpoch);
+          if (pulse.strength > 0) {
+            const k = pulseMechanic.pullStrength * pulse.strength;
+            magnetPull(dt, { pullStrength: k, tokenPullStrength: k * 1.6, radius: pulseMechanic.radius });
+          }
+        }
+        if (conveyorMechanic) {
+          const dx = conveyorAt(conveyorMechanic, now - gustEpoch).velocity * (dt / 1000);
+          conveyorOffset += dx;
+          shiftZones(field.zones, dx, field.bounds);
+        }
         if (behavior?.kind === "magnet" || behavior?.kind === "singularity") magnetPull(dt);
         else if (effects$.orbPullStrength > 0) {
           // Orb Magnet modifier: a weaker, timed version of the Lodestone pull.
@@ -3644,6 +3675,20 @@ export default function GameCanvas() {
             (store.isRunning && gustNow) || { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 }
           );
         }
+        if (conveyorMechanic) {
+          drawConveyorChevrons(
+            rc,
+            field.bounds,
+            conveyorOffset,
+            store.isRunning ? conveyorAt(conveyorMechanic, now - gustEpoch).dir : 1
+          );
+        }
+        if (pulseMechanic && store.isRunning) {
+          const pulse = magnetPulseAt(pulseMechanic, now - gustEpoch);
+          if (pulse.strength > 0) {
+            drawMagnetPulse(rc, pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position, pulseMechanic.radius, pulse.strength);
+          }
+        }
         drawWalls(rc, wallField);
         if (springMechanic) drawSpringWalls(rc, wallField, springHitAt);
         drawObstacles(rc, wallField);
@@ -3709,6 +3754,46 @@ export default function GameCanvas() {
             running ? gustNow! : { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 },
             { gust: effectText.windGust, next: effectText.windNext, idle: effectText.windMap },
             !running
+          );
+        }
+        if (tideMechanic) {
+          const running = store.isRunning;
+          const tide = tideAt(tideMechanic, running ? now - gustEpoch : 0);
+          drawMapGauge(
+            ctx,
+            view.displayWidth,
+            running ? effectText.tideGauge(Math.round(tide.mult * 100), tide.falling) : effectText.tideMap,
+            tide.mult / tideMechanic.maxGravity,
+            "rgba(196, 181, 253, 0.95)",
+            "☾"
+          );
+        }
+        if (conveyorMechanic) {
+          const running = store.isRunning;
+          const belt = conveyorAt(conveyorMechanic, running ? now - gustEpoch : 0);
+          drawMapGauge(
+            ctx,
+            view.displayWidth,
+            running ? effectText.conveyorGauge(belt.dir, Math.ceil(belt.nextFlipMs / 1000)) : effectText.conveyorMap,
+            running ? belt.nextFlipMs / conveyorMechanic.flipMs : 1,
+            "rgba(251, 191, 36, 0.95)",
+            belt.dir > 0 ? "»" : "«"
+          );
+        }
+        if (pulseMechanic) {
+          const running = store.isRunning;
+          const pulse = magnetPulseAt(pulseMechanic, running ? now - gustEpoch : 0);
+          drawMapGauge(
+            ctx,
+            view.displayWidth,
+            !running
+              ? effectText.pulseMap
+              : pulse.active
+                ? effectText.pulseNow
+                : effectText.pulseNext(Math.ceil(pulse.nextInMs / 1000)),
+            pulse.active ? pulse.strength : 1 - pulse.nextInMs / pulseMechanic.calmMs,
+            "rgba(244, 114, 182, 0.95)",
+            "🧲"
           );
         }
         if (springMechanic) {

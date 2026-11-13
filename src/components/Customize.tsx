@@ -602,6 +602,18 @@ function ItemStats({
       {s.mechanic?.kind === "springWalls" && (
         <Stat label={c.statWalls} value={`${c.springWalls} ×${s.mechanic.boost}`} />
       )}
+      {s.mechanic?.kind === "tides" && (
+        <Stat
+          label={c.statTides}
+          value={c.tideRange(Math.round(s.mechanic.minGravity * 100), Math.round(s.mechanic.maxGravity * 100))}
+        />
+      )}
+      {s.mechanic?.kind === "conveyor" && (
+        <Stat label={c.statConveyor} value={c.conveyorFlips(s.mechanic.flipMs / 1000)} />
+      )}
+      {s.mechanic?.kind === "magnetPulses" && (
+        <Stat label={c.statPulses} value={c.pulseEvery((s.mechanic.calmMs + s.mechanic.pulseMs) / 1000)} />
+      )}
       {s.mechanic?.kind === "bumpers" && (
         <Stat label={c.statBumpers} value={c.bumpersOrbiting(s.mechanic.count)} />
       )}

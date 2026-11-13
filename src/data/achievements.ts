@@ -174,6 +174,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     requirement: { type: "owns", kind: "pendulum", id: "singularity-bob" },
   },
   {
+    id: "moonwalker",
+    category: "collection",
+    icon: "🌙",
+    requirement: { type: "owns", kind: "site", id: "moon-base" },
+  },
+  {
+    id: "storm-chaser",
+    category: "collection",
+    icon: "🌩️",
+    requirement: { type: "owns", kind: "site", id: "magnet-storm" },
+  },
+  {
     id: "perfect-match",
     category: "collection",
     icon: "🔗",

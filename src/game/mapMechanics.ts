@@ -222,3 +222,67 @@ export function springRebound(pos: Vec2, vel: Vec2, target: Vec2, aim: number): 
   const a = Math.hypot(ax, ay) || 1;
   return { x: (ax / a) * s, y: (ay / a) * s };
 }
+
+// --- Moon Base: gravity tides --------------------------------------------
+
+export type TideMechanic = Extract<SiteMechanic, { kind: "tides" }>;
+
+/**
+ * Gravity multiplier `tMs` into a run. Starts at maxGravity (a normal launch),
+ * eases down to minGravity at half a period and back. `frac` is 0 (min) … 1 (max).
+ */
+export function tideAt(m: TideMechanic, tMs: number): { mult: number; frac: number; falling: boolean } {
+  const phase = ((Math.max(0, tMs) % m.periodMs) / m.periodMs) * Math.PI * 2;
+  const frac = 0.5 + 0.5 * Math.cos(phase);
+  return { mult: m.minGravity + (m.maxGravity - m.minGravity) * frac, frac, falling: phase < Math.PI };
+}
+
+// --- Conveyor Yard: drifting orbs ----------------------------------------
+
+export type ConveyorMechanic = Extract<SiteMechanic, { kind: "conveyor" }>;
+
+/**
+ * Belt velocity `tMs` into a run: ±1 direction (first leg runs right), a
+ * signed speed that eases through zero around each flip, and time to the flip.
+ */
+export function conveyorAt(m: ConveyorMechanic, tMs: number): { dir: 1 | -1; velocity: number; nextFlipMs: number } {
+  const t = Math.max(0, tMs);
+  const leg = Math.floor(t / m.flipMs);
+  const dir: 1 | -1 = leg % 2 === 0 ? 1 : -1;
+  const u = t - leg * m.flipMs;
+  const toFlip = m.flipMs - u;
+  // Ease out of the previous flip and into the next one.
+  const ease = Math.min(1, (leg === 0 ? m.easeMs : u) / m.easeMs, toFlip / m.easeMs);
+  return { dir, velocity: dir * m.speed * smooth(Math.max(0, ease)), nextFlipMs: toFlip };
+}
+
+/** Slide every orb by dx, wrapping across the field's x range. Keeps physics bodies in sync. */
+export function shiftZones(
+  zones: { zone: { position: Vec2 }; body: Matter.Body }[],
+  dx: number,
+  bounds: { x: number; w: number }
+) {
+  if (dx === 0) return;
+  for (const h of zones) {
+    let x = h.zone.position.x + dx;
+    if (x > bounds.x + bounds.w) x -= bounds.w;
+    else if (x < bounds.x) x += bounds.w;
+    const y = h.zone.position.y;
+    h.zone.position = { x, y };
+    Matter.Body.setPosition(h.body, { x, y });
+  }
+}
+
+// --- Magnet Storm: magnetic pulses ---------------------------------------
+
+export type MagnetPulseMechanic = Extract<SiteMechanic, { kind: "magnetPulses" }>;
+
+/** Pulse state: strength 0 (calm) … 1, eased in/out; first pulse after half a calm. */
+export function magnetPulseAt(m: MagnetPulseMechanic, tMs: number): { strength: number; active: boolean; nextInMs: number } {
+  const cycle = m.calmMs + m.pulseMs;
+  const t = Math.max(0, tMs) + m.calmMs / 2;
+  const u = t % cycle;
+  if (u < m.calmMs) return { strength: 0, active: false, nextInMs: m.calmMs - u };
+  const v = (u - m.calmMs) / m.pulseMs;
+  return { strength: Math.sin(v * Math.PI), active: true, nextInMs: 0 };
+}

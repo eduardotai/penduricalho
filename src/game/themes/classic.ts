@@ -10,6 +10,9 @@ const SITE_BACKGROUNDS: Record<string, [string, string]> = {
   "bumper-colosseum": ["#332512", "#1a1003"],
   layers: ["#0b2a2f", "#04141a"],
   "black-hole": ["#0a0a14", "#010103"],
+  "moon-base": ["#1c1f2e", "#07080f"],
+  "conveyor-yard": ["#2a2310", "#100c03"],
+  "magnet-storm": ["#2a0f26", "#0d030c"],
 };
 
 function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, gridStep: number) {

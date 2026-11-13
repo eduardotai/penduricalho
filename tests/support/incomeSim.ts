@@ -48,7 +48,17 @@ import { ATTACHMENTS } from "../../src/data/attachments";
 import { SITE_MAP } from "../../src/data/sites";
 import type { ModifierEffects, PendulumDef, SiteDef } from "../../src/types";
 import { wallHpForWeight } from "../../src/game/engine";
-import { applyGust, createBumperField, createGustSchedule, gustAt, springRebound } from "../../src/game/mapMechanics";
+import {
+  applyGust,
+  conveyorAt,
+  createBumperField,
+  createGustSchedule,
+  gustAt,
+  magnetPulseAt,
+  shiftZones,
+  springRebound,
+  tideAt,
+} from "../../src/game/mapMechanics";
 
 const STEP = 1000 / 60;
 // Mirrors GameCanvas constants.
@@ -344,6 +354,12 @@ function runOnce(
       if (durability <= 0) snapRope(h, { scatter: true });
     }
     if (!h.snapped) tickAttachmentPhysics(h);
+    if (site.mechanic?.kind === "tides") {
+      engine.gravity.y = site.gravity * (mods.accelerationMult ?? 1) * tideAt(site.mechanic, now).mult;
+    }
+    if (site.mechanic?.kind === "conveyor") {
+      shiftZones(field.zones, conveyorAt(site.mechanic, now).velocity * (STEP / 1000), field.bounds);
+    }
     if (gusts) {
       const bodies = h.snapped ? getOrderedBobBodies(h) : [...getOrderedBobBodies(h), ...h.ropeSegments];
       applyGust(bodies, gustAt(gusts, now), gusts.mechanic.accel, STEP);
@@ -391,6 +407,23 @@ function runOnce(
         if (d > radius || d < 1) continue;
         const k = Math.min(0.5, strength * (1 - d / radius));
         zh.zone.position = { x: zh.zone.position.x + dx * k, y: zh.zone.position.y + dy * k };
+      }
+    }
+    // --- Magnet Storm pulses (GameCanvas.magnetPull with the map override) ---
+    if (site.mechanic?.kind === "magnetPulses") {
+      const pulse = magnetPulseAt(site.mechanic, now);
+      if (pulse.strength > 0) {
+        const tip = h.bobs[h.bobs.length - 1];
+        const radius = site.mechanic.radius;
+        const strength = site.mechanic.pullStrength * pulse.strength * (STEP / 1000);
+        for (const zh of field.zones) {
+          const dx = tip.position.x - zh.zone.position.x;
+          const dy = tip.position.y - zh.zone.position.y;
+          const d = Math.hypot(dx, dy);
+          if (d > radius || d < 1) continue;
+          const k = Math.min(0.5, strength * (1 - d / radius));
+          zh.zone.position = { x: zh.zone.position.x + dx * k, y: zh.zone.position.y + dy * k };
+        }
       }
     }
     // --- behavior pops (GameCanvas.lateBobTick) ---
