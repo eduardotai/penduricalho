@@ -1,3 +1,4 @@
+import { formatDecimal } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
 import { useT, useLang, locName, locDesc } from "../i18n";
 import { RIG_COMBOS, activeRigCombo, combosForItem } from "../data/combos";
@@ -43,7 +44,7 @@ export function ComboBadges({ kind, itemId }: { kind: "pendulum" | "attachment";
               active ? "border-amber-400/60 text-amber-200" : "text-slate-400"
             }`}
           >
-            <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> {t.customize.comboWith(locName(lang, "combo", c.id, c.name), partner)} · ×{c.pointMult}
+            <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> {t.customize.comboWith(locName(lang, "combo", c.id, c.name), partner)} · ×{formatDecimal(c.pointMult, lang)}
             {active ? ` · ${t.customize.comboActive}` : ""}
           </span>
         );
@@ -131,7 +132,7 @@ export function ActiveComboLine({ pendulumId, attachmentId }: { pendulumId: stri
   if (!c) return null;
   return (
     <div data-testid="active-combo" className="mt-0.5 flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-wider text-amber-300">
-      <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> COMBO {locName(lang, "combo", c.id, c.name)} ×{c.pointMult}
+      <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> COMBO {locName(lang, "combo", c.id, c.name)} ×{formatDecimal(c.pointMult, lang)}
     </div>
   );
 }

@@ -199,7 +199,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
 
         {WORKSHOP_CLICKER_ENABLED && running && (
           <p className="text-center font-mono text-[10px] leading-snug text-brand-300/80">
-            Workshop power multiplies arena payouts. Watch the spectacle.
+            {t.controls.runHint}
           </p>
         )}
 

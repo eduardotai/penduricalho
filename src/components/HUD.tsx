@@ -427,7 +427,16 @@ function ActiveBuffsPanel() {
     };
   }, []);
 
-  if (rows.length === 0) return null;
+  // A pickup adds the same buff twice: a timed modifier and a cross-run
+  // persistent stack. Show one row per buff: the persistent row stays hidden
+  // while its timed twin is live and takes over when that one expires.
+  const liveTimedIds = new Set(
+    rows.filter((r) => r.expiresAt !== undefined && r.phase !== "exit").map((r) => r.defId)
+  );
+  const visibleRows = rows.filter(
+    (r) => r.persistentRemainingMs === undefined || !liveTimedIds.has(r.defId)
+  );
+  if (visibleRows.length === 0) return null;
 
   return (
     <div
@@ -440,7 +449,7 @@ function ActiveBuffsPanel() {
           BUFF_ROW_GAP_PX * (VISIBLE_BUFF_SLOTS - 1),
       }}
     >
-      {rows.map((row) => {
+      {visibleRows.map((row) => {
         const def = MODIFIER_MAP.get(row.defId);
         if (!def) return null;
         const remaining =

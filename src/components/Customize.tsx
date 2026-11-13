@@ -20,7 +20,7 @@ import {
   Link2,
 } from "lucide-react";
 import GlobalUpgradeShop from "./GlobalUpgradeShop";
-import { formatNumber } from "../lib/formatNumber";
+import { formatDecimal, formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { PENDULUMS } from "../data/pendulums";
@@ -477,6 +477,8 @@ function ItemStats({
   item: PendulumDef | AttachmentDef | SiteDef | BobSkinDef | BobShapeDef;
 }) {
   const t = useT();
+  const lang = useLang();
+  const dec = (n: number, digits?: number) => formatDecimal(n, lang, digits);
   const c = t.customize;
   if (kind === "skin") {
     const skin = item as BobSkinDef;
@@ -500,11 +502,11 @@ function ItemStats({
     const p = item as PendulumDef;
     return (
       <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
-        <Stat label={c.statWeight} value={p.weight.toFixed(1)} />
+        <Stat label={c.statWeight} value={dec(p.weight, 1)} />
         <Stat label={c.statSize} value={`${p.bobRadius}px`} />
         <Stat label={c.statBobs} value={p.bobCount.toString()} />
-        <Stat label={c.statMult} value={`x${p.basePointMultiplier.toFixed(2)}`} />
-        <Stat label={c.statSpinCap} value={p.maxAngularVelocity.toFixed(2)} />
+        <Stat label={c.statMult} value={`x${dec(p.basePointMultiplier, 2)}`} />
+        <Stat label={c.statSpinCap} value={dec(p.maxAngularVelocity, 2)} />
       </div>
     );
   }
@@ -516,9 +518,9 @@ function ItemStats({
         <Stat label={c.statType} value={t.attachType[a.type] ?? a.type} />
         <Stat label={c.statLength} value={a.length.toString()} />
         <Stat label={c.statStretch} value={formatStretchBudget(profile)} />
-        <Stat label={c.statDamp} value={profile.dampingRatio.toFixed(2)} />
+        <Stat label={c.statDamp} value={dec(profile.dampingRatio, 2)} />
         {a.bonuses.momentumMult && (
-          <Stat label={c.statPts} value={`x${a.bonuses.momentumMult.toFixed(2)}`} />
+          <Stat label={c.statPts} value={`x${dec(a.bonuses.momentumMult, 2)}`} />
         )}
         {a.bonuses.twistPowerBonus && (
           <Stat label={c.statTwist} value={`+${(a.bonuses.twistPowerBonus * 100).toFixed(0)}%`} />
@@ -541,12 +543,12 @@ function ItemStats({
     cageScale >= 1.75 ? c.cageLarge : cageScale >= 1.3 ? c.cageMedium : c.cageSmall;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
-      <Stat label={c.statGravity} value={s.gravity.toFixed(2)} />
+      <Stat label={c.statGravity} value={dec(s.gravity, 2)} />
       <Stat label={c.statZones} value={s.hitZoneCount.toString()} />
       <Stat label={c.statWalls} value={wallsLabel} />
       {s.walls && s.walls !== "none" && <Stat label={c.statCage} value={cageLabel} />}
       {s.mechanic?.kind === "springWalls" && (
-        <Stat label={c.statWalls} value={`${c.springWalls} ×${s.mechanic.boost}`} />
+        <Stat label={c.statWalls} value={`${c.springWalls} ×${dec(s.mechanic.boost)}`} />
       )}
       {s.mechanic?.kind === "tides" && (
         <Stat
@@ -555,10 +557,10 @@ function ItemStats({
         />
       )}
       {s.mechanic?.kind === "conveyor" && (
-        <Stat label={c.statConveyor} value={c.conveyorFlips(s.mechanic.flipMs / 1000)} />
+        <Stat label={c.statConveyor} value={c.conveyorFlips(dec(s.mechanic.flipMs / 1000))} />
       )}
       {s.mechanic?.kind === "magnetPulses" && (
-        <Stat label={c.statPulses} value={c.pulseEvery((s.mechanic.calmMs + s.mechanic.pulseMs) / 1000)} />
+        <Stat label={c.statPulses} value={c.pulseEvery(dec((s.mechanic.calmMs + s.mechanic.pulseMs) / 1000))} />
       )}
       {s.mechanic?.kind === "bumpers" && (
         <Stat label={c.statBumpers} value={c.bumpersOrbiting(s.mechanic.count)} />
