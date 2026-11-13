@@ -180,7 +180,7 @@ const ptContent: ContentDict = {
     "bumper-cage": {
       name: "Jaula de Para-choques",
       description:
-        "Arena pequena com paredes. Depois que a corda arrebenta, os bobs ricocheteiam; bata forte numa parede para quebrar e ganhar impulso.",
+        "Arena pequena cercada de molas. Depois que a corda arrebenta, os bobs ricocheteiam: cada batida na parede devolve o bob mais forte que uma parede comum e de volta ao centro, e uma mola gasta ainda quebra com um impulso extra.",
     },
     "bumper-arena": {
       name: "Arena de Para-choques",

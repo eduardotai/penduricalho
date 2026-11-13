@@ -8,6 +8,7 @@ import {
   createBumperField,
   createGustSchedule,
   gustAt,
+  springRebound,
   type GustMechanic,
 } from "../src/game/mapMechanics";
 import { PENDULUMS } from "../src/data/pendulums";
@@ -149,5 +150,32 @@ test("Colosseum bumpers leave strung income unchanged (income sim, titan cable)"
   for (let i = 0; i < ids.length; i++) {
     const d = on[i].pointsPerSec / off[i].pointsPerSec - 1;
     assert.ok(Math.abs(d) < 0.05, `${ids[i]} moved ${(d * 100).toFixed(1)}%`);
+  }
+});
+
+// --- Spring walls (Bumper Cage) ---
+
+test("spring rebound keeps speed and steers part-way toward the mount", () => {
+  const target = { x: 0, y: 0 };
+  const pos = { x: 100, y: 0 };
+  const vel = { x: 0, y: 10 }; // sliding along the wall
+  const plain = springRebound(pos, vel, target, 0);
+  assert.deepEqual(plain, vel);
+  const half = springRebound(pos, vel, target, 0.5);
+  assert.ok(Math.abs(Math.hypot(half.x, half.y) - 10) < 1e-9, "speed kept");
+  assert.ok(half.x < 0, "now heading toward the mount");
+  const full = springRebound(pos, vel, target, 1);
+  assert.ok(Math.abs(full.x + 10) < 1e-9 && Math.abs(full.y) < 1e-9);
+});
+
+test("the Bumper Cage has spring walls and they stay near plain-wall income on a stiff rope", () => {
+  const site = SITE_MAP.get("bumper-cage")!;
+  assert.equal(site.mechanic?.kind, "springWalls");
+  const ids = ["iron-bob", "tungsten-heavy"];
+  const on = incomeTable("titan-cable", "bumper-cage", 6, {}, "launch", ids);
+  const off = incomeTable("titan-cable", "bumper-cage", 6, {}, "launch", ids, { mechanic: undefined, simWallBoost: 1.22 });
+  for (let i = 0; i < ids.length; i++) {
+    const d = on[i].pointsPerSec / off[i].pointsPerSec - 1;
+    assert.ok(Math.abs(d) < 0.25, `${ids[i]} moved ${(d * 100).toFixed(1)}%`);
   }
 });

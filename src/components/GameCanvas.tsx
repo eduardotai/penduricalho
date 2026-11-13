@@ -76,9 +76,16 @@ import {
   createBumperField,
   createGustSchedule,
   gustAt,
+  springRebound,
   type GustState,
 } from "../game/mapMechanics";
-import { drawBumpers, drawMapHint, drawWindIndicator, drawWindStreaks } from "../game/renderMechanics";
+import {
+  drawBumpers,
+  drawMapHint,
+  drawSpringWalls,
+  drawWindIndicator,
+  drawWindStreaks,
+} from "../game/renderMechanics";
 import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
@@ -1058,6 +1065,11 @@ export default function GameCanvas() {
     // they keep circling between runs; only the contact state resets.
     const bumperMechanic = site.mechanic?.kind === "bumpers" ? site.mechanic : null;
     const bumperField = bumperMechanic ? createBumperField(bumperMechanic) : null;
+    // Spring walls (Bumper Cage): harder, mount-aimed rebounds. Per-side
+    // "compressed at" times drive the coil squash in drawSpringWalls.
+    const springMechanic = site.mechanic?.kind === "springWalls" ? site.mechanic : null;
+    const springHitAt: Partial<Record<BoundarySide, number>> = {};
+    let lastSpringLabelAt = -1e9;
     let lastBumperHitAt = -1e9;
 
     // While `now` is below this timestamp the engine is frozen for hit-stop.
@@ -1556,8 +1568,24 @@ export default function GameCanvas() {
       // energy-pumping bounce to it — Matter resolves the hit with the bob's own
       // restitution (0.5), so it loses energy, settles, and stays in play.
       const isEjectedBelt = (bobBody as any)._beltEjected === true;
+      const spring = springMechanic && !shattered && wall.side !== "ring" ? springMechanic : null;
       if (!isEjectedBelt) {
-        bounceBobOffWall(bobBody, wall, shattered ? WALL_BREAK_BOOST : WALL_BOUNCE_BOOST);
+        bounceBobOffWall(
+          bobBody,
+          wall,
+          shattered ? WALL_BREAK_BOOST : spring ? spring.boost : WALL_BOUNCE_BOOST
+        );
+        if (spring) {
+          const v = springRebound(bobBody.position, bobBody.velocity, ANCHOR, spring.aim);
+          Matter.Body.setVelocity(bobBody, v);
+        }
+      }
+      if (spring) {
+        springHitAt[wall.side as BoundarySide] = now;
+        if (now - lastSpringLabelAt > 250) {
+          lastSpringLabelAt = now;
+          emitManeuver(effects, bobBody.position, effectText.springBoing, now);
+        }
       }
       emitHit(effects, { x: bobBody.position.x, y: bobBody.position.y }, now, {
         color: shattered ? "#f87171" : "#fbbf24",
@@ -3481,6 +3509,7 @@ export default function GameCanvas() {
           );
         }
         drawWalls(rc, wallField);
+        if (springMechanic) drawSpringWalls(rc, wallField, springHitAt);
         drawObstacles(rc, wallField);
         if (bumperField && bumperMechanic) {
           const reach = rigReach(pendulumHandle);
@@ -3536,6 +3565,14 @@ export default function GameCanvas() {
             running ? gustNow! : { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 },
             { gust: effectText.windGust, next: effectText.windNext, idle: effectText.windMap },
             !running
+          );
+        }
+        if (springMechanic) {
+          drawMapHint(
+            ctx,
+            view.displayWidth,
+            effectText.springMap,
+            Math.max(0, Math.min(1, 1 - (now - lastSpringLabelAt) / 400))
           );
         }
         if (bumperMechanic) {

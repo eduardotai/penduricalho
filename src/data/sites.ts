@@ -21,11 +21,14 @@ export const SITES: SiteDef[] = [
     id: "bumper-cage",
     name: "Bumper Cage",
     description:
-      "A small walled arena. A rope snap sends the bobs ricocheting — slam a wall hard enough and it shatters, kicking the bob with an extra impulse.",
+      "A small arena walled with coiled springs. A rope snap sends the bobs ricocheting — every wall slam springs them back harder than a plain wall and back toward the middle, and a worn-out spring still shatters with an extra kick.",
     gravity: 1,
     hitZoneCount: 150,
     hitZoneRadius: ZONE_RADIUS,
     background: "bumper-cage",
+    // Plain walls rebound at 1.22×. Tuned with the income sim's wall model
+    // (tests/support/incomeSim.ts, simWallBoost) — see the PR table.
+    mechanic: { kind: "springWalls", boost: 1.3, aim: 0.3 },
     walls: "breakable",
     cageScale: 1,
     wallDurabilityMult: 0.6,
