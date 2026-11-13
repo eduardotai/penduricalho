@@ -12,6 +12,8 @@ import {
   totalCogsFor,
 } from "../game/prestige";
 import { useLang, useT } from "../i18n";
+import Window from "./ui/Window";
+import { Lock, Sparkles } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -40,14 +42,8 @@ export default function Prestige({ open, onClose }: Props) {
     if (!open) {
       setConfirming(false);
       setDoneMsg(null);
-      return;
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -60,33 +56,18 @@ export default function Prestige({ open, onClose }: Props) {
   const fmt = (n: number) => formatNumber(n, "short", lang);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4"
-      data-no-camera-zoom
-      onClick={onClose}
+    <Window
+      open={open}
+      onClose={onClose}
+      title={p.title}
+      subtitle={p.subtitle}
+      icon={Sparkles}
+      code="03 / FORGE"
+      closeLabel={p.close}
+      sizeClass="sm:h-auto sm:max-h-[min(760px,92vh)] sm:max-w-xl"
+      testId="prestige-dialog"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={p.title}
-        data-testid="prestige-dialog"
-        className="relative flex max-h-[100dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/95 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3 sm:px-5">
-          <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">🌟 {p.title}</h2>
-            <p className="text-xs text-slate-400">{p.subtitle}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
-          >
-            {p.close}
-          </button>
-        </header>
 
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 sm:px-5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Stat label={p.cogs} value={cogs.toString()} accent />
             <Stat label={p.currentBonus} value={fmtMult(nowMult)} accent />
@@ -95,7 +76,7 @@ export default function Prestige({ open, onClose }: Props) {
             <Stat label={p.gainNow} value={`+${gain}`} accent={gain > 0} />
             <Stat label={p.newBonus} value={fmtMult(afterMult)} accent={gain > 0} />
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">{p.nextCogAt(fmt(nextAt))}</p>
+          <p className="mt-2 font-mono text-[10px] text-slate-500">{p.nextCogAt(fmt(nextAt))}</p>
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ListBox title={p.resetsTitle} items={p.resetsList} tone="reset" />
@@ -103,13 +84,14 @@ export default function Prestige({ open, onClose }: Props) {
           </div>
 
           {doneMsg && (
-            <p className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-950/40 p-3 text-sm text-emerald-200">
+            <p className="card mt-3 border-emerald-500/50 p-3 text-sm text-emerald-200">
               {doneMsg}
             </p>
           )}
 
           {!allowed && !doneMsg && (
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
+              <Lock size={12} aria-hidden />
               {isRunning
                 ? p.lockedRun
                 : p.lockedMin(fmt(Math.max(PRESTIGE_TUNING.minAllTimeMomentum, nextAt)))}
@@ -117,8 +99,9 @@ export default function Prestige({ open, onClose }: Props) {
           )}
 
           {confirming ? (
-            <div className="mt-3 rounded-xl border border-amber-500/50 bg-amber-950/30 p-4" data-testid="prestige-confirm">
-              <p className="text-sm font-semibold text-amber-200">{p.confirmTitle}</p>
+            <div className="hazard mt-3 rounded-xl border border-amber-500/60 p-3" data-testid="prestige-confirm">
+              <div className="rounded-lg bg-slate-950/85 p-3">
+              <p className="font-display text-sm font-bold uppercase tracking-wide text-amber-200">{p.confirmTitle}</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-300">
                 {p.confirmBody(gain, fmtMult(afterMult))}
               </p>
@@ -136,7 +119,7 @@ export default function Prestige({ open, onClose }: Props) {
                     }
                   }}
                   disabled={!allowed}
-                  className="min-h-[44px] flex-1 rounded-md bg-amber-500 px-4 text-sm font-bold text-slate-950 hover:bg-amber-400 disabled:opacity-50"
+                  className="key key-gold min-h-[44px] flex-1 px-4 text-sm"
                 >
                   {p.confirm}
                 </button>
@@ -145,10 +128,11 @@ export default function Prestige({ open, onClose }: Props) {
                     playUiClick();
                     setConfirming(false);
                   }}
-                  className="min-h-[44px] flex-1 rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
+                  className="key key-ghost min-h-[44px] flex-1 px-4 text-sm"
                 >
                   {p.cancel}
                 </button>
+              </div>
               </div>
             </div>
           ) : (
@@ -159,26 +143,20 @@ export default function Prestige({ open, onClose }: Props) {
                 setConfirming(true);
               }}
               disabled={!allowed}
-              className={`mt-3 min-h-[48px] w-full rounded-xl px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
-                allowed
-                  ? "bg-brand-600 text-white hover:bg-brand-500"
-                  : "cursor-not-allowed bg-slate-800 text-slate-500"
-              }`}
+              className={`key ${allowed ? "key-primary" : ""} mt-3 min-h-[52px] w-full px-4 text-sm`}
             >
               {p.action(gain)}
             </button>
           )}
-        </div>
-      </div>
-    </div>
+    </Window>
   );
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500">{label}</div>
-      <div className={`font-display text-lg font-semibold ${accent ? "text-brand-300" : "text-slate-100"}`}>
+    <div className="readout px-3 py-2">
+      <div className="silk text-[9px]">{label}</div>
+      <div className={`font-mono text-lg font-bold ${accent ? "readout-digits" : "text-slate-100"}`}>
         {value}
       </div>
     </div>
@@ -188,11 +166,9 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 function ListBox({ title, items, tone }: { title: string; items: string[]; tone: "reset" | "keep" }) {
   return (
     <div
-      className={`rounded-lg border p-3 ${
-        tone === "reset" ? "border-rose-500/30 bg-rose-950/20" : "border-emerald-500/30 bg-emerald-950/20"
-      }`}
+      className={`card p-3 ${tone === "reset" ? "border-rose-500/35" : "border-emerald-500/35"}`}
     >
-      <h3 className={`mb-1 text-xs font-semibold uppercase tracking-widest ${tone === "reset" ? "text-rose-300" : "text-emerald-300"}`}>
+      <h3 className={`silk silk-tick mb-1.5 ${tone === "reset" ? "!text-rose-300" : "!text-emerald-300"}`}>
         {title}
       </h3>
       <ul className="list-disc space-y-0.5 pl-4 text-xs text-slate-300">

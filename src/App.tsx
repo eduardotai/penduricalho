@@ -16,9 +16,14 @@ import { useGameStore } from "./state/store";
 import { startIdleEngine } from "./state/idleEngine";
 import { startClickerEngine } from "./state/clickerEngine";
 import WorkshopPanel from "./components/WorkshopPanel";
+import TitleScreen from "./components/TitleScreen";
+import { MusicDirector } from "./audio/musicDirector";
+import { RUN_MOOD_LINGER_MS, resolveMood } from "./audio/musicTracks";
 import { useUiPrefs } from "./state/uiPrefs";
 import { useT } from "./i18n";
 import { WORKSHOP_CLICKER_ENABLED } from "./config/features";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Wrench } from "lucide-react";
+import { ICON_STROKE } from "./components/ui/icons";
 
 export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
@@ -32,9 +37,11 @@ export default function App() {
   // Auto-open the How-to-Play tutorial once for first-time players, then leave
   // it reopenable from the controls. tutorialSeen is read once on mount so a
   // mid-session dismiss doesn't fight the initial state.
-  const [tutorialOpen, setTutorialOpen] = useState(
-    () => !useGameStore.getState().tutorialSeen
-  );
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  // Title card once per page load; first-time players get the tutorial right
+  // after it (tutorialSeen is read once so a mid-session dismiss doesn't fight).
+  const [titleOpen, setTitleOpen] = useState(true);
+  const isRunning = useGameStore((s) => s.isRunning);
   const dismissTutorial = useGameStore((s) => s.dismissTutorial);
   const toggleAudioMuted = useGameStore((s) => s.toggleAudioMuted);
   const audio = useGameStore((s) => s.audio);
@@ -113,6 +120,20 @@ export default function App() {
     AudioManager.syncMusic(audio);
   }, [audio]);
 
+  // Soundtrack mood: arena tracks while runs are going (and briefly after, so
+  // auto-run doesn't bounce between themes), the menu theme otherwise.
+  const lastRunEndedAt = useRef<number | null>(null);
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !isRunning) lastRunEndedAt.current = Date.now();
+    wasRunning.current = isRunning;
+    const apply = () => MusicDirector.setMood(resolveMood(isRunning, lastRunEndedAt.current, Date.now()));
+    apply();
+    if (isRunning) return;
+    const id = window.setTimeout(apply, RUN_MOOD_LINGER_MS + 50);
+    return () => window.clearTimeout(id);
+  }, [isRunning]);
+
   useEffect(() => {
     function onVisibilityChange() {
       if (document.hidden) {
@@ -138,6 +159,14 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleAudioMuted]);
+
+  function enterFromTitle() {
+    AudioManager.unlock();
+    AudioManager.syncMusic(useGameStore.getState().audio);
+    playGameSound("ui-modal-close");
+    setTitleOpen(false);
+    if (!useGameStore.getState().tutorialSeen) setTutorialOpen(true);
+  }
 
   function openCustomize() {
     AudioManager.unlock();
@@ -222,17 +251,18 @@ export default function App() {
                 aria-expanded={workshopOpen}
                 aria-controls="workshop-panel-mobile"
                 aria-label={workshopOpen ? t.workshop.close : t.workshop.open}
-                className={`pointer-events-auto flex min-h-[36px] items-center gap-1.5 rounded-full border border-slate-700/70 bg-slate-900/85 px-4 text-[11px] font-bold uppercase tracking-widest text-brand-300 shadow-lg backdrop-blur-md ${
-                  !workshopSeen ? "animate-pulse" : ""
+                className={`key pointer-events-auto min-h-[36px] rounded-full px-4 text-[11px] text-brand-200 ${
+                  !workshopSeen ? "blink-soft" : ""
                 }`}
               >
-                <span aria-hidden>{workshopOpen ? "▾" : "▴"}</span>
+                <Wrench size={14} strokeWidth={2} aria-hidden />
+                {workshopOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronUp size={14} aria-hidden />}
                 {t.workshop.title}
               </button>
               {workshopOpen && (
                 <div
                   id="workshop-panel-mobile"
-                  className="pointer-events-auto min-h-0 max-h-[36dvh] w-full overflow-y-auto overscroll-contain rounded-2xl"
+                  className="pointer-events-auto min-h-0 max-h-[46dvh] w-full overflow-y-auto overscroll-contain rounded-2xl"
                 >
                   <WorkshopPanel />
                 </div>
@@ -261,7 +291,7 @@ export default function App() {
           <aside
             id="workshop-panel-desktop"
             aria-hidden={!workshopOpen}
-            className={`pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-72 max-w-[min(18rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] transition-transform duration-300 ease-out md:flex ${
+            className={`pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-80 max-w-[min(20rem,calc(100%-2rem))] flex-col justify-center p-4 pr-[max(1rem,env(safe-area-inset-right))] transition-transform duration-300 ease-out md:flex ${
               workshopOpen ? "translate-x-0" : "invisible translate-x-full"
             }`}
           >
@@ -273,9 +303,9 @@ export default function App() {
                 aria-label={t.workshop.close}
                 aria-controls="workshop-panel-desktop"
                 aria-expanded={workshopOpen}
-                className="pointer-events-auto absolute -left-9 top-1/2 flex h-14 w-8 -translate-y-1/2 items-center justify-center rounded-l-xl border border-r-0 border-slate-700/70 bg-slate-900/85 text-lg font-bold text-brand-300 backdrop-blur-md hover:text-white"
+                className="key pointer-events-auto absolute -left-9 top-1/2 h-16 w-9 -translate-y-1/2 rounded-l-xl rounded-r-none text-brand-300"
               >
-                ›
+                <ChevronRight size={18} strokeWidth={2.25} aria-hidden />
               </button>
               <WorkshopPanel />
             </div>
@@ -289,12 +319,15 @@ export default function App() {
               aria-controls="workshop-panel-desktop"
               aria-expanded={false}
               title={t.workshop.title}
-              className={`absolute right-0 top-1/2 z-10 hidden h-24 w-9 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-slate-700/70 bg-slate-900/85 pr-[env(safe-area-inset-right)] text-brand-300 shadow-lg backdrop-blur-md hover:text-white md:flex ${
-                !workshopSeen ? "animate-pulse" : ""
+              className={`plate absolute right-0 top-1/2 z-10 hidden w-10 -translate-y-1/2 flex-col items-center justify-center gap-2 rounded-r-none border-r-0 py-3 pr-[env(safe-area-inset-right)] text-brand-300 transition-colors hover:text-brand-100 md:flex ${
+                !workshopSeen ? "blink-soft" : ""
               }`}
             >
-              <span className="text-lg font-bold leading-none" aria-hidden>‹</span>
-              <span className="text-sm leading-none" aria-hidden>🔧</span>
+              <ChevronLeft size={18} strokeWidth={2.25} aria-hidden />
+              <Wrench size={16} strokeWidth={ICON_STROKE} aria-hidden />
+              <span className="silk text-[9px] text-brand-300 [writing-mode:vertical-rl]" aria-hidden>
+                {t.workshop.title}
+              </span>
             </button>
           )}
         </>
@@ -305,6 +338,18 @@ export default function App() {
       <Tutorial open={tutorialOpen} onClose={closeTutorial} />
       <Achievements open={achievementsOpen} onClose={closeAchievements} />
       <Prestige open={prestigeOpen} onClose={closePrestige} />
+      <TitleScreen
+        open={titleOpen}
+        onEnter={enterFromTitle}
+        onHowTo={() => {
+          enterFromTitle();
+          setTutorialOpen(true);
+        }}
+        onSettings={() => {
+          enterFromTitle();
+          setSettingsOpen(true);
+        }}
+      />
       <AchievementToast />
       <IdleToast />
       <Analytics />

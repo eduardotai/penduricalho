@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGameStore } from "../state/store";
 import { ACHIEVEMENT_MAP } from "../data/achievements";
 import { useT } from "../i18n";
+import { ContentIcon } from "./ui/icons";
 
 const VISIBLE_MS = 5200;
 
@@ -35,15 +36,19 @@ export default function AchievementToast() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-amber-300/40 bg-slate-900/95 px-4 py-2.5 shadow-2xl backdrop-blur-md">
-        <div className="text-2xl leading-none" aria-hidden>
-          {def?.icon ?? "🏆"}
+      <div
+        key={last?.seq}
+        role="status"
+        className="plate toast-drop pointer-events-auto flex items-center gap-3 border-amber-300/60 py-2 pl-2 pr-5 shadow-[0_0_40px_-10px_rgb(var(--c-amber-400)/0.8)]"
+      >
+        <div className="well flex h-11 w-11 items-center justify-center text-amber-300" aria-hidden>
+          <ContentIcon kind="achievement" id={def?.id ?? currentId} size={22} />
         </div>
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[1.5px] text-amber-300/80">
+          <div className="silk text-[9px] !text-amber-300/90">
             {(t as any).achievements?.toastTitle ?? "ACHIEVEMENT UNLOCKED"}
           </div>
-          <div className="text-base font-bold text-amber-100 -mt-0.5">
+          <div className="font-display text-base font-extrabold uppercase tracking-wide text-amber-100">
             {name}
           </div>
         </div>

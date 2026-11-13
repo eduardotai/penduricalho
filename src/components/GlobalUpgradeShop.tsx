@@ -5,6 +5,8 @@ import { GLOBAL_UPGRADES, GLOBAL_UPGRADE_MAP, globalUpgradeMult } from "../data/
 import { getAchievementMomentumMult } from "../data/achievements";
 import { prestigeMult } from "../game/prestige";
 import { useLang, useT } from "../i18n";
+import { Lock } from "lucide-react";
+import { ContentIcon } from "./ui/icons";
 
 const fmtMult = (m: number) => `×${m.toFixed(m >= 10 ? 1 : 2)}`;
 
@@ -25,10 +27,10 @@ export default function GlobalUpgradeShop() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="boost-shop">
-      <p className="text-xs text-slate-400">{c.boostsIntro}</p>
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
-        <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">{c.incomeBreakdown}</div>
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-slate-300">
+      <p className="text-xs leading-relaxed text-slate-400">{c.boostsIntro}</p>
+      <div className="readout p-3">
+        <div className="silk mb-1.5">{c.incomeBreakdown}</div>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-xs text-slate-300">
           <span>
             {c.incomePrestige} <b className="text-slate-100">{fmtMult(pMult)}</b>
           </span>
@@ -38,7 +40,7 @@ export default function GlobalUpgradeShop() {
           <span>
             {c.incomeAchievements} <b className="text-slate-100">{fmtMult(aMult)}</b>
           </span>
-          <span className="ml-auto font-display text-base font-semibold text-brand-300">
+          <span className="readout-digits ml-auto text-lg">
             {c.incomeTotal} {fmtMult(pMult * bMult * aMult)}
           </span>
         </div>
@@ -52,17 +54,15 @@ export default function GlobalUpgradeShop() {
           <div
             key={u.id}
             data-boost-card={u.id}
-            className={`flex items-center gap-3 rounded-xl border bg-slate-900/50 p-3 ${
-              isOwned ? "border-brand-500/60 bg-brand-500/10" : locked ? "border-slate-800 opacity-60" : "border-slate-800"
-            }`}
+            className={`card flex items-center gap-3 p-3 ${isOwned ? "card-lit" : locked ? "opacity-60" : ""}`}
           >
-            <span className="text-3xl leading-none" aria-hidden>
-              {u.icon}
+            <span className="well flex h-12 w-12 shrink-0 items-center justify-center text-brand-300">
+              <ContentIcon kind="globalUpgrade" id={u.id} size={24} />
             </span>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-slate-100">{u.name[lang]}</h3>
-                <span className="rounded bg-brand-500/25 px-1.5 py-0.5 text-[11px] font-bold text-brand-200">
+                <h3 className="font-display text-sm font-bold uppercase tracking-wide text-slate-50">{u.name[lang]}</h3>
+                <span className="tag text-brand-300">
                   ×{u.mult}
                 </span>
               </div>
@@ -70,14 +70,12 @@ export default function GlobalUpgradeShop() {
             </div>
             <div className="flex w-32 flex-col items-end gap-1.5">
               {isOwned ? (
-                <span className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400">{c.boostOwned}</span>
+                <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-brand-300"><span className="led led-on" aria-hidden />{c.boostOwned}</span>
               ) : locked ? (
-                <span className="text-right text-[11px] text-slate-500">{c.boostRequires(req!.name[lang])}</span>
+                <span className="flex items-start gap-1 text-right font-mono text-[10px] text-slate-500"><Lock size={12} className="mt-px shrink-0" aria-hidden />{c.boostRequires(req!.name[lang])}</span>
               ) : (
                 <>
-                  <div className="font-display text-sm font-semibold text-brand-300">
-                    <FormattedNumber value={u.cost} className="font-display text-sm font-semibold text-brand-300" />
-                  </div>
+                  <FormattedNumber value={u.cost} className="font-mono text-sm font-bold text-brand-300" />
                   <button
                     onClick={() => {
                       playUiClick();
@@ -85,9 +83,7 @@ export default function GlobalUpgradeShop() {
                       playGameSound(ok ? "ui-buy" : "ui-error");
                     }}
                     disabled={!canAfford}
-                    className={`flex min-h-[44px] w-full items-center justify-center rounded-md px-3 text-xs font-semibold transition-colors ${
-                      canAfford ? "bg-brand-600 text-white hover:bg-brand-500" : "cursor-not-allowed bg-slate-800 text-slate-500"
-                    }`}
+                    className={`key ${canAfford ? "key-primary" : ""} min-h-[44px] w-full px-3 text-xs`}
                   >
                     {c.buy}
                   </button>

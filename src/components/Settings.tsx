@@ -3,8 +3,21 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type ReactNode,
 } from "react";
+import Window, { type WindowTab } from "./ui/Window";
+import {
+  CircleHelp,
+  Disc3,
+  Gamepad2,
+  SkipForward,
+  Languages,
+  Monitor,
+  Save,
+  SlidersHorizontal,
+  Volume2,
+} from "lucide-react";
 import {
   useGameStore,
   CAMERA_ZOOM_MIN,
@@ -18,7 +31,8 @@ import {
 } from "../state/saveTransfer";
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
-import { BACKGROUND_MUSIC_CREDIT } from "../audio/backgroundMusic";
+import { MusicDirector, trackTitle } from "../audio/musicDirector";
+import { MUSIC_TRACKS } from "../audio/musicTracks";
 import { useT, LANGUAGES, type Lang } from "../i18n";
 
 type SettingsTab = "audio" | "display" | "controls" | "language" | "data";
@@ -33,98 +47,50 @@ export default function Settings({ open, onClose, onOpenTutorial }: SettingsProp
   const t = useT();
   const [tab, setTab] = useState<SettingsTab>("audio");
 
-  const tabs: { id: SettingsTab; label: string }[] = [
-    { id: "audio", label: t.settings.tabAudio },
-    { id: "display", label: t.settings.tabDisplay },
-    { id: "controls", label: t.settings.tabControls },
-    { id: "language", label: t.settings.tabLanguage },
-    { id: "data", label: t.settings.tabData },
+  const tabs: WindowTab<SettingsTab>[] = [
+    { id: "audio", label: t.settings.tabAudio, icon: Volume2 },
+    { id: "display", label: t.settings.tabDisplay, icon: Monitor },
+    { id: "controls", label: t.settings.tabControls, icon: Gamepad2 },
+    { id: "language", label: t.settings.tabLanguage, icon: Languages },
+    { id: "data", label: t.settings.tabData, icon: Save },
   ];
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4"
-      data-no-camera-zoom
-      onClick={onClose}
-    >
-      <div
-        className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(640px,88vh)] sm:max-w-lg sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-4 sm:px-5 sm:py-4">
-          <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">{t.settings.title}</h2>
-            <p className="text-xs text-slate-400">
-              {t.settings.subtitle}
-            </p>
-          </div>
+    <Window
+      open={open}
+      onClose={onClose}
+      title={t.settings.title}
+      subtitle={t.settings.subtitle}
+      icon={SlidersHorizontal}
+      code="04 / SETUP"
+      closeLabel={t.settings.close}
+      tabs={tabs}
+      activeTab={tab}
+      onTab={setTab}
+      sizeClass="sm:h-[min(680px,90vh)] sm:max-w-xl"
+      testId="settings-window"
+      footer={
+        onOpenTutorial ? (
           <button
             onClick={() => {
               playUiClick();
-              onClose();
+              onClose(); // close settings first
+              onOpenTutorial(); // then open tutorial
             }}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
+            className="key key-ghost min-h-[40px] w-full text-xs"
           >
-            {t.settings.close}
+            <CircleHelp size={16} strokeWidth={2} aria-hidden />
+            {t.controls.howToPlay}
           </button>
-        </header>
-
-        <nav className="flex gap-1 border-b border-slate-800 px-2 py-1.5 sm:px-3 sm:py-2">
-          {tabs.map((tabDef) => (
-            <button
-              key={tabDef.id}
-              onClick={() => {
-                playUiClick();
-                setTab(tabDef.id);
-              }}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                tab === tabDef.id
-                  ? "bg-brand-600 text-white"
-                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-              }`}
-            >
-              {tabDef.label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Persistent help access — moved from the main control bar */}
-        {onOpenTutorial && (
-          <div className="border-b border-slate-800 bg-slate-900/40 px-4 py-2 sm:px-5">
-            <button
-              onClick={() => {
-                playUiClick();
-                onClose();           // close settings first
-                onOpenTutorial();    // then open tutorial
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
-            >
-              <span aria-hidden>🪀</span>
-              {t.controls.howToPlay}
-            </button>
-          </div>
-        )}
-
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
-          {tab === "audio" && <AudioTab />}
-          {tab === "display" && <DisplayTab />}
-          {tab === "controls" && <ControlsTab />}
-          {tab === "language" && <LanguageTab />}
-          {tab === "data" && <DataTab />}
-        </div>
-      </div>
-    </div>
+        ) : undefined
+      }
+    >
+      {tab === "audio" && <AudioTab />}
+      {tab === "display" && <DisplayTab />}
+      {tab === "controls" && <ControlsTab />}
+      {tab === "language" && <LanguageTab />}
+      {tab === "data" && <DataTab />}
+    </Window>
   );
 }
 
@@ -194,16 +160,14 @@ function AudioTab() {
           onChange={setAudioMusicEnabled}
           disabled={audio.muted}
         />
-        <p className="text-[11px] leading-relaxed text-slate-600">
-          {BACKGROUND_MUSIC_CREDIT}
-        </p>
+        <NowPlaying />
       </SettingsSection>
 
       <button
         type="button"
         onClick={previewSound}
         disabled={audio.muted}
-        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 sm:px-4 sm:py-2.5 sm:text-sm"
+        className="key key-ghost min-h-[42px] w-full text-xs"
       >
         {t.settings.previewSound}
       </button>
@@ -241,7 +205,7 @@ function DisplayTab() {
           playUiClick();
           resetDisplaySettings();
         }}
-        className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
+        className="key key-ghost min-h-[42px] w-full text-xs"
       >
         {t.settings.resetCamera}
       </button>
@@ -260,10 +224,10 @@ function ControlsTab() {
           {shortcuts.map((s) => (
             <div
               key={s.keys}
-              className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5"
+              className="card flex items-center justify-between gap-4 px-3 py-2.5"
             >
               <span className="text-sm text-slate-300">{s.action}</span>
-              <kbd className="shrink-0 rounded border border-slate-700 bg-slate-950 px-2 py-0.5 font-mono text-[11px] text-slate-400">
+              <kbd className="key shrink-0 px-2 py-0.5 font-mono text-[11px] normal-case tracking-normal text-slate-200">
                 {s.keys}
               </kbd>
             </div>
@@ -299,17 +263,13 @@ function LanguageTab() {
                   playUiClick();
                   setLanguage(l.id as Lang);
                 }}
-                className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium transition-colors ${
-                  active
-                    ? "border-brand-500/60 bg-brand-500/10 text-brand-100"
-                    : "border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-600 hover:bg-slate-800"
+                className={`card flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold uppercase tracking-wide ${
+                  active ? "card-lit text-brand-100" : "text-slate-300"
                 }`}
               >
                 <span>{l.label}</span>
                 {active && (
-                  <span className="text-xs uppercase tracking-wide text-brand-300">
-                    ✓
-                  </span>
+                  <span className="led led-on" aria-hidden />
                 )}
               </button>
             );
@@ -392,14 +352,14 @@ function DataTab() {
               setNotice(null);
               downloadSaveFile();
             }}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+            className="key min-h-[42px] px-4 text-xs"
           >
             {t.settings.downloadSave}
           </button>
           <button
             type="button"
             onClick={onCopy}
-            className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800"
+            className="key min-h-[42px] px-4 text-xs"
           >
             {copied ? t.settings.copied : t.settings.copySave}
           </button>
@@ -422,7 +382,7 @@ function DataTab() {
             setError(null);
             fileInputRef.current?.click();
           }}
-          className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
+          className="key key-ghost min-h-[42px] w-full text-xs"
         >
           {t.settings.loadSaveFile}
         </button>
@@ -431,7 +391,7 @@ function DataTab() {
           onChange={(e) => setPasted(e.target.value)}
           placeholder={t.settings.pastePlaceholder}
           rows={3}
-          className="scrollbar-thin w-full resize-y rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
+          className="readout scrollbar-thin w-full resize-y px-3 py-2 font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
         />
         <button
           type="button"
@@ -441,24 +401,24 @@ function DataTab() {
             applyImport(pasted);
           }}
           disabled={!pasted.trim()}
-          className="w-full rounded-xl border border-brand-500/50 bg-brand-900/30 px-4 py-2.5 text-sm font-semibold text-brand-200 transition-colors hover:border-brand-400/60 hover:bg-brand-900/50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="key key-primary min-h-[44px] w-full text-xs"
         >
           {t.settings.applyPasted}
         </button>
       </SettingsSection>
 
       {error && (
-        <p className="rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs leading-relaxed text-rose-200">
+        <p className="card border-rose-700/60 px-3 py-2 text-xs leading-relaxed text-rose-200">
           {error}
         </p>
       )}
       {notice && (
-        <p className="rounded-lg border border-sky-900/60 bg-sky-950/30 px-3 py-2 text-xs leading-relaxed text-sky-200">
+        <p className="card border-sky-700/60 px-3 py-2 text-xs leading-relaxed text-sky-200">
           {notice}
         </p>
       )}
       {success && (
-        <p className="rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-xs leading-relaxed text-emerald-200">
+        <p className="card border-emerald-700/60 px-3 py-2 text-xs leading-relaxed text-emerald-200">
           {t.settings.importSuccess}
         </p>
       )}
@@ -477,9 +437,7 @@ function SettingsSection({
 }) {
   return (
     <section>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
-        {title}
-      </h3>
+      <h3 className="silk silk-tick mb-3">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -509,8 +467,8 @@ function SliderRow({
   return (
     <div className={disabled ? "opacity-40" : undefined}>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <label className="text-sm text-slate-300">{label}</label>
-        <span className="tabular-nums text-xs text-slate-500">{format(value)}</span>
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-200">{label}</label>
+        <span className="readout px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums text-brand-300">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -520,7 +478,9 @@ function SliderRow({
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         disabled={disabled}
-        className="h-1.5 w-full cursor-pointer accent-brand-400 disabled:cursor-not-allowed"
+        aria-label={label}
+        className="fader w-full cursor-pointer disabled:cursor-not-allowed"
+        style={{ "--fill": `${((value - min) / (max - min)) * 100}%` } as CSSProperties}
       />
       {hint && <p className="mt-2 text-[11px] leading-relaxed text-slate-600">{hint}</p>}
     </div>
@@ -542,12 +502,12 @@ function ToggleRow({
 }) {
   return (
     <div
-      className={`flex items-start justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 ${
+      className={`card flex items-start justify-between gap-4 px-4 py-3 ${
         disabled ? "opacity-40" : ""
       }`}
     >
       <div>
-        <div className="text-sm font-medium text-slate-200">{label}</div>
+        <div className="text-xs font-bold uppercase tracking-wide text-slate-100">{label}</div>
         {description && (
           <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</p>
         )}
@@ -562,17 +522,71 @@ function ToggleRow({
           playUiClick();
           onChange(!checked);
         }}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-          checked ? "bg-brand-500" : "bg-slate-700"
-        } disabled:cursor-not-allowed`}
+        aria-label={label}
+        className={`well relative inline-flex h-7 w-14 shrink-0 items-center rounded-md p-0.5 transition-colors disabled:cursor-not-allowed ${
+          checked ? "!bg-[rgb(var(--c-brand-500)/0.25)]" : ""
+        }`}
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0"
+          className={`key pointer-events-none flex h-6 w-6 items-center justify-center rounded transition-transform duration-200 ${
+            checked ? "translate-x-7" : "translate-x-0"
           }`}
-        />
+        >
+          <span className={`led ${checked ? "led-on" : ""}`} />
+        </span>
       </button>
+    </div>
+  );
+}
+
+function NowPlaying() {
+  const t = useT();
+  const [playing, setPlaying] = useState<string | null>(MusicDirector.nowPlaying);
+  useEffect(() => MusicDirector.subscribe(setPlaying), []);
+  return (
+    <div className="space-y-2">
+      <div className="readout flex items-center gap-3 px-3 py-2">
+        <Disc3
+          size={22}
+          strokeWidth={1.75}
+          className={`shrink-0 text-brand-300 ${playing ? "animate-spin [animation-duration:3s]" : "opacity-40"}`}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="silk text-[9px]">{t.music.nowPlaying}</div>
+          <div className="readout-digits truncate text-sm" data-testid="now-playing">
+            {trackTitle(playing) ?? "—"}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            playUiClick();
+            MusicDirector.next();
+          }}
+          disabled={!playing}
+          aria-label="Next track"
+          className="key key-ghost key-icon h-9 w-9"
+        >
+          <SkipForward size={16} aria-hidden />
+        </button>
+      </div>
+      <div>
+        <div className="silk mb-1 text-[9px]">{t.music.tracks}</div>
+        <ul className="space-y-1 font-mono text-[10px] text-slate-400">
+          {MUSIC_TRACKS.map((tr) => (
+            <li key={tr.id} className="flex items-center gap-2">
+              <span className={`led ${tr.id === playing ? "led-on" : ""}`} aria-hidden />
+              <span className="text-slate-200">{tr.title}</span>
+              <span className="text-slate-600">
+                · {tr.mood === "menu" ? t.music.menuTrack : t.music.runTrack} · {tr.license}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="text-[10px] leading-relaxed text-slate-500">{t.music.credit}</p>
     </div>
   );
 }

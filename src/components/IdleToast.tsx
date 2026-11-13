@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useGameStore } from "../state/store";
 import { FormattedNumber } from "./FormattedNumber";
 import { useT } from "../i18n";
+import { Moon } from "lucide-react";
 
 const VISIBLE_MS = 6000;
 
@@ -37,15 +38,16 @@ export default function IdleToast() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <div className="pointer-events-auto rounded-xl border border-amber-300/40 bg-slate-900/90 px-4 py-2 text-center shadow-lg backdrop-blur-sm">
-        <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-amber-300/80">
-          {t.idle.whileAway}
+      <div key={report.seq} role="status" className="plate toast-drop pointer-events-auto flex items-center gap-3 py-2 pl-2 pr-5">
+        <div className="well flex h-11 w-11 items-center justify-center text-brand-300" aria-hidden>
+          <Moon size={20} strokeWidth={1.75} />
         </div>
-        <div className="mt-0.5 text-lg font-bold text-amber-200">
-          <FormattedNumber value={report.momentum} prefix="+" /> {t.idle.momentumWord}
-        </div>
-        <div className="text-[0.7rem] text-slate-400">
-          {t.idle.overIdle(humanizeDuration(report.ms))}
+        <div>
+          <div className="silk text-[9px]">{t.idle.whileAway}</div>
+          <div className="readout-digits text-lg leading-tight">
+            <FormattedNumber value={report.momentum} prefix="+" /> <span className="text-xs text-slate-300">{t.idle.momentumWord}</span>
+          </div>
+          <div className="font-mono text-[10px] text-slate-400">{t.idle.overIdle(humanizeDuration(report.ms))}</div>
         </div>
       </div>
     </div>

@@ -9,6 +9,9 @@ import {
 import type { AchievementCategory } from "../types";
 import { useT, useLang } from "../i18n";
 import { FormattedNumber } from "./FormattedNumber";
+import Window from "./ui/Window";
+import { Check, Trophy } from "lucide-react";
+import { ContentIcon } from "./ui/icons";
 
 interface Props {
   open: boolean;
@@ -95,129 +98,130 @@ export default function Achievements({ open, onClose }: Props) {
 
   const bonusPct = Math.round((bonusMult - 1) * 1000) / 10;
 
-  if (!open) return null;
+  const pct = totalVisible > 0 ? unlockedCount / totalVisible : 0;
+  const pt = lang === "pt";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4">
-      <div className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(720px,92vh)] sm:max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3 sm:px-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🏆</span>
-              <h2 className="font-display text-xl font-semibold tracking-tight text-slate-100">
-                {(t as any).achievements?.title ?? "Achievements"}
-              </h2>
-            </div>
-            <p className="text-xs text-slate-400">
-              {unlockedCount} / {totalVisible} unlocked
-              <span className="ml-2 text-amber-300/80">+{bonusPct}% Momentum</span>
-            </p>
+    <Window
+      open={open}
+      onClose={onClose}
+      title={(t as any).achievements?.title ?? "Achievements"}
+      subtitle={
+        <span className="font-mono">
+          {unlockedCount} / {totalVisible} · <span className="text-amber-300">+{bonusPct}% Momentum</span>
+        </span>
+      }
+      icon={Trophy}
+      code="02 / LOG"
+      closeLabel={t.settings.close}
+      sizeClass="sm:h-[min(720px,92vh)] sm:max-w-4xl"
+      testId="achievements-window"
+      headerExtra={
+        <div className="hidden w-36 sm:block" aria-hidden>
+          <div className="meter">
+            <span style={{ width: `${pct * 100}%`, background: "linear-gradient(90deg, rgb(var(--c-amber-500)), rgb(var(--c-yellow-300)))" }} />
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800"
-          >
-            ✕
-          </button>
+          <div className="mt-1 text-right font-mono text-[10px] text-slate-400">{Math.round(pct * 100)}%</div>
         </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-1.5 border-b border-slate-700/60 bg-slate-900/40 px-4 py-2 sm:px-6">
-          {(["all", "unlocked", "locked"] as const).map((f) => (
-            <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
-              {(t as any).achievements?.filters?.[f] ?? f}
-            </Chip>
-          ))}
-          <div className="mx-1 h-5 w-px self-center bg-slate-700" />
-          {ACHIEVEMENT_CATEGORIES.map((cat) => (
-            <Chip key={cat} active={filter === cat} onClick={() => setFilter(cat)}>
-              {(t as any).achievements?.categories?.[cat] ?? cat}
-            </Chip>
-          ))}
-        </div>
-
-        {/* Grid */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-          {visibleDefs.length === 0 && (
-            <div className="py-12 text-center text-sm text-slate-400">
-              No achievements match this filter yet. Keep swinging!
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleDefs.map((def) => {
-              const p = progressMap[def.id];
-              const strings = (t as any).achievements?.[def.id] ?? {};
-              const name = strings.name ?? def.id;
-              const desc = strings.description ?? "";
-
-              return (
-                <div
-                  key={def.id}
-                  className={`group rounded-2xl border p-4 transition-all ${
-                    p.unlocked
-                      ? "border-amber-400/40 bg-amber-900/10"
-                      : "border-slate-700/60 bg-slate-900/60"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 text-3xl opacity-90" aria-hidden>
-                      {def.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="truncate font-semibold text-slate-100">{name}</div>
-                        {p.unlocked && (
-                          <span className="rounded bg-amber-400/20 px-1.5 py-px text-[10px] font-medium text-amber-300">
-                            {(t as any).achievements?.unlockedBadge ?? "UNLOCKED"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 text-xs leading-snug text-slate-400">
-                        {desc}
-                      </div>
-
-                      {!p.unlocked && p.target > 0 && (
-                        <div className="mt-2.5">
-                          <div className="mb-1 flex justify-between text-[10px] text-slate-400">
-                            <span>
-                              <FormattedNumber value={p.progress} /> /{" "}
-                              <FormattedNumber value={p.target} />
-                            </span>
-                            <span>{Math.round(p.percent * 100)}%</span>
-                          </div>
-                          <div className="h-1.5 overflow-hidden rounded bg-slate-800">
-                            <div
-                              className="h-full bg-gradient-to-r from-amber-400 to-yellow-300 transition-all"
-                              style={{ width: `${Math.min(100, p.percent * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {p.unlocked && (
-                        <div className="mt-2 text-[10px] text-amber-300/70">
-                          {new Date(unlocked[def.id]).toLocaleDateString(lang === "pt" ? "pt-BR" : "en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="border-t border-slate-700/60 bg-slate-900/60 px-4 py-2 text-center text-[10px] text-slate-500 sm:px-6">
-          Achievements grant a permanent <span className="text-amber-300/80">+{bonusPct}% Momentum</span> global bonus. More coming as the roster grows.
-        </div>
+      }
+      footer={
+        <p className="text-center font-mono text-[10px] text-slate-500">
+          {pt ? "Conquistas dão um bônus permanente de " : "Achievements grant a permanent "}
+          <span className="text-amber-300/90">+{bonusPct}% Momentum</span>
+          {pt ? " global." : " global bonus."}
+        </p>
+      }
+    >
+      <div className="sticky -top-3 z-10 -mx-3 mb-3 flex flex-wrap gap-1.5 border-b border-slate-800/80 bg-slate-950/90 px-3 pb-2 pt-1 backdrop-blur sm:-top-4 sm:-mx-5 sm:px-5">
+        {(["all", "unlocked", "locked"] as const).map((f) => (
+          <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
+            {(t as any).achievements?.filters?.[f] ?? f}
+          </Chip>
+        ))}
+        <div className="mx-1 h-5 w-px self-center bg-slate-700" />
+        {ACHIEVEMENT_CATEGORIES.map((cat) => (
+          <Chip key={cat} active={filter === cat} onClick={() => setFilter(cat)}>
+            {(t as any).achievements?.categories?.[cat] ?? cat}
+          </Chip>
+        ))}
       </div>
-    </div>
+
+      {visibleDefs.length === 0 && (
+        <div className="py-12 text-center font-mono text-sm text-slate-400">
+          {pt ? "Nenhuma conquista neste filtro ainda." : "No achievements match this filter yet. Keep swinging!"}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        {visibleDefs.map((def) => {
+          const p = progressMap[def.id];
+          const strings = (t as any).achievements?.[def.id] ?? {};
+          const name = strings.name ?? def.id;
+          const desc = strings.description ?? "";
+
+          return (
+            <div
+              key={def.id}
+              data-achievement={def.id}
+              className={`card relative overflow-hidden p-3 ${p.unlocked ? "border-amber-400/45" : ""}`}
+              style={
+                p.unlocked
+                  ? { backgroundImage: "linear-gradient(135deg, rgb(var(--c-amber-500) / 0.14), transparent 55%)" }
+                  : undefined
+              }
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`well flex h-12 w-12 shrink-0 items-center justify-center ${
+                    p.unlocked ? "text-amber-300 shadow-[0_0_18px_-6px_rgb(var(--c-amber-400)/0.9)]" : "text-slate-500"
+                  }`}
+                  aria-hidden
+                >
+                  <ContentIcon kind="achievement" id={def.id} size={p.unlocked ? 24 : 20} className={p.unlocked ? undefined : "opacity-60"} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-display text-[13px] font-bold uppercase tracking-wide text-slate-50">{name}</div>
+                  <div className="mt-0.5 text-xs leading-snug text-slate-400">{desc}</div>
+
+                  {!p.unlocked && p.target > 0 && (
+                    <div className="mt-2">
+                      <div className="mb-1 flex justify-between font-mono text-[10px] text-slate-400">
+                        <span>
+                          <FormattedNumber value={p.progress} /> / <FormattedNumber value={p.target} />
+                        </span>
+                        <span>{Math.round(p.percent * 100)}%</span>
+                      </div>
+                      <div className="meter">
+                        <span
+                          style={{
+                            width: `${Math.min(100, p.percent * 100)}%`,
+                            background: "linear-gradient(90deg, rgb(var(--c-amber-500)), rgb(var(--c-yellow-300)))",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {p.unlocked && (
+                    <div className="mt-2 flex items-center gap-2 font-mono text-[10px] text-amber-300/80">
+                      <span className="tag text-amber-300">
+                        <Check size={10} strokeWidth={3} aria-hidden />
+                        {(t as any).achievements?.unlockedBadge ?? "UNLOCKED"}
+                      </span>
+                      {new Date(unlocked[def.id]).toLocaleDateString(pt ? "pt-BR" : "en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Window>
   );
 }
 
@@ -233,10 +237,11 @@ function Chip({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-2.5 py-0.5 text-xs font-medium uppercase tracking-wider transition ${
+      aria-pressed={active}
+      className={`rounded-md border px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider transition ${
         active
-          ? "bg-amber-400 text-slate-950"
-          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+          ? "border-amber-300 bg-amber-400 text-slate-950 shadow-[0_0_12px_-3px_rgb(var(--c-amber-400)/0.9)]"
+          : "border-slate-700 bg-slate-900/70 text-slate-300 hover:border-slate-500 hover:text-slate-100"
       }`}
     >
       {children}

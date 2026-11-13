@@ -10,6 +10,8 @@ import {
 import { FormattedNumberInline } from "./FormattedNumber";
 import { playUiClick } from "../audio/soundMap";
 import { useT } from "../i18n";
+import { Hand, Lock, Wrench, Zap } from "lucide-react";
+import { ContentIcon, ICON_STROKE } from "./ui/icons";
 
 type Tab = "build" | "upgrades";
 
@@ -44,83 +46,102 @@ export default function WorkshopPanel() {
     }
   }
 
+  const ringR = 46;
+  const ringC = 2 * Math.PI * ringR;
+  const chargeFrac = Math.max(0, Math.min(1, runChargePct / 100));
+
   return (
-    <div className="pointer-events-auto flex max-h-[min(70dvh,32rem)] flex-col gap-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/85 p-3 backdrop-blur-md sm:max-h-none sm:p-4">
-      <div>
-        <h2 className="font-display text-sm font-semibold uppercase tracking-widest text-brand-300">
-          {t.workshop.title}
-        </h2>
-        <p className="mt-0.5 text-[10px] leading-snug text-slate-400">
-          {t.workshop.subtitle}
-        </p>
-        <p className="mt-1 text-[10px] text-slate-500">
-          {t.workshop.cpsLabel}{" "}
-          <FormattedNumberInline value={Math.floor(cachedTotalCps * 10) / 10} />
-          /s
-        </p>
+    <div className="plate plate-screws pointer-events-auto flex max-h-[min(70dvh,34rem)] flex-col gap-3 overflow-hidden p-3 sm:max-h-[calc(100dvh-2rem)] sm:p-4" data-testid="workshop-panel">
+      <div className="flex items-start gap-2.5">
+        <div className="well flex h-9 w-9 shrink-0 items-center justify-center text-brand-300">
+          <Wrench size={18} strokeWidth={ICON_STROKE} aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-display text-base font-extrabold uppercase leading-tight tracking-wide text-slate-50">
+            {t.workshop.title}
+          </h2>
+          <p className="text-[10px] leading-snug text-slate-400">{t.workshop.subtitle}</p>
+        </div>
       </div>
 
       {surgeActive && (
-        <div className="rounded-lg border border-amber-400/50 bg-amber-500/20 px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+        <div className="hazard flex items-center justify-center gap-2 rounded-lg border border-amber-400/60 px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-amber-100">
+          <Zap size={13} strokeWidth={2.25} aria-hidden />
           {t.workshop.arcSurgeActive(surgeLeft)}
         </div>
       )}
 
-      {/* Dedicated Workshop Pump (Plan C separation — primary high-frequency earner) */}
-      <button
-        type="button"
-        onClick={handlePump}
-        className="group w-full rounded-2xl border border-brand-500/60 bg-gradient-to-b from-brand-600/90 to-brand-700 px-4 py-3 text-center font-display text-lg font-bold uppercase tracking-[2px] text-white shadow-lg transition active:scale-[0.985] active:shadow-brand-500/40 hover:from-brand-500 hover:to-brand-600"
-      >
-        <div className="flex items-center justify-center gap-2">
-          <span>🖐️</span>
-          <span>{t.workshop.pumpLabel}</span>
-        </div>
-        {lastCookieGain > 0 && (
-          <div className="mt-0.5 text-[10px] font-semibold tracking-normal text-brand-200/90">
-            +<FormattedNumberInline value={lastCookieGain} />
-          </div>
-        )}
-      </button>
-
-      {/* Workshop power summary (feeds arena runs) */}
-      <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-2 py-1 text-[10px] text-slate-400">
-        <div>
-          {t.workshop.clickStreak}: <span className="font-semibold text-slate-200">{clickStreak}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span>{t.workshop.runCharge}</span>
-          <div className="h-1.5 w-12 overflow-hidden rounded bg-slate-700">
-            <div
-              className="h-1.5 rounded bg-brand-400 transition-all"
-              style={{ width: `${Math.max(4, runChargePct)}%` }}
+      {/* Pump: a round plunger key ringed by the Run Charge gauge. */}
+      <div className="well flex items-center gap-3 p-2 sm:p-2.5">
+        <div className="relative h-[84px] w-[84px] shrink-0 sm:h-[104px] sm:w-[104px]">
+          <svg viewBox="0 0 104 104" className="absolute inset-0 -rotate-90" aria-hidden>
+            <circle cx="52" cy="52" r={ringR} fill="none" stroke="rgb(var(--c-slate-800))" strokeWidth="5" />
+            <circle
+              cx="52"
+              cy="52"
+              r={ringR}
+              fill="none"
+              stroke="rgb(var(--c-brand-400))"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={`${ringC * chargeFrac} ${ringC}`}
+              style={{ transition: "stroke-dasharray 200ms ease-out", filter: "drop-shadow(0 0 4px rgb(var(--c-brand-400) / 0.7))" }}
             />
+          </svg>
+          <button
+            type="button"
+            onClick={handlePump}
+            aria-label={t.workshop.pumpLabel}
+            className={`key ${surgeActive ? "key-gold" : "key-primary"} absolute inset-[11%] flex-col gap-0.5 rounded-full text-[10px] sm:text-[11px]`}
+          >
+            <Hand size={22} strokeWidth={2} aria-hidden />
+            <span className="leading-none">{t.workshop.pumpLabel}</span>
+          </button>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5 font-mono">
+          <div>
+            <div className="silk text-[9px]">{t.workshop.cpsLabel}</div>
+            <div className="readout-digits text-base">
+              <FormattedNumberInline value={Math.floor(cachedTotalCps * 10) / 10} />
+              <span className="text-[10px] text-slate-400">/s</span>
+            </div>
           </div>
-          <span className="tabular-nums text-slate-300">{runCharge.toFixed(0)}</span>
+          <div>
+            <div className="silk text-[9px]">{t.workshop.runCharge}</div>
+            <div className="text-sm font-bold text-slate-100">{runCharge.toFixed(0)}%</div>
+          </div>
+          <div className="flex items-baseline justify-between text-[10px] text-slate-400">
+            <span>
+              {t.workshop.clickStreak} <span className="font-bold text-slate-200">{clickStreak}</span>
+            </span>
+            {lastCookieGain > 0 && (
+              <span className="font-bold text-brand-300" key={stats.totalClicks}>
+                +<FormattedNumberInline value={lastCookieGain} />
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-1 rounded-lg bg-slate-800/80 p-0.5">
+      <div className="tabbar" role="tablist">
         {(["build", "upgrades"] as const).map((id) => (
           <button
             key={id}
             type="button"
+            role="tab"
+            aria-selected={tab === id}
             onClick={() => {
               playUiClick();
               setTab(id);
             }}
-            className={`flex-1 rounded-md py-1.5 text-[10px] font-semibold uppercase tracking-wide transition-colors ${
-              tab === id
-                ? "bg-brand-600/80 text-white"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className="tab flex-1"
           >
             {id === "build" ? t.workshop.tabBuild : t.workshop.tabUpgrades}
           </button>
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+      <div className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
         {tab === "build" &&
           GENERATORS.map((g) => {
             const owned = generatorCounts[g.id] ?? 0;
@@ -135,23 +156,22 @@ export default function WorkshopPanel() {
                 onClick={() => {
                   if (buyGenerator(g.id)) playUiClick();
                 }}
-                className="flex w-full items-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-left transition enabled:hover:border-brand-500/40 enabled:hover:bg-slate-800 disabled:opacity-45"
+                className="card flex w-full items-center gap-2.5 px-2 py-1.5 text-left enabled:hover:border-brand-500/50 enabled:active:translate-y-px disabled:opacity-45"
               >
-                <span className="text-xl" aria-hidden>
-                  {g.icon}
+                <span className="well flex h-9 w-9 shrink-0 items-center justify-center text-brand-300">
+                  {locked ? <Lock size={16} strokeWidth={ICON_STROKE} aria-hidden /> : <ContentIcon kind="generator" id={g.id} size={18} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-slate-100">
-                    {g.name}
-                  </span>
-                  <span className="text-[9px] text-slate-500">
-                    {locked
-                      ? t.workshop.locked
-                      : `${owned} · ${t.workshop.buy}`}
+                  <span className="block truncate text-xs font-bold text-slate-100">{g.name}</span>
+                  <span className="font-mono text-[9px] text-slate-500">
+                    {locked ? t.workshop.locked : `${t.workshop.buy}`}
                   </span>
                 </span>
-                <span className="shrink-0 text-[10px] font-semibold text-brand-300">
-                  <FormattedNumberInline value={cost} />
+                <span className="flex shrink-0 flex-col items-end">
+                  <span className="font-mono text-[11px] font-bold text-brand-300">
+                    <FormattedNumberInline value={cost} />
+                  </span>
+                  <span className="font-mono text-[9px] text-slate-400">×{owned}</span>
                 </span>
               </button>
             );
@@ -171,24 +191,22 @@ export default function WorkshopPanel() {
                 onClick={() => {
                   if (buyClickUpgrade(u.id)) playUiClick();
                 }}
-                className="flex w-full items-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/50 px-2 py-2 text-left transition enabled:hover:border-brand-500/40 enabled:hover:bg-slate-800 disabled:opacity-45"
+                className="card flex w-full items-center gap-2.5 px-2 py-1.5 text-left enabled:hover:border-brand-500/50 enabled:active:translate-y-px disabled:opacity-45"
               >
-                <span className="text-xl" aria-hidden>
-                  {u.icon}
+                <span className="well flex h-9 w-9 shrink-0 items-center justify-center text-brand-300">
+                  {locked ? <Lock size={16} strokeWidth={ICON_STROKE} aria-hidden /> : <ContentIcon kind="clickUpgrade" id={u.id} size={18} />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-slate-100">
-                    {u.name}
+                  <span className="block truncate text-xs font-bold text-slate-100">{u.name}</span>
+                  <span className="line-clamp-2 text-[9px] leading-snug text-slate-500">{u.description}</span>
+                </span>
+                <span className="flex shrink-0 flex-col items-end">
+                  <span className="font-mono text-[11px] font-bold text-brand-300">
+                    <FormattedNumberInline value={cost} />
                   </span>
-                  <span className="line-clamp-2 text-[9px] text-slate-500">
-                    {u.description}
-                  </span>
-                  <span className="text-[9px] text-slate-600">
+                  <span className="font-mono text-[9px] text-slate-400">
                     {t.workshop.level} {level}
                   </span>
-                </span>
-                <span className="shrink-0 text-[10px] font-semibold text-brand-300">
-                  <FormattedNumberInline value={cost} />
                 </span>
               </button>
             );
