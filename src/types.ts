@@ -484,6 +484,11 @@ export type TokenKind =
   | "velocity-surge"
   | "speed-ramp"
   | "multi-bob"
+  | "power-twist"
+  | "heavy-air"
+  | "featherweight"
+  | "golden-hour"
+  | "overdrive"
   | "repair"
   | "golden";
 
@@ -495,6 +500,8 @@ export interface TokenDef {
   weight: number;
   grantsModifierId?: string;
   isGolden?: boolean;
+  /** Instant velocity multiplier applied to the swing on pickup (1.2 = +20%). */
+  pickupKickMult?: number;
 }
 
 export interface TokenInstance {

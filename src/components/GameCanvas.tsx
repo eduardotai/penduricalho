@@ -1463,6 +1463,10 @@ export default function GameCanvas() {
         // Velocity Surge gives an instant impulse on top of its modifier so
         // the player feels the kick immediately.
         applyVelocityKick(pendulumHandle);
+      } else if (def.pickupKickMult) {
+        // Twist tokens (Power Twist, Overdrive) give a smaller instant kick so
+        // their twist-power buff is felt mid-run, not only on the next relaunch.
+        applyVelocityKick(pendulumHandle, { mult: def.pickupKickMult });
       }
 
       playGameSound("token-collect", { variant: def.kind });

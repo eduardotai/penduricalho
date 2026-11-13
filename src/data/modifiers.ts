@@ -12,10 +12,12 @@ export const MODIFIERS: ModifierDef[] = [
   {
     id: "heavy-air",
     name: "Heavy Air",
-    description: "+25% acceleration for 7s.",
+    description: "+25% gravity and +20% points for 7s.",
     color: "#38bdf8",
     durationMs: 7000,
-    effects: { accelerationMult: 1.25 },
+    // Sim: gravity x1.25 alone is -0..-25% pts/s (shorter, faster arcs), so it
+    // carries a small points bonus to net out as a mild buff.
+    effects: { accelerationMult: 1.25, pointMult: 1.2 },
   },
   {
     id: "featherweight",

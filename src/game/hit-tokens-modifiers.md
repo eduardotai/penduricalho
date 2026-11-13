@@ -33,7 +33,10 @@ Physical drifting objects that appear in the field.
 - `repair` — restores rope durability fraction
 - `velocity-surge` — instant speed kick
 
-**Normal tokens** grant entries in `activeModifiers[]`.
+**Normal tokens** grant entries in `activeModifiers[]`. A token may also set
+`pickupKickMult` for an instant velocity kick on pickup (Power Twist,
+Overdrive). `tests/tokens.test.ts` fails if a modifier has no droppable token
+or if Golden / Rope Patch lose their share of the pool.
 
 Token spawning is weighted random, biased by site and some "guaranteed first drop" flags from "Run Again".
 
