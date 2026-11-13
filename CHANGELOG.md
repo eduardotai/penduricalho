@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] - Orb drops
 
+### Added (wave 2)
+- **Six new orb-drop modifiers** with their own effect channels: **Combo Lock** (combo window x4, 8s), **Lucky Charm** (orbs drop tokens 2.5x as often, 8s), **Rope Guard** (no rope wear, 6s), **Glass Cannon** (x2.5 points but 4x rope wear, 5s; marked ⚠ in the HUD), **Moon Gravity** (55% gravity, 7s; replaces Heavy Air and vice versa) and **Orb Magnet** (nearby orbs and tokens drift to the bob, 6s). Golden stays at ~5.5% of drops and Rope Patch at ~17%.
+- `scripts/sim-modifiers.mjs`: headless table of pts/s with each modifier active for a whole run.
+
 ### Added
 - **Five more orb drops.** Popping a multiplier orb can now also drop **Power Twist** (kick on pickup, +50% twist power 7s), **Heavy Air** (+25% gravity, +20% points 7s), **Featherweight** (-30% bob mass 6s), **Golden Hour** (x2 points 5s) and **Overdrive** (hard kick, +75% twist power, +50% points 4s). These modifiers existed but nothing granted them. Rope Patch and Golden Token weights were raised with the pool so their share of drops stays about the same (Golden 5.5%, Patch 17%).
 
