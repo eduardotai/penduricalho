@@ -19,9 +19,10 @@ import { useGameStore } from "./store";
 //   3. A wall-clock reconcile on load — grants offline earnings for time the
 //      page was fully closed (e.g. the machine slept). Uncapped by design.
 //
-// Earnings are credited only for time genuinely spent away, and only when the
-// session is "live": a run is in progress, or Auto-Run is on (the pendulum is
-// meant to keep launching). Foreground time is never idle-credited — the real
+// Earnings are credited only for time genuinely spent away. Workshop
+// generators always earn; the arena's rate only counts when the session is
+// "live": a run is in progress, or Auto-Run is on (the pendulum is meant to
+// keep launching). Foreground time is never idle-credited — the real
 // simulation already scores it.
 // ---------------------------------------------------------------------------
 
@@ -32,6 +33,41 @@ const SAMPLE_MS = 1500;
 const RATE_EMA_ALPHA = 0.25;
 // Minimum away span worth surfacing a "while you were away" toast.
 const MIN_REPORT_MS = 10_000;
+
+export interface OfflineRates {
+  /** Workshop generator CPS, already including every global multiplier. */
+  workshopCps: number;
+  /** Smoothed arena earn rate (excludes workshop CPS). */
+  arenaRatePerSec: number;
+  autoRun: boolean;
+}
+
+/**
+ * Momentum earned over `elapsedMs` of closed-page time. Generators always run;
+ * the arena share needs Auto-Run. The two rates are disjoint, so summing them
+ * never double counts.
+ */
+export function offlineGain(r: OfflineRates, elapsedMs: number): number {
+  if (!(elapsedMs > 0)) return 0;
+  const sec = elapsedMs / 1000;
+  const workshop = Math.max(0, r.workshopCps) * sec;
+  const arena = r.autoRun ? Math.max(0, r.arenaRatePerSec) * sec : 0;
+  return workshop + arena;
+}
+
+/**
+ * Arena rate for a loaded save. Saves from before the arena/workshop split only
+ * stored the combined `idleRatePerSec`; recover the arena part as combined
+ * minus the workshop CPS that was saved alongside it.
+ */
+export function legacyArenaRate(
+  arenaRatePerSec: number,
+  combinedRatePerSec: number,
+  persistedWorkshopCps: number
+): number {
+  if (arenaRatePerSec > 0) return arenaRatePerSec;
+  return Math.max(0, combinedRatePerSec - Math.max(0, persistedWorkshopCps));
+}
 
 function now(): number {
   return Date.now();
@@ -107,8 +143,10 @@ export function startIdleEngine(): () => void {
     }
     const dt = t - sampleAt;
     if (dt < SAMPLE_MS) return;
-    const inst = Math.max(0, (total - sampleTotal) / (dt / 1000));
-    const prev = s.idleRatePerSec;
+    // Workshop CPS also lands in totalMomentum; strip it so the arena EMA
+    // never re-counts generator income (offline credits both separately).
+    const inst = Math.max(0, (total - sampleTotal) / (dt / 1000) - s.cachedTotalCps);
+    const prev = s.arenaIdleRatePerSec;
     const next =
       prev <= 0 ? inst : prev * (1 - RATE_EMA_ALPHA) + inst * RATE_EMA_ALPHA;
     s.setArenaIdleRate(next);
@@ -189,21 +227,29 @@ export function startIdleEngine(): () => void {
   }
 
   // --- Offline-on-load reconcile --------------------------------------------
-  // The page was closed; nothing ran. If Auto-Run was left on and we have a
-  // measured rate, grant earnings for the whole gap. isRunning is never
-  // persisted, so Auto-Run is the standing signal that the pendulum should have
-  // kept going.
+  // The page was closed; nothing ran. Workshop generators always keep earning
+  // (CPS recomputed from the loaded save so prestige Cogs, global boosts and
+  // workshop upgrades are current). The arena's smoothed rate only counts when
+  // Auto-Run was left on — isRunning is never persisted, so Auto-Run is the
+  // standing signal that the pendulum should have kept launching.
   function reconcileOnLoad() {
     const t = now();
+    const persistedCps = store.getState().cachedTotalCps;
+    store.getState().recomputeWorkshop();
     const s = store.getState();
     const last = s.lastActiveAt;
-    if (last && s.autoRun && s.idleRatePerSec > 0) {
-      const elapsed = t - last;
-      if (elapsed > 0) {
-        const amount = s.idleRatePerSec * (elapsed / 1000);
-        s.applyIdleEarnings(amount, elapsed >= MIN_REPORT_MS ? elapsed : 0);
-        return;
-      }
+    const elapsed = last ? t - last : 0;
+    const amount = offlineGain(
+      {
+        workshopCps: s.cachedTotalCps,
+        arenaRatePerSec: legacyArenaRate(s.arenaIdleRatePerSec, s.idleRatePerSec, persistedCps),
+        autoRun: s.autoRun,
+      },
+      elapsed
+    );
+    if (amount > 0) {
+      s.applyIdleEarnings(amount, elapsed >= MIN_REPORT_MS ? elapsed : 0);
+      return;
     }
     s.touchActive(t);
   }
