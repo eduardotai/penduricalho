@@ -45,6 +45,10 @@ function applyDefEffects(
   if (effects.weightMult) eff.weightMult *= effects.weightMult;
   if (effects.bobSizeMult) eff.bobSizeMult *= effects.bobSizeMult;
   if (effects.ropeLengthMult) eff.ropeLengthMult *= effects.ropeLengthMult;
+  if (effects.comboWindowMult) eff.comboWindowMult *= effects.comboWindowMult;
+  if (effects.dropChanceMult) eff.dropChanceMult *= effects.dropChanceMult;
+  if (effects.durabilityDrainMult !== undefined) eff.durabilityDrainMult *= effects.durabilityDrainMult;
+  if (effects.orbPullStrength) eff.orbPullStrength = Math.max(eff.orbPullStrength, effects.orbPullStrength);
   if (includeEcho && effects.echoCount) {
     eff.echoCount = Math.max(eff.echoCount, effects.echoCount);
   }
@@ -69,6 +73,10 @@ export function aggregateEffects(
     ropeLengthMult: 1,
     echoCount: 0,
     velocityGrowthPerSec: 0,
+    comboWindowMult: 1,
+    dropChanceMult: 1,
+    durabilityDrainMult: 1,
+    orbPullStrength: 0,
   };
   // Apply each modifier's effects exactly once per defId. Active and persistent
   // layers only govern *how long* a buff lasts — they must not re-multiply its

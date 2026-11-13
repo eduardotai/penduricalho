@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
-import { useGameStore, CAMERA_ZOOM_MIN } from "../state/store";
+import { useGameStore, CAMERA_ZOOM_MIN, COMBO_DECAY_MS } from "../state/store";
 import { globalIncomeMult } from "../game/prestige";
 import {
   resolveEquippedCosmetics,
@@ -1257,7 +1257,7 @@ export default function GameCanvas() {
         )
       );
 
-      state.registerHit(total, now);
+      state.registerHit(total, now, COMBO_DECAY_MS * effects$.comboWindowMult);
       handle.hitFlashUntil = now + 240;
 
       emitHit(effects, z.position, now, {
@@ -1336,7 +1336,7 @@ export default function GameCanvas() {
         // fires, the zone's own modifierChance is also rolled — so a lucky
         // zone with a high modifierChance can still double up.
         const guaranteed = state.consumeFirstDropGuarantee();
-        if (guaranteed || Math.random() < z.modifierChance) {
+        if (guaranteed || Math.random() < z.modifierChance * effects$.dropChanceMult) {
           // Spawn an on-canvas token instead of silently buffing the player.
           // The bob has to actually swing through the token to collect it.
           // On a Run Again that won the 40% buff roll, the very first token to
@@ -2027,11 +2027,15 @@ export default function GameCanvas() {
     // magnet (Lodestone): drag nearby circles and loose tokens toward the tip
     // bob's arc. Circles relocate when hit (so they never permanently collapse
     // onto the bob); tokens just get easier to scoop. Pull eases with distance.
-    function magnetPull(dt: number) {
-      if (!behavior || dt <= 0) return;
-      const radius = behavior.pullRadius ?? 780;
-      const zoneStrength = (behavior.pullStrength ?? 2.4) * (dt / 1000);
-      const tokenStrength = (behavior.tokenPullStrength ?? 4) * (dt / 1000);
+    function magnetPull(
+      dt: number,
+      override?: { pullStrength: number; tokenPullStrength: number }
+    ) {
+      if ((!behavior && !override) || dt <= 0) return;
+      const radius = behavior?.pullRadius ?? 780;
+      const zoneStrength = (override?.pullStrength ?? behavior?.pullStrength ?? 2.4) * (dt / 1000);
+      const tokenStrength =
+        (override?.tokenPullStrength ?? behavior?.tokenPullStrength ?? 4) * (dt / 1000);
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
       const radiusSq = radius * radius;
 
@@ -2722,7 +2726,11 @@ export default function GameCanvas() {
       engineHandle.engine.timing.timeScale = inHitStop ? 0 : 1;
       const store = useGameStore.getState();
       store.expireModifiers(now);
-      store.decayCombo(now, 1800);
+      store.decayCombo(
+        now,
+        COMBO_DECAY_MS *
+          aggregateEffects(store.activeModifiers, store.persistentBonuses).comboWindowMult
+      );
 
       // --- Manual swing: spring the grabbed bob toward the pointer ----------
       // A live grab (mouse or touch) pulls the tip bob toward the world point
@@ -2862,6 +2870,7 @@ export default function GameCanvas() {
           // Random Rope (flux) multiplies it by its churning drain factor.
           const wearWeight = pendulum.weight * effects$.weightMult;
           const drainMult =
+            effects$.durabilityDrainMult *
             (behavior?.durabilityDrainMult ?? 1) *
             (ropeBehavior?.kind === "flux" ? fluxDrainCur : 1);
           // Rocket's rope only wears while the bob is flung out at the very edge
@@ -2936,6 +2945,10 @@ export default function GameCanvas() {
         applyFrenzyScale(frenzyMultipliers().speed);
         // Lodestone: drag nearby circles + loose tokens toward the bob.
         if (behavior?.kind === "magnet") magnetPull(dt);
+        else if (effects$.orbPullStrength > 0) {
+          // Orb Magnet modifier: a weaker, timed version of the Lodestone pull.
+          magnetPull(dt, { pullStrength: effects$.orbPullStrength, tokenPullStrength: effects$.orbPullStrength * 1.6 });
+        }
         // Chaos: stat churn (size/weight/cap), applied via the per-frame scales.
         if (behavior?.kind === "chaos") chaosTick(now, dt);
         // Rope behaviors: belt conveyor steering + bulwark wall cycle (both

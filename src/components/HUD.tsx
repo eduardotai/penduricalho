@@ -420,7 +420,9 @@ function ActiveBuffsPanel() {
         const maxDuration = row.maxDurationMs ?? modifierDurationCapMs(row.defId);
         const pct = Math.max(0, Math.min(1, remaining / maxDuration));
         const isPersistent = row.persistentRemainingMs !== undefined;
-        const defName = locName(lang, "modifier", row.defId, def.name);
+        // Trade-off modifiers (Glass Cannon) carry a warning mark so the
+        // downside is visible at a glance, not only in the tooltip.
+        const defName = `${def.risky ? "⚠ " : ""}${locName(lang, "modifier", row.defId, def.name)}`;
         const defDescription = locDesc(lang, "modifier", row.defId, def.description);
 
         return (

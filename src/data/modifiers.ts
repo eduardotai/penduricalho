@@ -94,6 +94,57 @@ export const MODIFIERS: ModifierDef[] = [
     effects: { echoCount: 2 },
   },
 
+  // ------- Orb-drop run twists (wave 2) -------
+  {
+    id: "combo-lock",
+    name: "Combo Lock",
+    description: "Your combo survives 4x longer between hits for 8s.",
+    color: "#f472b6",
+    durationMs: 8000,
+    effects: { comboWindowMult: 4 },
+  },
+  {
+    id: "lucky-charm",
+    name: "Lucky Charm",
+    description: "Popped orbs are 2.5x as likely to drop a token for 8s.",
+    color: "#4ade80",
+    durationMs: 8000,
+    effects: { dropChanceMult: 2.5 },
+  },
+  {
+    id: "rope-guard",
+    name: "Rope Guard",
+    description: "The rope takes no wear for 6s.",
+    color: "#94a3b8",
+    durationMs: 6000,
+    effects: { durabilityDrainMult: 0 },
+  },
+  {
+    id: "glass-cannon",
+    name: "Glass Cannon",
+    description: "x2.5 points, but the rope wears 4x faster for 5s.",
+    color: "#fb7185",
+    durationMs: 5000,
+    effects: { pointMult: 2.5, durabilityDrainMult: 4 },
+    risky: true,
+  },
+  {
+    id: "moon-gravity",
+    name: "Moon Gravity",
+    description: "Gravity drops to 55% for 7s. Floaty, wide arcs.",
+    color: "#e2e8f0",
+    durationMs: 7000,
+    effects: { accelerationMult: 0.55 },
+  },
+  {
+    id: "orb-magnet",
+    name: "Orb Magnet",
+    description: "Nearby orbs and tokens drift toward the bob for 6s.",
+    color: "#60a5fa",
+    durationMs: 6000,
+    effects: { orbPullStrength: 1.6 },
+  },
+
   // The rare token's score multiplier component. Duration here is a fallback —
   // the actual lifetime is set when the token is collected, so the grindable
   // goldenTokenBonusMs can stretch it.

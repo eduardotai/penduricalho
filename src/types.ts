@@ -366,6 +366,14 @@ export interface ModifierEffects {
   echoCount?: number;
   /** Fractional speed growth per second while active (0.1 = +10%/s). */
   velocityGrowthPerSec?: number;
+  /** Combo decay window multiplier (2 = combo survives 2x longer between hits). */
+  comboWindowMult?: number;
+  /** Multiplier on each orb's chance to drop a token when popped. */
+  dropChanceMult?: number;
+  /** Multiplier on rope wear (0 = no wear, 3 = wears 3x faster). */
+  durabilityDrainMult?: number;
+  /** Orb/token pull toward the bob (same units as the magnet bob's pullStrength). */
+  orbPullStrength?: number;
 }
 
 export interface ModifierDef {
@@ -375,6 +383,8 @@ export interface ModifierDef {
   color: string;
   durationMs: number;
   effects: ModifierEffects;
+  /** A trade-off modifier (has a downside); the HUD marks it with a warning. */
+  risky?: boolean;
 }
 
 export interface ManeuverDef {
@@ -489,6 +499,12 @@ export type TokenKind =
   | "featherweight"
   | "golden-hour"
   | "overdrive"
+  | "combo-lock"
+  | "lucky-charm"
+  | "rope-guard"
+  | "glass-cannon"
+  | "moon-gravity"
+  | "orb-magnet"
   | "repair"
   | "golden";
 

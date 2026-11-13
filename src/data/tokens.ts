@@ -12,10 +12,16 @@ export const TOKENS: TokenDef[] = [
   { kind: "featherweight", name: "Featherweight", description: "-30% bob mass for 6s. Wider swings, less rope wear.", color: "#a78bfa", weight: 10, grantsModifierId: "featherweight" },
   { kind: "golden-hour", name: "Golden Hour", description: "x2 points for 5s.", color: "#facc15", weight: 8, grantsModifierId: "golden-hour" },
   { kind: "overdrive", name: "Overdrive", description: "Hard kick on pickup, then +75% twist power and +50% points for 4s.", color: "#ef4444", weight: 5, grantsModifierId: "overdrive", pickupKickMult: 1.22 },
+  { kind: "combo-lock", name: "Combo Lock", description: "Combo survives 4x longer for 8s.", color: "#f472b6", weight: 8, grantsModifierId: "combo-lock" },
+  { kind: "lucky-charm", name: "Lucky Charm", description: "2.5x token drops for 8s.", color: "#4ade80", weight: 7, grantsModifierId: "lucky-charm" },
+  { kind: "rope-guard", name: "Rope Guard", description: "No rope wear for 6s.", color: "#94a3b8", weight: 8, grantsModifierId: "rope-guard" },
+  { kind: "glass-cannon", name: "Glass Cannon", description: "x2.5 points, 4x rope wear for 5s.", color: "#fb7185", weight: 5, grantsModifierId: "glass-cannon" },
+  { kind: "moon-gravity", name: "Moon Gravity", description: "55% gravity for 7s.", color: "#e2e8f0", weight: 8, grantsModifierId: "moon-gravity" },
+  { kind: "orb-magnet", name: "Orb Magnet", description: "Pulls orbs and tokens in for 6s.", color: "#60a5fa", weight: 8, grantsModifierId: "orb-magnet" },
   // Repair and Golden weights scale with the pool so their share of drops
   // stays put as modifier tokens are added (guarded in tests/tokens.test.ts).
-  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 28 },
-  { kind: "golden", name: "Golden Token", description: "Re-launches the Bob and x3 points.", color: "#fde047", weight: 9, grantsModifierId: "token-bonus", isGolden: true },
+  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 37 },
+  { kind: "golden", name: "Golden Token", description: "Re-launches the Bob and x3 points.", color: "#fde047", weight: 12, grantsModifierId: "token-bonus", isGolden: true },
 ];
 
 export const TOKEN_MAP = new Map<TokenKind, TokenDef>(TOKENS.map((t) => [t.kind, t]));
@@ -56,6 +62,11 @@ export const BUFF_TOKEN_KINDS: TokenKind[] = [
   "featherweight",
   "golden-hour",
   "overdrive",
+  "combo-lock",
+  "lucky-charm",
+  "rope-guard",
+  "moon-gravity",
+  "orb-magnet",
 ];
 
 const BUFF_TOKENS = TOKENS.filter((t) => BUFF_TOKEN_KINDS.includes(t.kind));

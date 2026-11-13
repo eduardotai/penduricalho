@@ -986,6 +986,18 @@ export function tokenGlyph(kind: string): string {
       return "x2";
     case "overdrive":
       return "OD";
+    case "combo-lock":
+      return "CL";
+    case "lucky-charm":
+      return "LK";
+    case "rope-guard":
+      return "RG";
+    case "glass-cannon":
+      return "!3";
+    case "moon-gravity":
+      return "M";
+    case "orb-magnet":
+      return "MG";
     case "repair":
       return "+";
     case "golden":
