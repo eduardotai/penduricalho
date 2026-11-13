@@ -69,6 +69,8 @@ import {
   lerpChaos,
   rollChaosTargets,
 } from "../game/bobBehaviors";
+import { applyGust, createGustSchedule, gustAt, type GustState } from "../game/mapMechanics";
+import { drawWindIndicator, drawWindStreaks } from "../game/renderMechanics";
 import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
@@ -994,6 +996,9 @@ export default function GameCanvas() {
       // Black hole: fresh singularity + clear capture.
       rerollBlackHole();
       blackHoleCaptured = false;
+      // Wind: new gust directions, first gust half a calm after launch.
+      if (gustMechanic) gustSchedule = createGustSchedule(gustMechanic);
+      gustEpoch = performance.now();
     }
 
     // Seed an initial tunnel so the Mechanic Belt route renders before launch.
@@ -1011,6 +1016,13 @@ export default function GameCanvas() {
 
     // very first launch (subsequent runs reroll it via resetBehaviorRunState).
     rerollBlackHole();
+
+    // Wind gusts (Bumper Arena): a fresh gust schedule per run, timed from the
+    // launch. `gustNow` is null while idle, so nothing blows between runs.
+    const gustMechanic = site.mechanic?.kind === "gusts" ? site.mechanic : null;
+    let gustSchedule = gustMechanic ? createGustSchedule(gustMechanic) : null;
+    let gustEpoch = performance.now();
+    let gustNow: GustState | null = null;
 
     // While `now` is below this timestamp the engine is frozen for hit-stop.
     let hitStopUntil = 0;
@@ -2912,6 +2924,17 @@ export default function GameCanvas() {
 
         if (ropeBehavior?.kind === "bulwark") bulwarkTick(now);
         blackHoleTick(dt);
+        if (gustSchedule && gustMechanic) {
+          gustNow = gustAt(gustSchedule, now - gustEpoch);
+          applyGust(
+            snapped
+              ? [...getOrderedBobBodies(pendulumHandle), ...shards]
+              : [...getOrderedBobBodies(pendulumHandle), ...pendulumHandle.ropeSegments, ...shards],
+            gustNow,
+            gustMechanic.accel,
+            dt
+          );
+        }
         // Re-energizing effects fire every frame they're due, strung or freed —
         // the rope economy limits them while strung, the per-proc/per-second
         // decay (applied inside each) winds them down once freed.
@@ -3372,6 +3395,13 @@ export default function GameCanvas() {
         if (blackHole) {
           drawBlackHole(rc, blackHole.x, blackHole.y, BLACK_HOLE_CORE_R, BLACK_HOLE_REACH, now);
         }
+        if (gustMechanic) {
+          drawWindStreaks(
+            rc,
+            wallField.bounds,
+            (store.isRunning && gustNow) || { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 }
+          );
+        }
         drawWalls(rc, wallField);
         drawObstacles(rc, wallField);
         drawHitZones(rc, field);
@@ -3409,6 +3439,16 @@ export default function GameCanvas() {
         );
         drawEffects(rc, effects);
         ctx.restore();
+        if (gustMechanic) {
+          const running = store.isRunning && gustNow != null;
+          drawWindIndicator(
+            ctx,
+            view.displayWidth,
+            running ? gustNow! : { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 },
+            { gust: effectText.windGust, next: effectText.windNext, idle: effectText.windMap },
+            !running
+          );
+        }
         ctx.restore();
       } catch (err) {
         console.error("[GameCanvas] render frame failed:", err);

@@ -593,7 +593,11 @@ function ItemStats({
       <Stat label={c.statZones} value={s.hitZoneCount.toString()} />
       <Stat label={c.statWalls} value={wallsLabel} />
       {s.walls && s.walls !== "none" && <Stat label={c.statCage} value={cageLabel} />}
-      {s.ambient && <Stat label={c.statWind} value={c.yes} />}
+      {s.mechanic?.kind === "gusts" ? (
+        <Stat label={c.statWind} value={c.windGusts} />
+      ) : (
+        s.ambient && <Stat label={c.statWind} value={c.yes} />
+      )}
     </div>
   );
 }
