@@ -227,22 +227,25 @@ export default function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <GameCanvas />
+      {/* Hide HUD, workshop and toasts while the title card is up so they don't
+          show through the scrim (the arena itself stays visible underneath). */}
+      {!titleOpen && <>
       {/* On mobile the overlay spans the screen: stats pinned top, controls as a
           bottom action bar. At md+ it collapses back to the left sidebar. */}
       <aside
-        className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between
+        className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col justify-between overflow-hidden
           p-2 pl-[max(0.5rem,env(safe-area-inset-left))] pt-[max(0.5rem,env(safe-area-inset-top))]
           pb-[max(0.5rem,env(safe-area-inset-bottom))]
           sm:p-3 sm:pl-[max(0.75rem,env(safe-area-inset-left))] sm:pt-[max(0.75rem,env(safe-area-inset-top))]
           sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]
-          md:inset-y-0 md:right-auto md:w-80 md:max-w-[min(20rem,calc(100%-2rem))] md:justify-start md:p-6"
+          md:inset-y-0 md:right-auto md:w-80 md:max-w-[min(20rem,calc(100%-2rem))] md:justify-start md:overflow-y-auto md:p-6"
       >
-        <div className="pointer-events-none max-h-[38dvh] max-w-[11rem] min-h-0 overflow-y-auto overscroll-contain sm:max-h-[42dvh] sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:pb-4">
+        <div className="pointer-events-none max-h-[38dvh] max-w-[11rem] min-h-0 shrink overflow-y-auto overscroll-contain sm:max-h-[42dvh] sm:max-w-[min(20rem,calc(100%-1rem))] md:max-h-none md:max-w-none md:flex-1 md:shrink md:pb-4">
           <HUDStats />
         </div>
-        <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 md:gap-3">
+        <div className="pointer-events-none flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto md:gap-3 md:overflow-visible">
           {WORKSHOP_CLICKER_ENABLED && (
-            <div className="pointer-events-none flex min-h-0 flex-col items-center gap-1 md:hidden">
+            <div className={`pointer-events-none flex min-h-0 flex-col items-center gap-1 md:hidden ${workshopOpen ? "flex-1 overflow-hidden" : "shrink-0"}`}>
               {/* Mobile: collapsed to a small tab by default; tap to open. */}
               <button
                 type="button"
@@ -262,7 +265,7 @@ export default function App() {
               {workshopOpen && (
                 <div
                   id="workshop-panel-mobile"
-                  className="pointer-events-auto min-h-0 max-h-[46dvh] w-full overflow-y-auto overscroll-contain rounded-2xl"
+                  className="pointer-events-auto min-h-0 w-full flex-1 overflow-y-auto overscroll-contain rounded-2xl"
                 >
                   <WorkshopPanel />
                 </div>
@@ -279,6 +282,7 @@ export default function App() {
                 onOpenSettings={openSettings}
                 onOpenAchievements={openAchievements}
                 onOpenPrestige={openPrestige}
+                workshopOpen={workshopOpen}
               />
             </div>
           </div>
@@ -333,6 +337,7 @@ export default function App() {
         </>
       )}
       <HUD buffsBottomOffset={buffsBottomOffset} />
+      </>}
       <Customize open={customizeOpen} onClose={closeCustomize} />
       <Settings open={settingsOpen} onClose={closeSettings} onOpenTutorial={openTutorial} />
       <Tutorial open={tutorialOpen} onClose={closeTutorial} />
@@ -350,8 +355,10 @@ export default function App() {
           setSettingsOpen(true);
         }}
       />
+      {!titleOpen && <>
       <AchievementToast />
       <IdleToast />
+      </>}
       <Analytics />
     </div>
   );

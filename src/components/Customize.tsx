@@ -96,6 +96,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
       tabs={tabs}
       activeTab={tab}
       onTab={setTab}
+      sizeClass="sm:h-[min(720px,90vh)] sm:max-w-4xl"
       testId="shop-window"
     >
       {tab === "pendulum" && (

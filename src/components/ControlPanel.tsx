@@ -27,9 +27,11 @@ interface ControlPanelProps {
   onOpenTutorial?: () => void; // still passed from App, but button moved into Settings
   onOpenAchievements: () => void;
   onOpenPrestige: () => void;
+  /** When the mobile workshop is open, keep the More drawer closed so both fit. */
+  workshopOpen?: boolean;
 }
 
-export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAchievements, onOpenPrestige }: ControlPanelProps) {
+export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAchievements, onOpenPrestige, workshopOpen = false }: ControlPanelProps) {
   const t = useT();
   const lang = useLang();
   const isRunning = useGameStore((s) => s.isRunning);
@@ -39,6 +41,10 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
   const hardEndRun = useGameStore((s) => s.hardEndRun);
   const [hardEndConfirmOpen, setHardEndConfirmOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => {
+    if (workshopOpen || hardEndConfirmOpen) setMoreOpen(false);
+  }, [workshopOpen, hardEndConfirmOpen]);
   const pendingGoldenTokens = useGameStore((s) => s.pendingGoldenTokens);
   const spendGoldenToken = useGameStore((s) => s.spendGoldenToken);
   const autoRun = useGameStore((s) => s.autoRun);
@@ -294,36 +300,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             })}
           </div>
 
-          {hardEndConfirmOpen ? (
-            <div className="hazard w-full rounded-xl border border-rose-500/50 p-3">
-              <p className="mb-3 rounded-md bg-slate-950/80 p-2 text-xs leading-relaxed text-rose-100/90">
-                {isRunning ? t.controls.hardEndConfirmRunning : t.controls.hardEndConfirmIdle}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    playUiClick();
-                    setHardEndConfirmOpen(false);
-                  }}
-                  className="key key-ghost min-h-[40px] text-xs"
-                >
-                  {t.controls.cancel}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playUiClick();
-                    hardEndRun();
-                    setHardEndConfirmOpen(false);
-                  }}
-                  className="key key-danger min-h-[40px] text-xs"
-                >
-                  {t.controls.endRun}
-                </button>
-              </div>
-            </div>
-          ) : (
+          {!hardEndConfirmOpen && (
             <button
               type="button"
               onClick={() => {
@@ -337,6 +314,37 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             </button>
           )}
         </div>
+
+        {hardEndConfirmOpen && (
+          <div className="hazard w-full rounded-xl border border-rose-500/50 p-3">
+            <p className="mb-3 rounded-md bg-slate-950/80 p-2 text-xs leading-relaxed text-rose-100/90">
+              {isRunning ? t.controls.hardEndConfirmRunning : t.controls.hardEndConfirmIdle}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  playUiClick();
+                  setHardEndConfirmOpen(false);
+                }}
+                className="key key-ghost min-h-[40px] text-xs"
+              >
+                {t.controls.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playUiClick();
+                  hardEndRun();
+                  setHardEndConfirmOpen(false);
+                }}
+                className="key key-danger min-h-[40px] text-xs"
+              >
+                {t.controls.endRun}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -51,7 +51,7 @@ export default function WorkshopPanel() {
   const chargeFrac = Math.max(0, Math.min(1, runChargePct / 100));
 
   return (
-    <div className="plate plate-screws pointer-events-auto flex max-h-[min(70dvh,34rem)] flex-col gap-3 overflow-hidden p-3 sm:max-h-[calc(100dvh-2rem)] sm:p-4" data-testid="workshop-panel">
+    <div className="plate plate-screws pointer-events-auto flex h-full max-h-[min(70dvh,34rem)] flex-col gap-3 overflow-hidden p-3 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:p-4" data-testid="workshop-panel">
       <div className="flex items-start gap-2.5">
         <div className="well flex h-9 w-9 shrink-0 items-center justify-center text-brand-300">
           <Wrench size={18} strokeWidth={ICON_STROKE} aria-hidden />
