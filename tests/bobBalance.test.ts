@@ -50,3 +50,13 @@ test("late-tier bobs sit on the cost curve in the income sim", () => {
   assert.ok(Math.abs(frenzy / tungsten - 1) < 0.15, msg);
   assert.ok(chaos > tungsten && chaos > frenzy, msg);
 });
+
+test("Triple Bob (12k) no longer out-earns the 60k Tungsten by hand", () => {
+  const ids = ["twin-bob", "triple-bob", "tungsten-heavy"];
+  const hand = Object.fromEntries(incomeTable("titan-cable", "workshop", 8, {}, "hand", ids).map((r) => [r.id, r.pointsPerSec]));
+  const launch = Object.fromEntries(incomeTable("titan-cable", "workshop", 8, {}, "launch", ids).map((r) => [r.id, r.pointsPerSec]));
+  assert.ok(hand["triple-bob"] < hand["tungsten-heavy"] * 0.85, `triple ${hand["triple-bob"]} vs tungsten ${hand["tungsten-heavy"]}`);
+  const blend = (id: string) => (hand[id] + launch[id]) / 2;
+  assert.ok(blend("triple-bob") > blend("twin-bob"), "still an upgrade over Twin");
+  assert.ok(blend("triple-bob") < blend("tungsten-heavy"));
+});
