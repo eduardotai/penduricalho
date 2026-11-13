@@ -83,6 +83,7 @@ import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
   destroyHitZones,
+  clearZonesAround,
   generateHitZones,
   regenerateHitZones,
   relocateZone,
@@ -661,6 +662,16 @@ export default function GameCanvas() {
 
     const engineHandle = createEngine(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
     setGravity(engineHandle, site.gravity);
+    // A store action that bumps worldVersion (Hard End Run) is applied before
+    // React tears this world down. Until the cleanup runs, freeze it: no
+    // physics steps, no collisions, no zone hits or token pickups that would
+    // leak combo / modifiers into the fresh arena.
+    const builtWorldVersion = worldVersion;
+    function worldIsStale(): boolean {
+      if (useGameStore.getState().worldVersion === builtWorldVersion) return false;
+      Matter.Runner.stop(engineHandle.runner);
+      return true;
+    }
     // Boundary walls only matter for the bobs freed by a rope snap — a strung
     // pendulum never reaches them. A wall-less site ("none") lets the freed
     // bobs fly off into the void; a breakable site lets them shatter the walls
@@ -756,6 +767,17 @@ export default function GameCanvas() {
       site,
       zoneSpawnBounds(),
       ANCHOR,
+      pendulumReach,
+      spawnClearance
+    );
+    // Nothing may sit under the hanging rig when the world is built (fresh
+    // load, equipment swap, Hard End Run): the idle bob would "hit" those
+    // circles on its first frame, scoring combo and dropping tokens before
+    // the player did anything.
+    clearZonesAround(
+      field,
+      getOrderedBobBodies(pendulumHandle).map((b) => ({ x: b.position.x, y: b.position.y })),
+      getEffectiveBobRadius(pendulumHandle),
       pendulumReach,
       spawnClearance
     );
@@ -2599,6 +2621,7 @@ export default function GameCanvas() {
     }
 
     function handleCollision(evt: Matter.IEventCollision<Matter.Engine>) {
+      if (worldIsStale()) return;
       const now = performance.now();
       for (const pair of evt.pairs) {
         const a = pair.bodyA;
@@ -2685,6 +2708,7 @@ export default function GameCanvas() {
     const dragSamples: PointerSample[] = [];
 
     function frame(now: number) {
+      if (worldIsStale()) return;
       const inHitStop = now < hitStopUntil && !dragRef.current;
       // During hit-stop we still keep `lastT` moving forward so we don't
       // dump a huge accumulated delta into particles/effects the frame the

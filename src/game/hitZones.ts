@@ -322,6 +322,33 @@ export function relocateZone(
   handle.zone.modifierChance = MODIFIER_CHANCE_BASE + Math.random() * 0.1;
 }
 
+/**
+ * Move any zone overlapping one of `points` (circles of `radius`) somewhere
+ * else. Used when a world is built so the resting rig doesn't start inside
+ * circles. Gives up on a zone after a few tries rather than loop forever.
+ */
+export function clearZonesAround(
+  field: HitZoneField,
+  points: Vec2[],
+  radius: number,
+  pendulumLength: number,
+  bobClearanceRadius: number
+): number {
+  const overlaps = (h: HitZoneHandle) =>
+    points.some(
+      (p) => Math.hypot(p.x - h.zone.position.x, p.y - h.zone.position.y) <= radius + h.zone.radius
+    );
+  let moved = 0;
+  for (const h of field.zones) {
+    if (!overlaps(h)) continue;
+    moved++;
+    for (let i = 0; i < 24 && overlaps(h); i++) {
+      relocateZone(field, h, pendulumLength, bobClearanceRadius);
+    }
+  }
+  return moved;
+}
+
 // Rerolls every hit zone in the field with a fresh random position, radius,
 // base points, and multiplier — used when a new run is launched so the player
 // gets a brand new layout each time they hit "Run Again". Any bonus zones
