@@ -1,6 +1,7 @@
 import type { AudioSettingsSnapshot, PlayOptions, SoundGroup, SoundId } from "./types";
 import { SYNTH_PROFILES } from "./proceduralSounds";
-import { createBackgroundMusic, type BackgroundMusicHandle } from "./backgroundMusic";
+import { MusicDirector } from "./musicDirector";
+import { musicLevel } from "./musicTracks";
 
 const COOLDOWN_MS = 40;
 const MAX_CONCURRENT_SFX = 8;
@@ -12,7 +13,6 @@ class AudioManagerImpl {
   private unlocked = false;
   private lastPlayed = new Map<string, number>();
   private activeSfx = 0;
-  private music: BackgroundMusicHandle | null = null;
 
   unlock() {
     if (this.unlocked) return;
@@ -61,28 +61,10 @@ class AudioManagerImpl {
     return settings.masterVolume * groupVol * scale;
   }
 
-  private resolveMusicLevel(settings: AudioSettingsSnapshot): number {
-    if (settings.muted || !settings.musicEnabled) return 0;
-    return settings.masterVolume * settings.musicVolume;
-  }
-
+  /** Pushes the audio settings to the soundtrack (level 0 = fade out/pause). */
   syncMusic(settings: AudioSettingsSnapshot) {
     if (!this.ensureContext()) return;
-
-    const level = this.resolveMusicLevel(settings);
-    const shouldPlay = level > 0.0001;
-
-    if (shouldPlay && !this.music) {
-      this.music = createBackgroundMusic();
-    }
-
-    if (this.music) {
-      this.music.setLevel(level);
-      if (!shouldPlay) {
-        this.music.stop();
-        this.music = null;
-      }
-    }
+    MusicDirector.setLevel(musicLevel(settings));
   }
 
   play(id: SoundId, opts: PlayOptions = {}, settings: AudioSettingsSnapshot) {
