@@ -174,6 +174,7 @@ import {
   zoneSpawnRect,
   type ViewTransform,
 } from "../game/viewTransform";
+import { canvasDpr } from "../game/canvasResolution";
 import {
   ANCHOR,
   CAMERA_ZOOM_DEFAULT,
@@ -683,7 +684,7 @@ export default function GameCanvas() {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w <= 0 || h <= 0) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = canvasDpr(w, h, window.devicePixelRatio || 1);
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
       canvas.style.width = `${w}px`;
@@ -2857,7 +2858,7 @@ export default function GameCanvas() {
 
     let lastT = performance.now();
     let raf = 0;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d", { alpha: false })!;
 
     // The live grab that holds the rope under the player's pointer during a
     // hand-swing. Created lazily on the first dragging frame on the rope node
