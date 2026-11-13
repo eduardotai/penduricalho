@@ -5,6 +5,10 @@ import App from "./App";
 // browser only downloads a face when a theme actually uses it.
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/inter";
+// Redesign base faces: Archivo (with its width axis, for the expanded
+// display caps) and JetBrains Mono for silkscreen labels and readouts.
+import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource-variable/jetbrains-mono";
 import "@fontsource-variable/cinzel";
 import "@fontsource-variable/orbitron";
 import "./index.css";
