@@ -782,6 +782,11 @@ const ROPE_COLORS: Record<string, string> = {
   "flux-cord": "#e879f9",
   "pendulum-line": "#34d399",
   "bulwark-weave": "#94a3b8",
+  "silk-thread": "#f5f5f4",
+  "spring-coil": "#cbd5e1",
+  "anchor-chain": "#57534e",
+  "plasma-tether": "#a855f7",
+  "carbon-rod": "#1f2937",
 };
 
 const ROPE_LINE_WIDTH: Record<string, number> = {

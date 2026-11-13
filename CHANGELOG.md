@@ -6,6 +6,12 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - New ropes
+
+### Added
+- **Five new lines**, each trading along a different axis: **Silk Thread** (35k, longest reach L340, ×1.9, fragile: heavy bobs snap it), **Spring Coil** (60k, elastic, 1.45 max stretch, ×1.7 with a big velocity kick), **Anchor Chain** (150k, chain, load rating 14 / 45s life, ×3), **Plasma Tether** (400k, ×2.4, new `charge` behavior: +4% points per live combo stack up to +60%, "PLASMA CHARGED" when full) and **Carbon Rod** (900k, rigid rod L290, ×2.3, strongest twist).
+- `scripts/sim-ropes.mjs`: headless pts/s per rope for a set of bobs.
+
 ## [Unreleased] - Late-game bobs
 
 ### Added

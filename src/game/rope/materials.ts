@@ -86,6 +86,12 @@ const BY_ID: Partial<Record<string, Partial<RopeMaterialProfile>>> = {
   "titan-cable": { stiffness: 0.94, damping: 0.012, maxStretchRatio: 1.015, loadRating: 9, durabilitySeconds: 32 },
   "magnetic-tether": { stiffness: 0.9, damping: 0.008, maxStretchRatio: 1.04, loadRating: 10, durabilitySeconds: 38 },
   "heavy-chain": { nodeMassRatio: 0.22, damping: 0.05, loadRating: 7.5, durabilitySeconds: 22 },
+  // --- wave-2 late ropes ---
+  "silk-thread": { stiffness: 0.9, damping: 0.012, maxStretchRatio: 1.05, loadRating: 2.5, durabilitySeconds: 12 },
+  "spring-coil": { segmentSpacing: 20, maxStretchRatio: 1.45, nonlinearGain: 2.8, loadRating: 5, durabilitySeconds: 20 },
+  "anchor-chain": { nodeMassRatio: 0.2, damping: 0.045, loadRating: 14, durabilitySeconds: 45 },
+  "plasma-tether": { stiffness: 0.92, damping: 0.01, maxStretchRatio: 1.03, loadRating: 9, durabilitySeconds: 30 },
+  "carbon-rod": { segmentSpacing: 110, loadRating: 12, durabilitySeconds: 80 },
   // --- behavior ropes (see data/attachments.ts) ---
   // flux: a mid-tier base — its drain is then churned up and down by the Random
   // Rope behavior, so the effective lifespan swings around this number.

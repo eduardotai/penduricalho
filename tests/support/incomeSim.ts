@@ -39,7 +39,7 @@ import {
   type ChaosStats,
   type TrailPoint,
 } from "../../src/game/bobBehaviors";
-import { durabilityDrainPerSec, resolveRopeMaterial } from "../../src/game/rope";
+import { durabilityDrainPerSec, resolveRopeMaterial, ropeChargeMult } from "../../src/game/rope";
 import { GRAB_DAMPING, GRAB_STIFFNESS } from "../../src/game/ropeGrab";
 import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../../src/game/worldConstants";
 import { PENDULUMS } from "../../src/data/pendulums";
@@ -251,7 +251,9 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
   const scoreHit = (handle: Handle, factor: number, primary: boolean) => {
     const z = handle.zone;
     const stacks = combo + 1;
-    const base = z.basePoints * z.multiplier * pendulum.basePointMultiplier * (attachment.bonuses.momentumMult ?? 1) * factor;
+    const base =
+      z.basePoints * z.multiplier * pendulum.basePointMultiplier * (attachment.bonuses.momentumMult ?? 1) *
+      ropeChargeMult(attachment.behavior, combo) * factor;
     points += Math.max(1, Math.round(base * modPoints * (1 + Math.min(20, stacks) * 0.05)));
     combo = now - lastHitAt < comboWindow ? combo + 1 : 1;
     lastHitAt = now;
