@@ -725,7 +725,7 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     const a = 1 - p.life / p.maxLife;
     rc.ctx.fillStyle = withAlpha(p.color, a);
     rc.ctx.beginPath();
-    rc.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    rc.ctx.arc(p.x, p.y, Math.max(0, p.size), 0, Math.PI * 2);
     rc.ctx.fill();
   }
   rc.ctx.restore();
@@ -754,7 +754,10 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     rc.ctx.stroke();
   }
   for (const h of eff.hitFlashes) {
-    const remaining = (h.until - rc.now) / 220;
+    // Clamp: a hit stamped with performance.now() (collisions, hit-stop) can
+    // sit ahead of the frame clock, which would shrink the ring below zero and
+    // throw IndexSizeError from arc(), dropping the whole frame.
+    const remaining = Math.max(0, Math.min(1, (h.until - rc.now) / 220));
     rc.ctx.strokeStyle = withAlpha(h.color, remaining * 0.6);
     rc.ctx.lineWidth = HIT_FLASH_LINE_WIDTH;
     rc.ctx.beginPath();
