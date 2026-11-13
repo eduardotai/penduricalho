@@ -9,6 +9,41 @@ import {
 import { FormattedNumber, FormattedNumberInline } from "./FormattedNumber";
 import { useT, useLang, locName, locDesc } from "../i18n";
 import { WORKSHOP_CLICKER_ENABLED } from "../config/features";
+import { incomeBreakdown, PRESTIGE_TUNING } from "../game/prestige";
+import { getAchievementMomentumMult } from "../data/achievements";
+
+const fmtMult = (m: number) => (m >= 10 ? m.toFixed(1) : m.toFixed(2)).replace(/\.?0+$/, "");
+
+/** Prestige Cogs (+X% permanent) and the total income multiplier on hits. */
+function IncomeMultLine() {
+  const t = useT();
+  const cogs = useGameStore((s) => s.prestigeCogs);
+  const owned = useGameStore((s) => s.globalUpgrades);
+  const achCount = useGameStore((s) => Object.keys(s.unlockedAchievements || {}).length);
+  const b = incomeBreakdown({
+    prestigeCogs: cogs,
+    globalUpgrades: owned,
+    achievementMult: getAchievementMomentumMult(achCount),
+  });
+  if (cogs <= 0 && b.total < 1.005) return null;
+  const pct = Math.round(cogs * PRESTIGE_TUNING.multPerCog * 100).toString();
+  return (
+    <div
+      data-testid="hud-income-mult"
+      className="pointer-events-auto mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[9px] font-semibold sm:text-[10px]"
+      title={t.hud.incomeMultTitle(
+        fmtMult(b.prestige),
+        fmtMult(b.boosts),
+        fmtMult(b.achievements),
+        fmtMult(b.total)
+      )}
+    >
+      {cogs > 0 && <span className="text-amber-300">{t.hud.cogsHud(cogs, pct)}</span>}
+      {cogs > 0 && <span className="text-slate-600">·</span>}
+      <span className="text-brand-200">{t.hud.incomeMultHud(fmtMult(b.total))}</span>
+    </div>
+  );
+}
 
 export function HUDStats() {
   const t = useT();
@@ -41,6 +76,7 @@ export function HUDStats() {
           value={momentum}
           className="font-display text-xl font-bold text-brand-300 sm:text-3xl"
         />
+        <IncomeMultLine />
         {WORKSHOP_CLICKER_ENABLED && cachedTotalCps > 0 && (
           <div className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
             {t.workshop.cpsShort}{" "}

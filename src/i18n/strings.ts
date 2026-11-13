@@ -15,6 +15,10 @@ export const en = {
     tokenBonusActive: "Token Bonus active",
     goldenTokens: "Golden Tokens",
     tokensCaught: (total: number) => `/ ${total} caught`,
+    cogsHud: (cogs: number, pct: string) => `⚙ ${cogs} Cog${cogs === 1 ? "" : "s"} +${pct}%`,
+    incomeMultHud: (mult: string) => `Income ×${mult}`,
+    incomeMultTitle: (prestige: string, boosts: string, ach: string, total: string) =>
+      `Income multiplier on every hit: Prestige ×${prestige} · Boosts ×${boosts} · Achievements ×${ach} = ×${total}. Wall breaks, combo and maneuver bonuses get Prestige × Boosts.`,
     bonusDuration: (seconds: string) => `Bonus duration +${seconds}s`,
     buffStacksTitle: (description: string, seconds: string, maxSeconds: string) =>
       `${description} Stacks for ${seconds}s (max ${maxSeconds}s).`,
@@ -455,6 +459,10 @@ export const pt: UIStrings = {
     tokenBonusActive: "Bônus de ficha ativo",
     goldenTokens: "Fichas Douradas",
     tokensCaught: (total) => `/ ${total} pegas`,
+    cogsHud: (cogs, pct) => `⚙ ${cogs} Engrenage${cogs === 1 ? "m" : "ns"} +${pct}%`,
+    incomeMultHud: (mult) => `Renda ×${mult}`,
+    incomeMultTitle: (prestige, boosts, ach, total) =>
+      `Multiplicador de renda em cada acerto: Prestígio ×${prestige} · Impulsos ×${boosts} · Conquistas ×${ach} = ×${total}. Bônus de quebra de parede, combo e manobras recebem Prestígio × Impulsos.`,
     bonusDuration: (seconds) => `Bônus dura +${seconds}s`,
     buffStacksTitle: (description, seconds, maxSeconds) =>
       `${description} Acumula por ${seconds}s (máx. ${maxSeconds}s).`,
