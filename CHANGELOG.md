@@ -6,6 +6,13 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Copy and title chrome
+
+### Changed
+- **Portuguese income tooltip now says Multiplicadores**, the same word as the shop tab, instead of Impulsos.
+- **The Portuguese reset warning no longer drops into English** mid-sentence: it says multiplicadores ×2/×3, not boosts ×2/×3.
+- **The title card no longer shows a “redesign · test build” footer.** That leftover made a shipped build look like a prototype.
+
 ## [Unreleased] - Nested number buttons
 
 ### Fixed
