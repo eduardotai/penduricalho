@@ -11,7 +11,10 @@ import type { PendulumHandle } from "./pendulum";
 
 /** Stiff enough to "hold" the rope, soft enough to avoid solver jitter. */
 export const GRAB_STIFFNESS = 0.75;
-export const GRAB_DAMPING = 0.1;
+// 0.3 (was 0.1): a held heavy bob buzzed in place at ~1 u/step; 0.3 settles it
+// to ~0.15 with the same lag behind the hand. Released with the grab, so the
+// throw is unaffected.
+export const GRAB_DAMPING = 0.3;
 /** Pointer history window averaged into the release throw. */
 export const THROW_WINDOW_MS = 70;
 /** Release speed cap in Matter velocity units (world units per 1000/60 ms step). */

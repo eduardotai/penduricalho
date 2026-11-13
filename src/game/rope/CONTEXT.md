@@ -62,7 +62,7 @@ Matter's constraints do the physics; `applyRopeMaterialForces` only reads stretc
 
 ## Hand grab (`src/game/ropeGrab.ts`)
 
-Holding the pointer on the rig grabs the **nearest rope node or the tip bob** with a stiff temporary constraint (`GRAB_STIFFNESS` 0.75). The target is clamped to that node's reach from the pivot, so the hand can't stretch the rope. On release the held body gets the pointer's average velocity over the last ~70 ms (`throwVelocity`, capped at 52), which gives the whip. Hit-stop is skipped while a grab is active. Grabbing an idle rig starts a run without rerolling the circles or clearing tokens. The Mechanic Belt can't be grabbed.
+Holding the pointer on the rig grabs the **nearest rope node or the tip bob** with a stiff temporary constraint (`GRAB_STIFFNESS` 0.75, `GRAB_DAMPING` 0.3 so a held heavy bob doesn't buzz). The target is clamped to that node's reach from the pivot, so the hand can't stretch the rope. On release the held body gets the pointer's average velocity over the last ~70 ms (`throwVelocity`, capped at 52), which gives the whip. Hit-stop is skipped while a grab is active. Grabbing an idle rig starts a run without rerolling the circles or clearing tokens. The Mechanic Belt can't be grabbed.
 
 ---
 
@@ -116,6 +116,7 @@ It calculates ideal stiffness/damping based on bob mass, gravity, and rest lengt
 ## Key Gotchas
 
 - Rope segments use a different collision category on purpose. If you change masks, ropes will snag on ring obstacles.
+- Rope nodes collide only with `COLLISION.DEFAULT` (boundary walls, pivot, sensors), never with bobs or other nodes. The bob overlaps the last node (link ≈ 0.35 r < r), so node↔bob contacts fought the links every step and the whole rig trembled even at rest (peak speed 7–24 hanging still). `tests/ropeJitter.test.ts` guards this; `node scripts/measure-rope-jitter.mjs` prints the jitter table (rest / swing / grab / release) for several rigs.
 - Belt has two completely different code paths in some places (real constraints vs virtual payout numbers).
 - `resetBeltPayout` / `syncRopeConstraintLengths` must be called on launch and after certain token spends.
 - The visual rope line is **not** the physics rope. The physics rope can be very short (many nodes) while the drawn line has slight artistic sag.

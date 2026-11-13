@@ -95,8 +95,13 @@ function buildRopeChain(
       frictionAir: material.frictionAir,
       restitution: 0.1,
       // Rope nodes are tagged ROPE so in-field ring obstacles ignore them and
-      // the line threads cleanly through a ring gap instead of snagging.
-      collisionFilter: { category: COLLISION.ROPE },
+      // the line threads cleanly through a ring gap instead of snagging. They
+      // collide only with DEFAULT bodies (boundary walls, the pivot): the bob
+      // sits closer to the last node (bobLinkLen ≈ 0.35 r) than its own radius,
+      // so letting nodes hit BOB bodies made the contact solver shove the tail
+      // out every step while the links pulled it back — the rope trembled even
+      // hanging still. Node↔node contacts are dropped for the same reason.
+      collisionFilter: { category: COLLISION.ROPE, mask: COLLISION.DEFAULT },
     });
     Matter.Body.setMass(node, nodeMass);
     Matter.Composite.add(composite, node);
