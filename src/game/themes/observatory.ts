@@ -1,7 +1,7 @@
 import type { SiteDef, Vec2 } from "../../types";
 import { withAlpha } from "../bobRenderUtils";
 import { cachedLayer, seededRandom, vignette } from "./artUtils";
-import type { BackdropCamera, RenderTheme, ZoneDrawArgs } from "./types";
+import type { BackdropCamera, RenderTheme, ZoneDrawArgs, ZoneTierColors } from "./types";
 
 /**
  * "Observatory" theme: a midnight sky with a cached star field (gentle
@@ -226,8 +226,15 @@ function drawArmillaryPivot(ctx: CanvasRenderingContext2D, anchor: Vec2, now: nu
   ctx.restore();
 }
 
-function planetDecor(ctx: CanvasRenderingContext2D, a: ZoneDrawArgs) {
-  const { x, y, r, flash, tier, phase } = a;
+/** Gas-giant bands + night-side terminator, clipped to the disc at (x, y). */
+function paintPlanetSurface(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  tier: ZoneTierColors,
+  flash: boolean
+) {
   ctx.save();
   // Surface bands (gas-giant stripes), clipped to the disc.
   ctx.beginPath();
@@ -247,6 +254,58 @@ function planetDecor(ctx: CanvasRenderingContext2D, a: ZoneDrawArgs) {
   ctx.fillStyle = shade;
   ctx.fillRect(x - r, y - r, r * 2, r * 2);
   ctx.restore();
+}
+
+/**
+ * The clipped planet surface is the most expensive thing this theme draws
+ * (a clip per circle, every frame), but it only changes with tier, flash and
+ * on-screen size. Paint it once per (tier, flash, device-pixel size) into a
+ * small sprite and blit that instead. Bounded; cleared wholesale when full
+ * (zoom changes add sizes).
+ */
+const surfaceSprites = new Map<string, HTMLCanvasElement>();
+const SURFACE_SPRITE_MAX = 96;
+const SURFACE_SPRITE_MAX_PX = 512;
+
+function planetSurfaceSprite(
+  ctx: CanvasRenderingContext2D,
+  r: number,
+  tier: ZoneTierColors,
+  flash: boolean
+): { canvas: HTMLCanvasElement; half: number } | null {
+  if (typeof document === "undefined" || typeof ctx.getTransform !== "function") return null;
+  const m = ctx.getTransform();
+  const s = Math.hypot(m.a, m.b);
+  if (!(s > 0) || !(r > 0)) return null;
+  // 1 device px of padding on each side so the anti-aliased edge isn't cut.
+  const n = Math.ceil(2 * r * s) + 2;
+  if (n > SURFACE_SPRITE_MAX_PX) return null;
+  const half = r + 1 / s;
+  const key = `${tier.core}|${tier.fill}|${flash ? 1 : 0}|${n}`;
+  let canvas = surfaceSprites.get(key);
+  if (!canvas) {
+    canvas = document.createElement("canvas");
+    canvas.width = n;
+    canvas.height = n;
+    const g = canvas.getContext("2d");
+    if (!g) return null;
+    const k = n / (2 * half);
+    g.setTransform(k, 0, 0, k, n / 2, n / 2);
+    paintPlanetSurface(g, 0, 0, r, tier, flash);
+    if (surfaceSprites.size >= SURFACE_SPRITE_MAX) surfaceSprites.clear();
+    surfaceSprites.set(key, canvas);
+  }
+  return { canvas, half };
+}
+
+function planetDecor(ctx: CanvasRenderingContext2D, a: ZoneDrawArgs) {
+  const { x, y, r, flash, tier, phase } = a;
+  const sprite = planetSurfaceSprite(ctx, r, tier, flash);
+  if (sprite) {
+    ctx.drawImage(sprite.canvas, x - sprite.half, y - sprite.half, sprite.half * 2, sprite.half * 2);
+  } else {
+    paintPlanetSurface(ctx, x, y, r, tier, flash);
+  }
   // Rings for the two highest tiers.
   if (tier === OBS_TIERS[3] || tier === OBS_TIERS[4]) {
     ctx.save();
