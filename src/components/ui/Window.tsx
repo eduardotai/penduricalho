@@ -83,11 +83,11 @@ export default function Window<T extends string>({
         aria-modal="true"
         aria-label={title}
         data-testid={testId}
-        className={`plate plate-screws win-rise relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-none outline-none sm:rounded-2xl ${sizeClass}`}
+        className={`plate plate-screws win-rise relative flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-col overflow-hidden rounded-none outline-none sm:rounded-2xl ${sizeClass}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="ruler mx-4 mt-[max(0.4rem,env(safe-area-inset-top))] sm:mt-2" aria-hidden />
-        <header className="flex items-center gap-3 px-4 pb-3 pt-2 sm:px-5">
+        <div className="ruler mx-4 mt-[max(0.4rem,env(safe-area-inset-top))] shrink-0 sm:mt-2" aria-hidden />
+        <header className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-2 sm:px-5">
           {Icon && (
             <div className="well flex h-11 w-11 shrink-0 items-center justify-center text-brand-300">
               <Icon size={22} strokeWidth={ICON_STROKE} aria-hidden />
@@ -115,7 +115,7 @@ export default function Window<T extends string>({
           </button>
         </header>
         {tabs && tabs.length > 0 && (
-          <nav className="tabbar px-3 sm:px-4" role="tablist">
+          <nav className="tabbar shrink-0 px-3 sm:px-4" role="tablist">
             {tabs.map((tb) => {
               const TabIcon = tb.icon;
               return (
@@ -129,6 +129,7 @@ export default function Window<T extends string>({
                     onTab?.(tb.id);
                   }}
                   className="tab flex items-center gap-1.5"
+                  aria-label={tb.label}
                 >
                   {TabIcon && <TabIcon size={14} strokeWidth={2} aria-hidden />}
                   {tb.label}
@@ -137,13 +138,13 @@ export default function Window<T extends string>({
             })}
           </nav>
         )}
-        <div className="scrollbar-thin relative flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-4">
+        <div className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-4">
           <div key={activeTab ?? "body"} className="stagger">
             {children}
           </div>
         </div>
         {footer && (
-          <footer className="border-t border-slate-800/80 bg-slate-950/40 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          <footer className="shrink-0 border-t border-slate-800/80 bg-slate-950/40 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
             {footer}
           </footer>
         )}

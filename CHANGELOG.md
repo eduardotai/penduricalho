@@ -6,6 +6,14 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Visual overlaps
+
+### Fixed
+- **The title card no longer has the HUD, workshop and achievement toasts showing through the scrim.** After the blur was removed, those plates were still visible behind the name and the Enter key. They stay hidden until you enter the bench; the arena itself is still there in the background.
+- **Shop and Settings tabs no longer disappear off the edge of the window.** Nine shop tabs (and five Settings tabs on a phone) were in a hidden-scrollbar strip, so Temas / Estatísticas and the last Settings tabs were easy to miss. The row now wraps so every tab stays on screen, and the shop window is a little wider on desktop.
+- **How to Play and Settings no longer hide their last rows under the footer.** The window body can now shrink and scroll above the Entendi / Como Jogar bar, so step 5+ and the bottom of the audio pane stay reachable.
+- **On a phone, the workshop no longer sits under the control bar.** Opening Oficina was covering Rodar de novo, the shop keys and Encerrar. The panel now uses the space between the HUD and the controls and scrolls inside that gap, and opening it (or the hard-end confirm) closes the mobile More drawer so the two don't fight for height.
+
 ## [Unreleased] - Copy and title chrome
 
 ### Changed

@@ -399,27 +399,31 @@ h3 {
   /* Index tabs (drawer dividers). */
   .tabbar {
     display: flex;
+    flex-wrap: wrap;
     gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow-x: visible;
     border-bottom: 1px solid rgb(var(--c-slate-700) / 0.7);
-  }
-  .tabbar::-webkit-scrollbar {
-    display: none;
   }
   .tab {
     position: relative;
     flex-shrink: 0;
     white-space: nowrap;
     border-radius: 8px 8px 0 0;
-    padding: 0.55rem 0.8rem 0.5rem;
+    padding: 0.4rem 0.55rem 0.35rem;
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: rgb(var(--c-slate-400));
     transition: color 150ms, background 150ms;
+  }
+  @media (min-width: 640px) {
+    .tab {
+      padding: 0.55rem 0.7rem 0.5rem;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
   }
   .tab:hover {
     color: rgb(var(--c-slate-100));
