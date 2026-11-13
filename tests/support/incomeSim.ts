@@ -33,7 +33,8 @@ import { PENDULUMS } from "../../src/data/pendulums";
 import { ATTACHMENTS } from "../../src/data/attachments";
 import { SITE_MAP } from "../../src/data/sites";
 import type { ModifierEffects, PendulumDef, SiteDef } from "../../src/types";
-import { applyGust, createBumperField, createGustSchedule, gustAt } from "../../src/game/mapMechanics";
+import { wallHpForWeight } from "../../src/game/engine";
+import { applyGust, createBumperField, createGustSchedule, gustAt, springRebound } from "../../src/game/mapMechanics";
 
 const STEP = 1000 / 60;
 // Mirrors GameCanvas constants.
@@ -85,7 +86,7 @@ export function simulateRun(
   seed: number,
   overrides: Partial<PendulumDef> = {},
   mode: PlayMode = "launch",
-  siteOverride: Partial<SiteDef> = {},
+  siteOverride: SimSite = {},
   mods: ModifierEffects = {}
 ): RunResult {
   const realRandom = Math.random;
@@ -98,12 +99,84 @@ export function simulateRun(
 }
 
 /**
+ * Site overrides for the sim. `simWallBoost` turns on a cage-wall model (see
+ * containInCage; breakable walls, no shards) with that slam rebound
+ * multiplier. A "springWalls" site uses its own boost and aim automatically.
+ */
+export type SimSite = Partial<SiteDef> & { simWallBoost?: number };
+const WALL_HIT_MIN_SPEED = 3.5 * WORLD_SCALE;
+const WALL_BOUNCE_MAX_SPEED = 55 * WORLD_SCALE;
+
+type Side = "left" | "right" | "top" | "bottom";
+const WALL_BREAK_BOOST = 1.5;
+const WALL_BREAK_BONUS = 70;
+
+/**
+ * Bounce bodies off the cage, like GameCanvas.handleWallHit: a slam (speed ≥
+ * WALL_HIT_MIN_SPEED) costs the wall 1 hp and rebounds at `boost`, or at 1.5×
+ * plus a flat bonus when it shatters; softer touches rebound at 0.5. A
+ * shattered side is open, so bobs escape through it. Returns bonus points.
+ */
+function containInCage(
+  bodies: Matter.Body[],
+  r: number,
+  b: { minX: number; minY: number; maxX: number; maxY: number },
+  boost: number,
+  hp: Record<Side, number>,
+  aim = 0,
+  aimAt: { x: number; y: number } = { x: 0, y: 0 }
+): number {
+  let bonus = 0;
+  for (const body of bodies) {
+    let { x, y } = body.position;
+    let vx = body.velocity.x;
+    let vy = body.velocity.y;
+    let hit = false;
+    const bounce = (side: Side) => {
+      const fast = Math.hypot(vx, vy) >= WALL_HIT_MIN_SPEED;
+      if (side === "left" || side === "right") vx = -vx;
+      else vy = -vy;
+      let k = 0.5;
+      if (fast) {
+        hp[side] -= 1;
+        if (hp[side] <= 0) {
+          k = WALL_BREAK_BOOST;
+          bonus += WALL_BREAK_BONUS;
+        } else k = boost;
+      }
+      vx *= k;
+      vy *= k;
+      hit = true;
+    };
+    if (hp.left > 0 && x - r < b.minX && vx < 0) { x = b.minX + r; bounce("left"); }
+    if (hp.right > 0 && x + r > b.maxX && vx > 0) { x = b.maxX - r; bounce("right"); }
+    if (hp.top > 0 && y - r < b.minY && vy < 0) { y = b.minY + r; bounce("top"); }
+    if (hp.bottom > 0 && y + r > b.maxY && vy > 0) { y = b.maxY - r; bounce("bottom"); }
+    if (!hit) continue;
+    if (aim > 0) {
+      // Spring walls: steer the rebound toward `aimAt`, keeping its speed.
+      const v = springRebound({ x, y }, { x: vx, y: vy }, aimAt, aim);
+      vx = v.x;
+      vy = v.y;
+    }
+    const sp = Math.hypot(vx, vy);
+    if (sp > WALL_BOUNCE_MAX_SPEED) {
+      vx *= WALL_BOUNCE_MAX_SPEED / sp;
+      vy *= WALL_BOUNCE_MAX_SPEED / sp;
+    }
+    Matter.Body.setPosition(body, { x, y });
+    Matter.Body.setVelocity(body, { x: vx, y: vy });
+  }
+  return bonus;
+}
+
+/**
  * `mods` applies modifier effects for the WHOLE run (an upper bound on a timed
  * pickup): pointMult, accelerationMult (gravity), weightMult (rope wear),
  * durabilityDrainMult and comboWindowMult are modeled; drop chance, orb pull,
  * size and echoes are not.
  */
-function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mode: PlayMode, mods: ModifierEffects = {}): RunResult {
+function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mode: PlayMode, mods: ModifierEffects = {}): RunResult {
   const attachment = ATTACHMENTS.find((a) => a.id === attachmentId)!;
   const comboWindow = COMBO_DECAY_MS * (mods.comboWindowMult ?? 1);
   const modPoints = mods.pointMult ?? 1;
@@ -111,6 +184,17 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
   const wearWeight = pendulum.weight * (mods.weightMult ?? 1);
   const gusts = site.mechanic?.kind === "gusts" ? createGustSchedule(site.mechanic) : null;
   const bumpers = site.mechanic?.kind === "bumpers" ? createBumperField(site.mechanic) : null;
+  const wallBoost = site.simWallBoost ?? (site.mechanic?.kind === "springWalls" ? site.mechanic.boost : undefined);
+  const aim = site.mechanic?.kind === "springWalls" ? site.mechanic.aim : 0;
+  const cs = site.cageScale ?? 1;
+  const cage = {
+    minX: VIRTUAL_WIDTH / 2 - (VIRTUAL_WIDTH * cs) / 2,
+    maxX: VIRTUAL_WIDTH / 2 + (VIRTUAL_WIDTH * cs) / 2,
+    minY: VIRTUAL_HEIGHT / 2 - (VIRTUAL_HEIGHT * cs) / 2,
+    maxY: VIRTUAL_HEIGHT / 2 + (VIRTUAL_HEIGHT * cs) / 2,
+  };
+  const hp0 = wallHpForWeight(pendulum.weight, site.wallDurabilityMult ?? 1);
+  const wallHp: Record<Side, number> = { left: hp0, right: hp0, top: hp0, bottom: hp0 };
   const engine = Matter.Engine.create({
     gravity: { x: 0, y: site.gravity * (mods.accelerationMult ?? 1), scale: 0.001 },
     enableSleeping: false,
@@ -218,6 +302,9 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
     Matter.Engine.update(engine, STEP);
     now += STEP;
     if (!h.snapped) positionChainBobs(h);
+    if (wallBoost != null) {
+      points += containInCage(h.snapped ? getOrderedBobBodies(h) : [tipBody], getEffectiveBobRadius(h), cage, wallBoost, wallHp, aim, ANCHOR);
+    }
     if (bumpers) {
       const r0 = getEffectiveBobRadius(h);
       bumpers.tick(h.snapped ? getOrderedBobBodies(h) : [tipBody], () => r0, ANCHOR, rigReach(h), now, now);
@@ -253,8 +340,11 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
     // --- run end: stalled swing, or the freed bob left the field ---
     const speed = Math.max(...h.bobs.map((b) => Math.hypot(b.velocity.x, b.velocity.y)));
     if (h.snapped) {
-      const out = h.bobs.every(
-        (b) => b.position.x < -200 || b.position.x > VIRTUAL_WIDTH + 200 || b.position.y < -200 || b.position.y > VIRTUAL_HEIGHT + 200
+      const m = 200;
+      const out = h.bobs.every((b) =>
+        wallBoost != null
+          ? b.position.x < cage.minX - m || b.position.x > cage.maxX + m || b.position.y < cage.minY - m || b.position.y > cage.maxY + m
+          : b.position.x < -m || b.position.x > VIRTUAL_WIDTH + m || b.position.y < -m || b.position.y > VIRTUAL_HEIGHT + m
       );
       if (out || speed < 0.45) break;
       continue;
@@ -295,7 +385,7 @@ export function incomeTable(
   overrides: Record<string, Partial<PendulumDef>> = {},
   mode: PlayMode = "launch",
   onlyIds?: string[],
-  siteOverride: Partial<SiteDef> = {},
+  siteOverride: SimSite = {},
   mods: ModifierEffects = {}
 ): IncomeRow[] {
   return PENDULUMS.filter((p) => !onlyIds || onlyIds.includes(p.id)).map((p) => {

@@ -593,6 +593,9 @@ function ItemStats({
       <Stat label={c.statZones} value={s.hitZoneCount.toString()} />
       <Stat label={c.statWalls} value={wallsLabel} />
       {s.walls && s.walls !== "none" && <Stat label={c.statCage} value={cageLabel} />}
+      {s.mechanic?.kind === "springWalls" && (
+        <Stat label={c.statWalls} value={`${c.springWalls} ×${s.mechanic.boost}`} />
+      )}
       {s.mechanic?.kind === "bumpers" && (
         <Stat label={c.statBumpers} value={c.bumpersOrbiting(s.mechanic.count)} />
       )}

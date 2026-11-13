@@ -204,3 +204,21 @@ export function createBumperField(m: BumperMechanic) {
     },
   };
 }
+
+// --- Spring walls (Bumper Cage) ------------------------------------------
+
+/**
+ * Steer a wall rebound part-way toward `target` (the mount), keeping its
+ * speed. `aim` 0 = the plain mirror bounce, 1 = straight at the target.
+ */
+export function springRebound(pos: Vec2, vel: Vec2, target: Vec2, aim: number): Vec2 {
+  const s = Math.hypot(vel.x, vel.y);
+  if (s < 1e-9 || aim <= 0) return { x: vel.x, y: vel.y };
+  const dx = target.x - pos.x;
+  const dy = target.y - pos.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const ax = (vel.x / s) * (1 - aim) + (dx / d) * aim;
+  const ay = (vel.y / s) * (1 - aim) + (dy / d) * aim;
+  const a = Math.hypot(ax, ay) || 1;
+  return { x: (ax / a) * s, y: (ay / a) * s };
+}

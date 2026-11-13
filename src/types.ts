@@ -259,6 +259,9 @@ export type WallMode = "none" | "solid" | "breakable";
  *   "bumpers" — round bumpers orbiting the mount just outside the swing
  *             circle; a freed (or over-stretched) bob that runs into one is
  *             batted back with a kick, pinball style.
+ *   "springWalls" — the cage walls are coiled springs: a slam rebounds the bob
+ *             harder than a plain wall and partly back toward the mount
+ *             (they still shatter when worn out).
  */
 export type SiteMechanic =
   | {
@@ -291,6 +294,13 @@ export type SiteMechanic =
   cooldownMs: number;
   /** Slower bodies pass through untouched, so a settling swing can still stall and end the run. */
   minHitSpeed: number;
+}
+  | {
+  kind: "springWalls";
+  /** Ricochet speed multiplier on a (non-shattering) wall slam; plain walls use 1.22. */
+  boost: number;
+  /** 0 = plain mirror bounce … 1 = rebound aimed straight at the mount. */
+  aim: number;
 };
 
 export interface SiteDef {

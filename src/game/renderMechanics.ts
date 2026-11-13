@@ -1,4 +1,5 @@
 import type { Bumper, GustState } from "./mapMechanics";
+import type { WallField } from "./engine";
 import type { RenderContext } from "./render";
 
 /**
@@ -185,5 +186,63 @@ export function drawMapHint(ctx: CanvasRenderingContext2D, screenWidth: number, 
   ctx.textBaseline = "middle";
   ctx.fillStyle = "rgba(241, 245, 249, 0.95)";
   ctx.fillText(text, cx - boxW / 2 + 27, y + 1);
+  ctx.restore();
+}
+
+const SPRING_SQUASH_MS = 260;
+
+/**
+ * Coil springs along the inner edge of every standing cage wall. A side that
+ * was just slammed squashes toward the wall and springs back. World space.
+ */
+export function drawSpringWalls(
+  rc: RenderContext,
+  field: WallField,
+  hitAt: Partial<Record<string, number>>
+) {
+  const { ctx, now } = rc;
+  const { minX, minY, maxX, maxY } = field.bounds;
+  const depth = 46;
+  const pitch = 70;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const wall of field.walls) {
+    if (wall.broken || wall.side === "ring") continue;
+    const since = now - (hitAt[wall.side] ?? -1e9);
+    const u = Math.max(0, 1 - since / SPRING_SQUASH_MS);
+    // Squash, then a little overshoot as it springs back.
+    const squash = u > 0 ? Math.sin(u * Math.PI) * 0.55 - (1 - u) * u * 0.25 : 0;
+    const d = depth * (1 - squash);
+    const horizontal = wall.side === "top" || wall.side === "bottom";
+    const len = horizontal ? maxX - minX : maxY - minY;
+    const n = Math.max(2, Math.floor(len / pitch));
+    // Edge line + inward offset for this side.
+    const edge = (t: number, off: number) => {
+      if (wall.side === "top") return { x: minX + t, y: minY + off };
+      if (wall.side === "bottom") return { x: minX + t, y: maxY - off };
+      if (wall.side === "left") return { x: minX + off, y: minY + t };
+      return { x: maxX - off, y: minY + t };
+    };
+    ctx.strokeStyle = u > 0 ? "rgba(253, 230, 138, 0.95)" : "rgba(148, 163, 184, 0.75)";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    for (let i = 0; i <= n * 2; i++) {
+      const t = (i / (n * 2)) * len;
+      const p = edge(t, i % 2 === 0 ? 4 : d);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    // Bumper plate the bob actually bounces off.
+    ctx.strokeStyle = u > 0 ? "#fde68a" : "#cbd5e1";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    const a = edge(0, d);
+    const b = edge(len, d);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
   ctx.restore();
 }
