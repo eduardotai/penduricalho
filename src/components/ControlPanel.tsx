@@ -5,6 +5,7 @@ import { playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { useT, useLang, locName } from "../i18n";
 import { WORKSHOP_CLICKER_ENABLED } from "../config/features";
+import { ActiveComboLine } from "./RigCombos";
 
 const AUTO_RUN_DELAY_MS = 1500;
 
@@ -113,6 +114,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             <span className="text-slate-600"> · </span>
             {locName(lang, "site", site.id, site.name)}
           </div>
+          <ActiveComboLine pendulumId={pendulum.id} attachmentId={attachment.id} />
         </div>
 
         {hasToken && (

@@ -6,6 +6,14 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Rig combos
+
+### Added
+- **Rig combos**: 8 bob + line sets that grant a bonus while both are equipped (no save change). **Nunchaku** (Twin + Heavy Chain, +35%), **Javelin** (Piercer + Iron Rod, +40%), **Slingshot** (Rocket + Spring Coil, +30%, +25% launch), **Polarity** (Lodestone + Magnetic Tether, +15%, +30% pull), **Wrecking Ball** (Tungsten + Anchor Chain, +25%, −40% wear), **Shooting Star** (Comet + Silk Thread, +30%, −50% wear), **Overload** (Frenzy + Plasma Tether, +25%) and **Golden Scepter** (Midas + Carbon Rod, +25%).
+- New **Combos** shop tab (status, bonuses, one-tap "Equip both"), a combo badge on every bob/line card in a set, the active combo under the loadout line and a "COMBO" pop at launch.
+- Achievements **Perfect Match** (own 1 combo) and **Set Collector** (own 5), via a new `ownedCombos` requirement.
+- `scripts/sim-combos.mjs`: each combo with vs without its bonus.
+
 ## [Unreleased] - New ropes
 
 ### Added

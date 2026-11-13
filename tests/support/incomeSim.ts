@@ -39,6 +39,7 @@ import {
   type ChaosStats,
   type TrailPoint,
 } from "../../src/game/bobBehaviors";
+import { activeRigCombo } from "../../src/data/combos";
 import { durabilityDrainPerSec, resolveRopeMaterial, ropeChargeMult } from "../../src/game/rope";
 import { GRAB_DAMPING, GRAB_STIFFNESS } from "../../src/game/ropeGrab";
 import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../../src/game/worldConstants";
@@ -100,12 +101,13 @@ export function simulateRun(
   overrides: Partial<PendulumDef> = {},
   mode: PlayMode = "launch",
   siteOverride: SimSite = {},
-  mods: ModifierEffects = {}
+  mods: ModifierEffects = {},
+  rigCombos = true
 ): RunResult {
   const realRandom = Math.random;
   Math.random = seeded(seed);
   try {
-    return runOnce({ ...pendulum, ...overrides }, attachmentId, { ...SITE_MAP.get(siteId)!, ...siteOverride }, mode, mods);
+    return runOnce({ ...pendulum, ...overrides }, attachmentId, { ...SITE_MAP.get(siteId)!, ...siteOverride }, mode, mods, rigCombos);
   } finally {
     Math.random = realRandom;
   }
@@ -189,11 +191,20 @@ function containInCage(
  * durabilityDrainMult and comboWindowMult are modeled; drop chance, orb pull,
  * size and echoes are not.
  */
-function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mode: PlayMode, mods: ModifierEffects = {}): RunResult {
+function runOnce(
+  pendulum: PendulumDef,
+  attachmentId: string,
+  site: SimSite,
+  mode: PlayMode,
+  mods: ModifierEffects = {},
+  rigCombos = true
+): RunResult {
   const attachment = ATTACHMENTS.find((a) => a.id === attachmentId)!;
+  // Rig combo (bob + line set), like GameCanvas: points, wear, kick, pull.
+  const rig = rigCombos ? activeRigCombo(pendulum.id, attachmentId) : null;
   const comboWindow = COMBO_DECAY_MS * (mods.comboWindowMult ?? 1);
-  const modPoints = mods.pointMult ?? 1;
-  const modDrain = (mods.durabilityDrainMult ?? 1);
+  const modPoints = (mods.pointMult ?? 1) * (rig?.pointMult ?? 1);
+  const modDrain = (mods.durabilityDrainMult ?? 1) * (rig?.drainMult ?? 1);
   const wearWeight = pendulum.weight * (mods.weightMult ?? 1);
   const gusts = site.mechanic?.kind === "gusts" ? createGustSchedule(site.mechanic) : null;
   const bumpers = site.mechanic?.kind === "bumpers" ? createBumperField(site.mechanic) : null;
@@ -283,7 +294,7 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
   resetPendulumToRest(h);
   const twist = attachment.bonuses.twistPowerBonus ?? 0;
   const vel = attachment.bonuses.velocityBonus ?? 0;
-  const kick = 17 * WORLD_SCALE * (1 + twist) * (1 + vel) * (0.95 + Math.random() * 0.1);
+  const kick = 17 * WORLD_SCALE * (1 + twist) * (1 + vel) * (rig?.kickMult ?? 1) * (0.95 + Math.random() * 0.1);
   h.bobs.forEach((bob, i) => {
     const bx = bob.position.x - h.pivot.position.x;
     const by = bob.position.y - h.pivot.position.y;
@@ -372,7 +383,7 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
     if (behavior?.kind === "magnet" || behavior?.kind === "singularity") {
       const tip = h.bobs[h.bobs.length - 1];
       const radius = behavior.pullRadius ?? 780;
-      const strength = (behavior.pullStrength ?? 2.4) * (STEP / 1000);
+      const strength = (behavior.pullStrength ?? 2.4) * (rig?.pullMult ?? 1) * (STEP / 1000);
       for (const zh of field.zones) {
         const dx = tip.position.x - zh.zone.position.x;
         const dy = tip.position.y - zh.zone.position.y;
@@ -450,7 +461,8 @@ export function incomeTable(
   mode: PlayMode = "launch",
   onlyIds?: string[],
   siteOverride: SimSite = {},
-  mods: ModifierEffects = {}
+  mods: ModifierEffects = {},
+  rigCombos = true
 ): IncomeRow[] {
   return PENDULUMS.filter((p) => !onlyIds || onlyIds.includes(p.id)).map((p) => {
     let pts = 0;
@@ -460,7 +472,7 @@ export function incomeTable(
     let snaps = 0;
     const per: number[] = [];
     for (let i = 0; i < runs; i++) {
-      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode, siteOverride, mods);
+      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode, siteOverride, mods, rigCombos);
       pts += r.points;
       per.push(r.points);
       ms += r.ms + RELAUNCH_OVERHEAD_MS;

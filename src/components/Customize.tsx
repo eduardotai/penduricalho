@@ -1,3 +1,4 @@
+import { ComboBadges, ComboTab } from "./RigCombos";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { drawBobSkin } from "../game/render";
 import { bobRadius } from "../game/pendulum";
@@ -35,7 +36,7 @@ import type {
   UnlockGate,
 } from "../types";
 
-type Tab = "pendulum" | "attachment" | "site" | "skin" | "shape" | "boost" | "theme" | "stats";
+type Tab = "pendulum" | "attachment" | "combo" | "site" | "skin" | "shape" | "boost" | "theme" | "stats";
 
 /** Gear shop tabs only — workshop items use WorkshopPanel. */
 type GearItemKind = Exclude<ItemKind, "generator" | "clickUpgrade">;
@@ -58,6 +59,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "pendulum", label: t.customize.tabPendulum },
     { id: "attachment", label: t.customize.tabAttachment },
+    { id: "combo", label: t.customize.tabCombos },
     { id: "site", label: t.customize.tabSite },
     { id: "skin", label: t.customize.tabSkin },
     { id: "shape", label: t.customize.tabShape },
@@ -126,6 +128,7 @@ export default function Customize({ open, onClose }: CustomizeProps) {
           {tab === "attachment" && (
             <ItemList kind="attachment" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
           )}
+          {tab === "combo" && <ComboTab />}
           {tab === "site" && <ItemList kind="site" />}
           {tab === "skin" && <ItemList kind="skin" />}
           {tab === "shape" && <ItemList kind="shape" />}
@@ -396,6 +399,9 @@ function Row({
           </div>
           <p className="mt-0.5 text-xs text-slate-400">{description}</p>
           <ItemStats kind={kind} item={item} />
+          {(kind === "pendulum" || kind === "attachment") && (
+            <ComboBadges kind={kind} itemId={item.id} />
+          )}
           </div>
         </div>
         <div className="flex w-32 flex-col items-end gap-1.5">
