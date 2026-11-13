@@ -68,10 +68,14 @@ export const PENDULUMS: PendulumDef[] = [
     description: "Three bobs. Catastrophically effective coverage along the entire chain.",
     weight: 4.5,
     bobCount: 3,
-    bobSpacing: S(55),
+    // Retuned with the income sim (scripts/sim-income.mjs): the long S(55)
+    // chain swept so much of the field by hand that this 12k bob out-earned
+    // the 60k Tungsten (174 vs 159 pts/s). A tighter chain and a higher
+    // multiplier keep launches level and put it between Twin and Nitro.
+    bobSpacing: S(32),
     bobRadius: R(15),
     maxAngularVelocity: 0.55,
-    basePointMultiplier: 2.6,
+    basePointMultiplier: 2.8,
     rarity: "epic",
     cost: 12_000,
     unlock: { stat: "totalMomentum", gte: 18000 },
