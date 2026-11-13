@@ -1,142 +1,151 @@
 import { Howl } from "howler";
-import {
-  CROSSFADE_MS,
-  MUSIC_TRACK_MAP,
-  nextTrackFor,
-  type MusicMood,
-  type MusicTrack,
-} from "./musicTracks";
+import { MUSIC_TRACK_MAP, type MusicMood } from "./musicTracks";
+import { MusicController, type MusicBackend, type VoiceHandle } from "./musicController";
 
 /**
- * Plays the soundtrack: one track at a time per mood, crossfading between
- * tracks and moods. Tracks are streamed (Howler html5 mode, created lazily
- * on first use and unloaded after they fade out), so nothing is decoded or
- * downloaded until it is about to play.
+ * Howler backend for the soundtrack. Each voice is its own html5 Howl so the
+ * file streams (nothing decoded up front) and is created lazily, one track
+ * ahead at most; voices are unloaded once they fade out. All sequencing lives
+ * in MusicController (unit-tested).
  */
-
-interface Voice {
-  track: MusicTrack;
-  howl: Howl;
-  dead: boolean;
-}
-
-type Listener = (trackId: string | null) => void;
-
-class MusicDirectorImpl {
-  private level = 0;
-  private mood: MusicMood = "menu";
-  private current: Voice | null = null;
-  private listeners = new Set<Listener>();
-
-  /** Track id currently audible (null when silent). */
-  get nowPlaying(): string | null {
-    return this.level > 0 && this.current ? this.current.track.id : null;
-  }
-
-  subscribe(fn: Listener): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-
-  private emit() {
-    for (const fn of this.listeners) fn(this.nowPlaying);
-  }
-
-  /** Sets the target loudness (0..1). 0 fades out and pauses. */
-  setLevel(level: number) {
-    const next = Math.max(0, Math.min(1, level));
-    const was = this.level;
-    this.level = next;
-    if (next <= 0.0001) {
-      if (this.current && was > 0.0001) this.fadeOut(this.current, 400, false);
-      this.emit();
-      return;
-    }
-    if (!this.current || this.current.dead) {
-      this.start(nextTrackFor(this.mood, null));
-      return;
-    }
-    const h = this.current.howl;
-    if (!h.playing()) {
-      h.volume(0);
-      h.play();
-      h.fade(0, next, 400);
-    } else {
-      h.volume(next);
-    }
-    this.emit();
-  }
-
-  /** Switches mood (menu/run); crossfades only when the mood actually changes. */
-  setMood(mood: MusicMood) {
-    if (mood === this.mood) return;
-    this.mood = mood;
-    if (this.level <= 0.0001) {
-      // Silent: just drop the old voice so the next unmute starts in the new mood.
-      if (this.current) this.kill(this.current);
-      this.current = null;
-      return;
-    }
-    this.start(nextTrackFor(mood, null));
-  }
-
-  /** Skips to the next track of the current mood. */
-  next() {
-    if (this.level <= 0.0001) return;
-    this.start(nextTrackFor(this.mood, this.current?.track.id ?? null));
-  }
-
-  private start(track: MusicTrack) {
-    const old = this.current;
-    if (old) this.fadeOut(old, CROSSFADE_MS, true);
+const howlerBackend: MusicBackend = {
+  create(track, events): VoiceHandle {
+    let id: number | undefined;
+    let wantPlaying = false;
+    // Howler 2.2 html5 quirk: while a play() promise is pending it queues
+    // volume()/fade()/pause() calls, but its 'play' event only drains queued
+    // *play* tasks, so a queued fade never runs and the track plays at volume
+    // 0 (the "music stops" bug). The getter also returns the Howl instead of a
+    // number then. So we hold our own ops until our 'play' event arrives.
+    let locked = false;
+    let held: (() => void)[] = [];
+    const whenReady = (fn: () => void) => {
+      if (locked) held.push(fn);
+      else fn();
+    };
+    const release = () => {
+      locked = false;
+      const ops = held;
+      held = [];
+      ops.forEach((fn) => fn());
+    };
+    const current = () => {
+      if (id === undefined) return 0;
+      const v = howl.volume(id) as unknown;
+      return typeof v === "number" && Number.isFinite(v) ? v : 0;
+    };
     const howl = new Howl({
       src: track.src,
-      html5: true, // stream; don't download/decode the whole file up front
+      html5: true,
       preload: true,
       loop: false,
       volume: 0,
+      onload: () => events.onLoad(),
+      onplay: () => release(),
+      onend: () => events.onEnd(),
+      onloaderror: () => events.onError("load"),
+      onplayerror: () => {
+        release();
+        events.onError("play");
+        howl.once("unlock", () => {
+          if (wantPlaying && id !== undefined && !howl.playing(id)) howl.play(id);
+        });
+      },
     });
-    const voice: Voice = { track, howl, dead: false };
-    this.current = voice;
-    howl.once("load", () => {
-      if (voice.dead || this.current !== voice || this.level <= 0.0001) return;
-      howl.play();
-      howl.fade(0, this.level, old ? CROSSFADE_MS : 900);
-    });
-    howl.on("end", () => {
-      if (voice.dead || this.current !== voice) return;
-      const next = nextTrackFor(this.mood, track.id);
-      if (next.id === track.id) howl.play(); // single-track mood: just loop
-      else this.start(next);
-    });
-    howl.once("loaderror", () => {
-      if (this.current === voice) this.current = null;
-      this.kill(voice);
-    });
-    this.emit();
+    return {
+      play() {
+        wantPlaying = true;
+        whenReady(() => {
+          if (!wantPlaying) return;
+          if (id === undefined) {
+            locked = true;
+            id = howl.play();
+          } else if (!howl.playing(id)) {
+            locked = true;
+            howl.play(id);
+          }
+        });
+      },
+      pause() {
+        wantPlaying = false;
+        whenReady(() => {
+          if (id !== undefined && !wantPlaying) howl.pause(id);
+        });
+      },
+      setVolume(v) {
+        whenReady(() => {
+          if (id !== undefined) howl.volume(v, id);
+          else howl.volume(v);
+        });
+      },
+      fadeTo(v, ms) {
+        whenReady(() => {
+          if (id === undefined) {
+            howl.volume(v);
+            return;
+          }
+          howl.fade(current(), v, ms, id);
+        });
+      },
+      position() {
+        if (id === undefined) return 0;
+        const s = howl.seek(id);
+        return typeof s === "number" ? s : 0;
+      },
+      duration() {
+        return howl.duration() || 0;
+      },
+      isPlaying() {
+        return id !== undefined && howl.playing(id);
+      },
+      dispose() {
+        wantPlaying = false;
+        howl.unload();
+      },
+    };
+  },
+};
+
+class MusicDirectorImpl {
+  private ctl = new MusicController(howlerBackend, () => performance.now());
+  private timer: number | null = null;
+
+  get nowPlaying() {
+    return this.ctl.nowPlaying;
   }
 
-  private fadeOut(voice: Voice, ms: number, unload: boolean) {
-    const h = voice.howl;
-    if (!h.playing()) {
-      if (unload) this.kill(voice);
-      return;
+  subscribe(fn: (trackId: string | null) => void) {
+    return this.ctl.subscribe(fn);
+  }
+
+  private ensureTimer() {
+    if (this.timer === null && typeof window !== "undefined") {
+      this.timer = window.setInterval(() => this.ctl.tick(), 200);
     }
-    h.fade(h.volume(), 0, ms);
-    window.setTimeout(() => {
-      if (unload) this.kill(voice);
-      else if (this.level <= 0.0001) h.pause();
-    }, ms + 50);
   }
 
-  private kill(voice: Voice) {
-    voice.dead = true;
-    voice.howl.stop();
-    voice.howl.unload();
+  /** Target loudness 0..1; 0 fades out and pauses (mute, music off, hidden tab). */
+  setLevel(level: number) {
+    if (level > 0) this.ensureTimer();
+    this.ctl.setLevel(level);
+  }
+
+  setMood(mood: MusicMood) {
+    this.ctl.setMood(mood);
+  }
+
+  next() {
+    this.ctl.skip();
+  }
+
+  /** Diagnostics (window.__music in the console). */
+  get debug() {
+    return this.ctl.debug;
   }
 }
 
 export const MusicDirector = new MusicDirectorImpl();
+if (typeof window !== "undefined") (window as unknown as { __music?: unknown }).__music = MusicDirector;
 
 export function trackTitle(id: string | null): string | null {
   return id ? (MUSIC_TRACK_MAP.get(id)?.title ?? null) : null;

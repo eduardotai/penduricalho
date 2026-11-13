@@ -16,7 +16,12 @@ Two parallel systems:
 2. **Soundtrack** (`musicDirector.ts` + `musicTracks.ts`)
    - Four original CC0 tracks in `public/music/` (built by `scripts/music/compose.py`).
    - Howler html5 streaming, lazy; menu theme vs rotating arena tracks, 1.8s crossfades.
-   - Pure rules (next track, mood, level) live in `musicTracks.ts` and are unit-tested.
+   - Pure rules (next track, mood, level) live in `musicTracks.ts`; the sequencing state machine
+     (preload 12s ahead, overlap-crossfade 1.8s before the end, keep the old track until the new
+     one is ready, pause/resume on level 0, watchdog) is `musicController.ts`. Both are unit-tested.
+   - Howler 2.2 html5 gotcha: volume/fade/pause called while a play() promise is pending get
+     queued and never run (its 'play' event only drains play tasks). The backend in
+     `musicDirector.ts` holds those ops until its own 'play' event. Don't call Howler directly.
 
 A thin `soundMap.ts` + `playGameSound()` function gives the rest of the game a stable, named API.
 
