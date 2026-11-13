@@ -19,6 +19,7 @@ import { shadeColor, withAlpha } from "./bobRenderUtils";
 import type { BeltTunnelPath } from "./beltTunnel";
 import { sampleTunnel, sampleTunnelTangent } from "./beltTunnel";
 import { WORLD_SCALE } from "./worldConstants";
+import { getRenderTheme, type BackdropCamera } from "./themes";
 
 export interface RenderContext {
   ctx: CanvasRenderingContext2D;
@@ -33,73 +34,19 @@ export interface EchoBobRender {
   radius: number;
 }
 
-const SITE_BACKGROUNDS: Record<string, [string, string]> = {
-  workshop: ["#1e293b", "#0f172a"],
-  "bumper-cage": ["#2a1233", "#120318"],
-  "bumper-arena": ["#0f2a33", "#04161c"],
-  "bumper-colosseum": ["#332512", "#1a1003"],
-  layers: ["#0b2a2f", "#04141a"],
-  "black-hole": ["#0a0a14", "#010103"],
-};
-
-function drawGrid(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  gridStep: number
-) {
-  ctx.save();
-  ctx.globalAlpha = 0.06;
-  ctx.strokeStyle = "#94a3b8";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < width; x += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
-  }
-  for (let y = 0; y < height; y += gridStep) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
 /** Fills the visible canvas in screen space (call before world camera transform). */
 export function drawScreenBackdrop(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  site: SiteDef
+  site: SiteDef,
+  cam?: BackdropCamera
 ) {
-  const [top, bottom] = SITE_BACKGROUNDS[site.background] ?? SITE_BACKGROUNDS.workshop;
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-  drawGrid(ctx, width, height, 60);
-}
-
-export function drawSiteBackground(rc: RenderContext, site: SiteDef) {
-  const [top, bottom] = SITE_BACKGROUNDS[site.background] ?? SITE_BACKGROUNDS.workshop;
-  const grad = rc.ctx.createLinearGradient(0, 0, 0, rc.height);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  rc.ctx.fillStyle = grad;
-  rc.ctx.fillRect(0, 0, rc.width, rc.height);
-  drawGrid(rc.ctx, rc.width, rc.height, 60);
+  getRenderTheme().drawBackdrop(ctx, width, height, site, cam);
 }
 
 export function drawSiteAnchor(rc: RenderContext, anchor: Vec2) {
-  rc.ctx.save();
-  rc.ctx.fillStyle = "#475569";
-  rc.ctx.fillRect(anchor.x - 60, anchor.y - 24, 120, 16);
-  rc.ctx.fillStyle = "#334155";
-  rc.ctx.fillRect(anchor.x - 50, anchor.y - 10, 100, 6);
-  rc.ctx.restore();
+  getRenderTheme().drawPivot(rc.ctx, anchor, rc.now);
 }
 
 /**
@@ -266,43 +213,49 @@ export function drawBlackHole(
   ctx.restore();
 }
 
-const ZONE_TIERS = [
-  { fill: "#34d399", glow: "#6ee7b7", core: "#ecfdf5" },
-  { fill: "#38bdf8", glow: "#7dd3fc", core: "#f0f9ff" },
-  { fill: "#a78bfa", glow: "#c4b5fd", core: "#f5f3ff" },
-  { fill: "#fb923c", glow: "#fdba74", core: "#fff7ed" },
-  { fill: "#f472b6", glow: "#f9a8d4", core: "#fdf2f8" },
-] as const;
-
-function zoneTier(basePoints: number) {
-  return ZONE_TIERS[Math.max(0, Math.min(ZONE_TIERS.length - 1, basePoints - 1))];
-}
-
 function zonePhase(x: number, y: number) {
   return (x * 0.017 + y * 0.023) % (Math.PI * 2);
 }
 
 export function drawHitZones(rc: RenderContext, field: HitZoneField) {
+  const style = getRenderTheme().zone;
+  const tiers = style.tiers;
   for (const h of field.zones) {
     const z = h.zone;
     const { x, y } = z.position;
-    const tier = zoneTier(z.basePoints);
+    const tier = tiers[Math.max(0, Math.min(tiers.length - 1, z.basePoints - 1))];
     const phase = zonePhase(x, y);
     const pulse = 0.5 + 0.5 * Math.sin(rc.now / 520 + phase);
     const flashActive = h.hitFlashUntil > rc.now;
     const bonusRings = z.multiplier >= 1.35 ? 2 : z.multiplier >= 1.2 ? 1 : 0;
     const tokenGlow = z.modifierChance >= 0.24;
 
+    const args = { x, y, r: z.radius, tier, flash: flashActive, pulse, phase, now: rc.now };
+
     rc.ctx.save();
 
-    const glowR = z.radius + 8 + pulse * 4;
+    const bloom = style.glow === "bloom";
+    // "bloom" = additive glow that flares on hit instead of just tinting.
+    const glowR = bloom
+      ? z.radius * (flashActive ? 2.1 : 1.45) + pulse * z.radius * 0.12
+      : z.radius + 8 + pulse * 4;
     const glow = rc.ctx.createRadialGradient(x, y, z.radius * 0.35, x, y, glowR);
-    glow.addColorStop(0, withAlpha(tier.glow, flashActive ? 0.5 : 0.22 + pulse * 0.1));
+    glow.addColorStop(
+      0,
+      withAlpha(
+        tier.glow,
+        bloom
+          ? flashActive ? 0.65 : 0.16 + pulse * 0.08
+          : flashActive ? 0.5 : 0.22 + pulse * 0.1
+      )
+    );
     glow.addColorStop(1, withAlpha(tier.glow, 0));
+    if (bloom) rc.ctx.globalCompositeOperation = "lighter";
     rc.ctx.fillStyle = glow;
     rc.ctx.beginPath();
     rc.ctx.arc(x, y, glowR, 0, Math.PI * 2);
     rc.ctx.fill();
+    rc.ctx.globalCompositeOperation = "source-over";
 
     for (let i = 0; i < bonusRings; i++) {
       const ringR = z.radius + 5 + i * 4 + pulse * 1.5;
@@ -334,8 +287,7 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
     }
     rc.ctx.fillStyle = bodyGrad;
     rc.ctx.fill();
-    rc.ctx.lineWidth = 2;
-    rc.ctx.strokeStyle = flashActive ? "#fef3c7" : withAlpha(tier.fill, 0.9);
+    style.rim(rc.ctx, args);
     rc.ctx.stroke();
 
     rc.ctx.beginPath();
@@ -365,14 +317,17 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
     rc.ctx.lineWidth = 1;
     rc.ctx.stroke();
 
-    const tickLen = z.radius * 0.22;
-    rc.ctx.strokeStyle = withAlpha("#ffffff", flashActive ? 0.5 : 0.2);
-    rc.ctx.beginPath();
-    rc.ctx.moveTo(x - tickLen, y);
-    rc.ctx.lineTo(x + tickLen, y);
-    rc.ctx.moveTo(x, y - tickLen);
-    rc.ctx.lineTo(x, y + tickLen);
-    rc.ctx.stroke();
+    if (style.crosshair) {
+      const tickLen = z.radius * 0.22;
+      rc.ctx.strokeStyle = withAlpha("#ffffff", flashActive ? 0.5 : 0.2);
+      rc.ctx.beginPath();
+      rc.ctx.moveTo(x - tickLen, y);
+      rc.ctx.lineTo(x + tickLen, y);
+      rc.ctx.moveTo(x, y - tickLen);
+      rc.ctx.lineTo(x, y + tickLen);
+      rc.ctx.stroke();
+    }
+    style.decorate?.(rc.ctx, args);
 
     // Zones that can drop loot: dashed arc on the rim (not a separate floating orb).
     if (tokenGlow && !flashActive) {
@@ -448,7 +403,7 @@ export function drawTokens(rc: RenderContext, field: TokenField) {
 
     rc.ctx.rotate(-spin);
     rc.ctx.fillStyle = "rgba(15,23,42,0.88)";
-    rc.ctx.font = `bold ${def.isGolden ? 12 : 10}px Inter, sans-serif`;
+    rc.ctx.font = `bold ${def.isGolden ? 12 : 10}px "Inter Variable", Inter, sans-serif`;
     rc.ctx.textAlign = "center";
     rc.ctx.textBaseline = "middle";
     rc.ctx.fillText(tokenGlyph(def.kind), 0, 0.5);
@@ -727,6 +682,9 @@ function drawBobSpecular(
 }
 
 export function drawEffects(rc: RenderContext, eff: EffectsState) {
+  const theme = getRenderTheme();
+  rc.ctx.save();
+  if (theme.additiveParticles) rc.ctx.globalCompositeOperation = "lighter";
   for (const p of eff.particles) {
     const a = 1 - p.life / p.maxLife;
     rc.ctx.fillStyle = withAlpha(p.color, a);
@@ -734,7 +692,8 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     rc.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     rc.ctx.fill();
   }
-  rc.ctx.font = `bold ${FLOAT_TEXT_FONT_SIZE}px Inter, sans-serif`;
+  rc.ctx.restore();
+  rc.ctx.font = `${theme.floatFont.weight} ${FLOAT_TEXT_FONT_SIZE}px ${theme.floatFont.family}`;
   rc.ctx.textAlign = "center";
   for (const f of eff.floats) {
     const a = 1 - f.life / f.maxLife;

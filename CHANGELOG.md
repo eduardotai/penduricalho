@@ -6,6 +6,14 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Shop themes
+
+### Added
+- **Themes tab in the Shop.** Visual themes are bought with Momentum and equipped like any other item. "Classic" (the original look) is free; **Watchmaker's Bench / Joalheria do Relojoeiro** (walnut and brass UI, Fraunces + Inter fonts, wood/lamp/gear backdrop, brass pivot with a ruby bearing, jewel-cut circles in brass bezels, additive particles) costs 25K. Ported from the `experiment/visual-watchmaker` draft into a theme system: Tailwind `slate`/`brand`/`amber`/`yellow` are CSS variables per theme (so the amber/yellow buttons now follow the theme too), and the canvas art comes from `src/game/themes/`.
+
+### Migration
+- Save v24: new `ownedThemes` (default `["classic"]`) and `themeId` (default `"classic"`). v23 saves load unchanged otherwise.
+
 ## [Unreleased] - Workshop / Arena Separation (Plan C) - 2026-06-xx
 
 ### Changed

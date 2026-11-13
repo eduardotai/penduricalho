@@ -43,8 +43,8 @@ Most `drawXxx(rc, ...)` functions expect the context to already have the worldâ†
 
 From the call site in GameCanvas (roughly):
 
-1. `drawScreenBackdrop`
-2. `drawSiteBackground` (the arena texture/color)
+1. `drawScreenBackdrop` (theme backdrop, see "Themes" below)
+2. `drawSiteAnchor` (theme pivot)
 3. `drawBlackHole` (if the site has one)
 4. `drawHitZones`
 5. `drawTokens`
@@ -109,3 +109,15 @@ Always add the new drawing call in the correct place in the drawing order inside
 - `src/components/CONTEXT.md` (how the canvas size + DPR + RAF interact with rendering)
 - `src/game/CONTEXT.md` (ViewTransform + world constants section)
 - `src/game/viewTransform.ts` (the actual math)
+
+## Themes
+
+The backdrop, rope pivot, hit-circle style (tiers, glow, rim, crosshair, extra
+decoration), particle blending and the "+N" font come from the active
+`RenderTheme` (`src/game/themes/`). `setRenderTheme(id)` is called from
+`main.tsx` whenever the store's `themeId` changes; render functions read it with
+`getRenderTheme()`. The UI side of a theme (Tailwind `slate`/`brand`/`amber`/
+`yellow` + fonts) is CSS variables from `src/data/themes.ts`, applied by
+`src/lib/applyTheme.ts`. To add a theme: add a `ThemeDef` in `data/themes.ts`
+and a `RenderTheme` in `game/themes/<id>.ts`, register it in
+`game/themes/index.ts` (tests/themes.test.ts fails if one is missing).
