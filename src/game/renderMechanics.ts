@@ -246,3 +246,104 @@ export function drawSpringWalls(
   }
   ctx.restore();
 }
+
+/**
+ * Generic screen-space map gauge at the top centre (same pill as the wind
+ * gauge): an icon, a label and a 0…1 bar in the map's accent colour.
+ */
+export function drawMapGauge(
+  ctx: CanvasRenderingContext2D,
+  screenWidth: number,
+  text: string,
+  frac: number,
+  color: string,
+  icon: string
+) {
+  const cx = screenWidth / 2;
+  const y = 18;
+  const f = Math.max(0, Math.min(1, frac));
+  ctx.save();
+  ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+  const boxW = Math.max(150, Math.ceil(ctx.measureText(text).width) + 56);
+  ctx.fillStyle = "rgba(8, 14, 28, 0.72)";
+  ctx.strokeStyle = color.replace(/[\d.]+\)$/, "0.6)");
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(cx - boxW / 2, y - 12, boxW, 34, 9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
+  ctx.fillStyle = color;
+  ctx.fillText(icon, cx - boxW / 2 + 20, y + 5);
+  ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(241, 245, 249, 0.95)";
+  ctx.fillText(text, cx - boxW / 2 + 38, y);
+  const bx = cx - boxW / 2 + 38;
+  const bw = boxW - 50;
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.fillRect(bx, y + 11, bw, 4);
+  ctx.fillStyle = color;
+  ctx.fillRect(bx, y + 11, bw * f, 4);
+  ctx.restore();
+}
+
+/**
+ * Conveyor Yard: rows of faint chevrons that scroll with the belt, so the
+ * floor visibly moves (and shows its direction) even between pops. World space.
+ */
+export function drawConveyorChevrons(
+  rc: RenderContext,
+  bounds: { x: number; y: number; w: number; h: number },
+  offset: number,
+  dir: number
+) {
+  const { ctx } = rc;
+  const pitch = 240;
+  const rowGap = 320;
+  const size = 34;
+  const shift = ((offset % pitch) + pitch) % pitch;
+  ctx.save();
+  ctx.strokeStyle = "rgba(251, 191, 36, 0.13)";
+  ctx.lineWidth = 10;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (let y = bounds.y + rowGap / 2; y < bounds.y + bounds.h; y += rowGap) {
+    ctx.fillStyle = "rgba(251, 191, 36, 0.04)";
+    ctx.fillRect(bounds.x, y - size * 1.6, bounds.w, size * 3.2);
+    for (let x = bounds.x - pitch + shift; x < bounds.x + bounds.w + pitch; x += pitch) {
+      ctx.beginPath();
+      ctx.moveTo(x - dir * size, y - size);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x - dir * size, y + size);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+/** Magnet Storm: a pink field ring around the bob while a pulse is pulling. World space. */
+export function drawMagnetPulse(rc: RenderContext, at: { x: number; y: number }, radius: number, strength: number) {
+  const { ctx, now } = rc;
+  const s = Math.max(0, Math.min(1, strength));
+  ctx.save();
+  const glow = ctx.createRadialGradient(at.x, at.y, radius * 0.2, at.x, at.y, radius);
+  glow.addColorStop(0, `rgba(244, 114, 182, ${0.1 * s})`);
+  glow.addColorStop(1, "rgba(244, 114, 182, 0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(at.x, at.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  // Inward-travelling rings read as "pulling".
+  ctx.lineWidth = 8;
+  for (let i = 0; i < 3; i++) {
+    const u = 1 - (((now / 700) + i / 3) % 1);
+    ctx.strokeStyle = `rgba(244, 114, 182, ${0.45 * s * (1 - u * 0.6)})`;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, radius * u, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}

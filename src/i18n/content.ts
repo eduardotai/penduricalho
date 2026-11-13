@@ -253,6 +253,21 @@ const ptContent: ContentDict = {
       description:
         "Um buraco negro fora do centro puxa tudo sem dó. As paredes impedem a fuga; leve o bob até o horizonte de eventos para jogar de novo da beira.",
     },
+    "moon-base": {
+      name: "Base Lunar",
+      description:
+        "Uma cratera murada sob uma lua inquieta. A gravidade sobe e desce em marés lentas: na maré baixa o bob flutua em loops enormes, na alta ele despenca com força. O medidor no topo mostra a gravidade atual.",
+    },
+    "conveyor-yard": {
+      name: "Pátio de Esteiras",
+      description:
+        "Um chão de fábrica onde todas as orbs andam numa esteira. O campo inteiro desliza de lado sob o balanço, dá a volta nas bordas e troca de sentido a cada poucos segundos, então sempre passam orbs novas no caminho do bob.",
+    },
+    "magnet-storm": {
+      name: "Tempestade Magnética",
+      description:
+        "Uma arena carregada onde o próprio ar é magnético. A cada poucos segundos um pulso puxa as orbs e drops próximos para o bob. Acerte o tempo dos loops para o pulso te entregar uma multidão. O medidor conta até o próximo pulso.",
+    },
   },
   shape: {
     "classic-sphere": {

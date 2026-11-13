@@ -334,6 +334,31 @@ export type SiteMechanic =
   minHitSpeed: number;
 }
   | {
+  /** Moon Base: gravity breathes between minGravity and maxGravity (× site gravity). */
+  kind: "tides";
+  periodMs: number;
+  minGravity: number;
+  maxGravity: number;
+}
+  | {
+  /** Conveyor Yard: every orb drifts sideways (wrapping at the field edge), flipping direction every flipMs. */
+  kind: "conveyor";
+  /** Drift speed in world units per second. */
+  speed: number;
+  flipMs: number;
+  /** Ease time around each flip. */
+  easeMs: number;
+}
+  | {
+  /** Magnet Storm: every few seconds a magnetic pulse drags nearby orbs (and tokens) toward the bob. */
+  kind: "magnetPulses";
+  calmMs: number;
+  pulseMs: number;
+  /** Same units as a Lodestone's pullStrength. */
+  pullStrength: number;
+  radius: number;
+}
+  | {
   kind: "springWalls";
   /** Ricochet speed multiplier on a (non-shattering) wall slam; plain walls use 1.22. */
   boost: number;
