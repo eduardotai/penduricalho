@@ -13,9 +13,10 @@ interface ControlPanelProps {
   onOpenSettings: () => void;
   onOpenTutorial?: () => void; // still passed from App, but button moved into Settings
   onOpenAchievements: () => void;
+  onOpenPrestige: () => void;
 }
 
-export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAchievements }: ControlPanelProps) {
+export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAchievements, onOpenPrestige }: ControlPanelProps) {
   const t = useT();
   const lang = useLang();
   const isRunning = useGameStore((s) => s.isRunning);
@@ -240,7 +241,7 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
         </div>
 
         {/* Primary navigation */}
-        <div className="grid grid-cols-[1fr_1.35fr_1fr] gap-1 rounded-xl border border-slate-700/70 bg-slate-950/55 p-1 sm:grid-cols-1 sm:gap-1.5 sm:p-1.5">
+        <div className="grid grid-cols-[1fr_1.35fr_1fr_1fr] gap-1 rounded-xl border border-slate-700/70 bg-slate-950/55 p-1 sm:grid-cols-1 sm:gap-1.5 sm:p-1.5">
           <button
             onClick={() => {
               AudioManager.unlock();
@@ -271,6 +272,21 @@ export default function ControlPanel({ onOpenCustomize, onOpenSettings, onOpenAc
             <span className="min-w-0 truncate leading-none">
               {t.controls.achievements ?? "Achievements"}
             </span>
+          </button>
+
+          <button
+            onClick={() => {
+              AudioManager.unlock();
+              playUiClick();
+              onOpenPrestige();
+            }}
+            className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[10px] font-bold uppercase text-slate-300 transition-colors hover:bg-slate-800/80 hover:text-white sm:justify-start sm:px-4 sm:text-sm"
+            aria-label={t.prestige.button}
+          >
+            <span className="text-base leading-none" aria-hidden>
+              🌟
+            </span>
+            <span className="hidden min-w-0 truncate leading-none sm:inline">{t.prestige.button}</span>
           </button>
 
           <button

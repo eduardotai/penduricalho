@@ -102,6 +102,8 @@ export interface ClickGainInput {
   isRunning: boolean;
   arcSurgeActive: boolean;
   arcSurgeMult: number;
+  /** Prestige (and later global upgrade) income multiplier. */
+  globalMult: number;
 }
 
 export function computeClickGain(input: ClickGainInput): number {
@@ -118,7 +120,8 @@ export function computeClickGain(input: ClickGainInput): number {
     comboBonus *
     ach *
     surge *
-    runFactor;
+    runFactor *
+    input.globalMult;
   return Math.max(1, Math.floor(raw));
 }
 

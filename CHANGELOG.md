@@ -6,6 +6,15 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Prestige
+
+### Added
+- **Prestige ("Engrenagens" / Cogs).** New 🌟 Prestígio button and panel. Total cogs ever earned = floor(sqrt(all-time Momentum / 100K)) (1M → 3, 10M → 10, 100M → 31, 1B → 100); a reset grants the cogs not yet held, needs at least 1M all-time Momentum and no live run, and asks for confirmation. Each cog is a permanent +5% income multiplier on zone hits, workshop clicks and generator CPS (and so offline idle), multiplying with the achievement bonus, item levels and workshop multipliers.
+- Resets Momentum, gear and levels, workshop machines/upgrades/Run Charge, Golden Token bonus time/ready tokens/buffs, and this cycle's stats. Keeps cogs, achievements, themes, settings, best run and lifetime counters.
+
+### Migration
+- Save v25: `prestigeCogs`, `prestigeCount`, `prestigeLifetimeMomentum` (all 0). An existing save's lifetime Momentum counts toward the first reset.
+
 ## [Unreleased] - Shop themes
 
 ### Added

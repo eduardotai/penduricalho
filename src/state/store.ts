@@ -15,6 +15,12 @@ import { STARTER_SHAPE_ID, SHAPE_MAP } from "../data/bobShapes";
 import { MODIFIER_MAP } from "../data/modifiers";
 import { DEFAULT_THEME_ID, THEME_MAP } from "../data/themes";
 import {
+  allTimeMomentum,
+  canPrestige,
+  globalIncomeMult,
+  prestigeGain,
+} from "../game/prestige";
+import {
   cappedAdditiveDuration,
   sumPersistentRemainingMs,
 } from "../game/modifiers";
@@ -199,6 +205,10 @@ export interface GameState {
   /** Shop themes (v24). `themeId` is the equipped one; always owned. */
   ownedThemes: string[];
   themeId: string;
+  /** Prestige (v25): permanent cogs held, resets done, Momentum earned before the last reset. */
+  prestigeCogs: number;
+  prestigeCount: number;
+  prestigeLifetimeMomentum: number;
 
   addMomentum: (n: number) => void;
   registerClick: (now: number) => number;
@@ -219,6 +229,12 @@ export interface GameState {
   buy: (kind: ItemKind, id: string) => boolean;
   buyTheme: (id: string) => boolean;
   equipTheme: (id: string) => void;
+  /**
+   * Prestige reset. Converts all-time Momentum into permanent cogs and resets
+   * the economy (see PRESTIGE_RESETS in the store). Returns cogs gained, or 0
+   * (and changes nothing) if not allowed or a run is live.
+   */
+  prestige: () => number;
   // Spend Momentum to add `count` levels (default 1) to an owned bob or rope.
   // All-or-nothing: returns false if the item isn't owned or the player can't
   // afford the full batch.
@@ -442,7 +458,8 @@ function workshopSnapshot(s: GameState) {
     s.clickUpgradeLevels,
     CLICK_UPGRADE_EFFECTS
   );
-  const cachedTotalCps = computeTotalCps(s.generatorCounts, GENERATORS, workshopMult);
+  const cachedTotalCps =
+    computeTotalCps(s.generatorCounts, GENERATORS, workshopMult) * globalIncomeMult(s);
   return { clickMult, workshopMult, extraBaseClick, cachedTotalCps };
 }
 
@@ -532,6 +549,9 @@ function getCost(kind: ItemKind, id: string): number | null {
   return null;
 }
 
+/** Persisted save schema version. Bump with a `version < N` step in migrateSave. */
+export const SAVE_VERSION = 25;
+
 /** Persisted-save migration (exported for tests). Never delete old steps. */
 export function migrateSave(persisted: unknown, version: number): unknown {
   const state = persisted as Record<string, unknown>;
@@ -542,6 +562,14 @@ export function migrateSave(persisted: unknown, version: number): unknown {
   if (version < 24) {
     if (!Array.isArray(state.ownedThemes)) state.ownedThemes = [DEFAULT_THEME_ID];
     if (typeof state.themeId !== "string") state.themeId = DEFAULT_THEME_ID;
+  }
+  // Prestige (v25): permanent cogs + counters start at zero. The save's
+  // existing stats.totalMomentum already counts toward the first reset.
+  if (version < 25) {
+    for (const k of ["prestigeCogs", "prestigeCount", "prestigeLifetimeMomentum"]) {
+      const v = state[k];
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0) state[k] = 0;
+    }
   }
 
   // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
@@ -774,6 +802,9 @@ export const useGameStore = create<GameState>()(
       lastCookieGain: 0,
       ownedThemes: [DEFAULT_THEME_ID],
       themeId: DEFAULT_THEME_ID,
+      prestigeCogs: 0,
+      prestigeCount: 0,
+      prestigeLifetimeMomentum: 0,
 
       // Achievements (new in v20)
       unlockedAchievements: {},
@@ -860,6 +891,7 @@ export const useGameStore = create<GameState>()(
           isRunning: s.isRunning,
           arcSurgeActive: s.arcSurgeUntil > now,
           arcSurgeMult: s.arcSurgeMult,
+          globalMult: globalIncomeMult(s),
         });
         const charge = Math.min(
           CLICKER_TUNING.runChargeMax,
@@ -1015,6 +1047,51 @@ export const useGameStore = create<GameState>()(
 
       equipTheme: (id) =>
         set((s) => (s.ownedThemes.includes(id) && THEME_MAP.has(id) ? { themeId: id } : s)),
+
+      prestige: () => {
+        const s = get();
+        if (s.isRunning) return 0;
+        const allTime = allTimeMomentum(s.prestigeLifetimeMomentum, s.stats.totalMomentum);
+        if (!canPrestige(allTime, s.prestigeCogs)) return 0;
+        const gained = prestigeGain(allTime, s.prestigeCogs);
+        set((prev) => ({
+          // --- persists: achievements + their feat counters, themes, settings,
+          // camera, language, tutorial, lifetime records (totalRuns,
+          // bestRunMomentum, golden/black-hole/arc-surge counters).
+          prestigeCogs: prev.prestigeCogs + gained,
+          prestigeCount: prev.prestigeCount + 1,
+          prestigeLifetimeMomentum: allTime,
+          // --- resets: the economy of this cycle.
+          momentum: 0,
+          stats: initialStats,
+          owned: initialOwned,
+          equipped: initialEquipped,
+          itemLevels: {},
+          generatorCounts: {},
+          clickUpgradeLevels: {},
+          baseClickPower: CLICKER_TUNING.baseClickPowerDefault,
+          clickCombo: { count: 0, lastClickAt: 0 },
+          runCharge: 0,
+          cachedTotalCps: 0,
+          arenaIdleRatePerSec: 0,
+          idleRatePerSec: 0,
+          activeRunBurstMult: 1,
+          activeWorkshopSynergyMult: 1,
+          arcSurgeUntil: 0,
+          goldenTokenBonusMs: 0,
+          pendingGoldenTokens: 0,
+          activeModifiers: [],
+          persistentBonuses: [],
+          combo: { count: 0, lastHitAt: 0 },
+          runMomentum: 0,
+          runStalled: true,
+          guaranteedFirstDrop: false,
+          guaranteedFirstBuff: false,
+          worldVersion: prev.worldVersion + 1,
+        }));
+        get().checkAchievements();
+        return gained;
+      },
 
       levelUp: (kind, id, count = 1) => {
         const def =
@@ -1538,11 +1615,14 @@ export const useGameStore = create<GameState>()(
           totalArcSurges: 0,
           ownedThemes: [DEFAULT_THEME_ID],
           themeId: DEFAULT_THEME_ID,
+          prestigeCogs: 0,
+          prestigeCount: 0,
+          prestigeLifetimeMomentum: 0,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 24,
+      version: SAVE_VERSION,
       migrate: migrateSave,
       merge: (persistedState, currentState) => mergeSave(persistedState, currentState as GameState),
       partialize: (state) => ({
@@ -1583,6 +1663,9 @@ export const useGameStore = create<GameState>()(
         arenaIdleRatePerSec: state.arenaIdleRatePerSec,
         ownedThemes: state.ownedThemes,
         themeId: state.themeId,
+        prestigeCogs: state.prestigeCogs,
+        prestigeCount: state.prestigeCount,
+        prestigeLifetimeMomentum: state.prestigeLifetimeMomentum,
       }),
     }
   )
