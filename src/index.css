@@ -163,3 +163,456 @@ select {
     transform: translateY(-2.5rem);
   }
 }
+
+/* ===================================================================
+   REDESIGN — "Bancada de Ensaio" (test bench) design system.
+   The UI is a physical lab instrument bolted around the arena:
+   machined faceplates, silkscreened labels, LCD readouts and
+   keycap buttons with real travel. Every colour reads the theme
+   CSS variables, so shop themes still re-skin the whole bench.
+   See docs/redesign.md.
+   =================================================================== */
+
+:root {
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ease-snap: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.font-display,
+h1,
+h2,
+h3 {
+  font-stretch: 118%;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+@layer components {
+  /* Faceplate: the base surface of every panel and window. */
+  .plate {
+    position: relative;
+    border-radius: 12px;
+    border: 1px solid rgb(var(--c-slate-700) / 0.75);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 38%),
+      linear-gradient(180deg, rgb(var(--c-slate-900) / 0.94), rgb(var(--c-slate-950) / 0.96));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.07),
+      inset 0 -1px 0 rgb(0 0 0 / 0.45),
+      0 18px 40px -18px rgb(0 0 0 / 0.85);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  /* Four corner screws, drawn with gradients (no extra DOM). */
+  .plate-screws::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 5px;
+    border-radius: 8px;
+    --screw: radial-gradient(circle at 50% 50%, rgb(var(--c-slate-400) / 0.55) 0 1.2px, rgb(var(--c-slate-600) / 0.9) 1.3px 2.6px, transparent 2.8px);
+    background:
+      var(--screw) top left / 6px 6px no-repeat,
+      var(--screw) top right / 6px 6px no-repeat,
+      var(--screw) bottom left / 6px 6px no-repeat,
+      var(--screw) bottom right / 6px 6px no-repeat;
+    opacity: 0.8;
+  }
+  /* Recessed sub-panel (a milled pocket inside a plate). */
+  .well {
+    border-radius: 9px;
+    border: 1px solid rgb(0 0 0 / 0.45);
+    background: rgb(var(--c-slate-950) / 0.55);
+    box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.45), 0 1px 0 rgb(255 255 255 / 0.04);
+  }
+  /* Silkscreen label. */
+  .silk {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgb(var(--c-slate-400));
+  }
+  .silk-tick::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 1px;
+    margin-right: 6px;
+    vertical-align: middle;
+    background: currentColor;
+    opacity: 0.6;
+  }
+  /* LCD readout: inset glass with faint scanlines and a phosphor glow. */
+  .readout {
+    border-radius: 8px;
+    border: 1px solid rgb(0 0 0 / 0.6);
+    background:
+      repeating-linear-gradient(0deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px),
+      radial-gradient(120% 140% at 10% 0%, rgb(var(--c-brand-500) / 0.12), transparent 60%),
+      rgb(var(--c-slate-950) / 0.92);
+    box-shadow: inset 0 2px 8px rgb(0 0 0 / 0.7), 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+  .readout-digits {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgb(var(--c-brand-300));
+    text-shadow: 0 0 14px rgb(var(--c-brand-500) / 0.45);
+  }
+
+  /* Keycap button with real travel. */
+  .key {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9px;
+    border: 1px solid rgb(0 0 0 / 0.55);
+    background: linear-gradient(180deg, rgb(var(--c-slate-700)), rgb(var(--c-slate-800)));
+    color: rgb(var(--c-slate-100));
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 3px 0 rgb(var(--c-slate-950)),
+      0 7px 14px -6px rgb(0 0 0 / 0.75);
+    transform: translateY(0);
+    transition: transform 90ms var(--ease-out), box-shadow 90ms var(--ease-out), filter 150ms, background 150ms;
+  }
+  .key:hover:not(:disabled) {
+    filter: brightness(1.12);
+  }
+  .key:active:not(:disabled),
+  .key[data-pressed="true"] {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.1),
+      0 1px 0 rgb(var(--c-slate-950)),
+      0 3px 6px -4px rgb(0 0 0 / 0.75);
+  }
+  .key:disabled {
+    cursor: not-allowed;
+    filter: saturate(0.2) brightness(0.75);
+    opacity: 0.7;
+  }
+  .key:focus-visible,
+  .tab:focus-visible,
+  .switch:focus-visible {
+    outline: 2px solid rgb(var(--c-brand-400));
+    outline-offset: 2px;
+  }
+  .key-primary {
+    background: linear-gradient(180deg, rgb(var(--c-brand-400)), rgb(var(--c-brand-600)));
+    color: rgb(var(--c-slate-950));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 3px 0 rgb(var(--c-brand-800)),
+      0 10px 22px -8px rgb(var(--c-brand-500) / 0.65);
+  }
+  .key-primary:active:not(:disabled) {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 1px 0 rgb(var(--c-brand-800)),
+      0 4px 10px -6px rgb(var(--c-brand-500) / 0.6);
+  }
+  .key-gold {
+    background: linear-gradient(180deg, rgb(var(--c-yellow-300)), rgb(var(--c-amber-500)));
+    color: rgb(var(--c-slate-950));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      0 3px 0 rgb(var(--c-amber-800)),
+      0 0 26px -6px rgb(var(--c-yellow-400) / 0.85);
+  }
+  .key-go {
+    background: linear-gradient(180deg, #34d399, #059669);
+    color: #022c22;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 3px 0 #065f46,
+      0 8px 16px -8px rgb(16 185 129 / 0.6);
+  }
+  .key-danger {
+    background: linear-gradient(180deg, #e11d48, #9f1239);
+    color: #fff1f2;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.25),
+      0 3px 0 #4c0519,
+      0 8px 16px -8px rgb(225 29 72 / 0.6);
+  }
+  .key-ghost {
+    background: rgb(var(--c-slate-900) / 0.6);
+    border-color: rgb(var(--c-slate-700) / 0.8);
+    color: rgb(var(--c-slate-300));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 0 rgb(0 0 0 / 0.5);
+  }
+  /* Square icon-only key. */
+  .key-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+  }
+
+  /* Hardware toggle: LED + label on a rocker. */
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9px;
+    border: 1px solid rgb(0 0 0 / 0.5);
+    background: linear-gradient(180deg, rgb(var(--c-slate-800) / 0.95), rgb(var(--c-slate-900) / 0.95));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 2px 0 rgb(0 0 0 / 0.55);
+    padding: 0.5rem 0.65rem;
+    color: rgb(var(--c-slate-300));
+    transition: transform 90ms var(--ease-out), box-shadow 90ms;
+  }
+  .switch:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 0 rgb(0 0 0 / 0.55);
+  }
+  .led {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: radial-gradient(circle at 35% 35%, rgb(var(--c-slate-500)), rgb(var(--c-slate-700)));
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.5);
+  }
+  .led-on {
+    background: radial-gradient(circle at 35% 35%, rgb(var(--c-brand-200)), rgb(var(--c-brand-500)));
+    box-shadow: 0 0 10px 1px rgb(var(--c-brand-400) / 0.75);
+  }
+  .led-gold {
+    background: radial-gradient(circle at 35% 35%, rgb(var(--c-yellow-200)), rgb(var(--c-yellow-500)));
+    box-shadow: 0 0 10px 1px rgb(var(--c-yellow-400) / 0.75);
+  }
+
+  /* Index tabs (drawer dividers). */
+  .tabbar {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid rgb(var(--c-slate-700) / 0.7);
+  }
+  .tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  .tab {
+    position: relative;
+    flex-shrink: 0;
+    white-space: nowrap;
+    border-radius: 8px 8px 0 0;
+    padding: 0.55rem 0.8rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--c-slate-400));
+    transition: color 150ms, background 150ms;
+  }
+  .tab:hover {
+    color: rgb(var(--c-slate-100));
+    background: rgb(var(--c-slate-800) / 0.5);
+  }
+  .tab[aria-selected="true"] {
+    color: rgb(var(--c-brand-200));
+    background: linear-gradient(180deg, rgb(var(--c-slate-800) / 0.9), rgb(var(--c-slate-900) / 0.4));
+  }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: rgb(var(--c-brand-400));
+    box-shadow: 0 0 10px rgb(var(--c-brand-400) / 0.8);
+  }
+
+  /* Item card inside windows. */
+  .card {
+    border-radius: 10px;
+    border: 1px solid rgb(var(--c-slate-800));
+    background: linear-gradient(180deg, rgb(var(--c-slate-900) / 0.75), rgb(var(--c-slate-950) / 0.55));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+    transition: border-color 150ms, transform 150ms var(--ease-out), background 150ms;
+  }
+  .card:hover {
+    border-color: rgb(var(--c-slate-700));
+  }
+  .card-lit {
+    border-color: rgb(var(--c-brand-500) / 0.65);
+    background:
+      linear-gradient(90deg, rgb(var(--c-brand-500) / 0.14), transparent 55%),
+      linear-gradient(180deg, rgb(var(--c-slate-900) / 0.75), rgb(var(--c-slate-950) / 0.55));
+    box-shadow: inset 3px 0 0 rgb(var(--c-brand-400)), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid currentColor;
+  }
+
+  /* Ruler strip — the window "lid" detail. */
+  .ruler {
+    height: 8px;
+    background:
+      repeating-linear-gradient(90deg, rgb(var(--c-slate-500) / 0.55) 0 1px, transparent 1px 8px),
+      repeating-linear-gradient(90deg, rgb(var(--c-slate-400) / 0.8) 0 1px, transparent 1px 40px);
+    background-size: 8px 4px, 40px 8px;
+    background-repeat: repeat-x;
+    background-position: 0 0, 0 0;
+    opacity: 0.5;
+  }
+  .hazard {
+    background: repeating-linear-gradient(-45deg, rgb(225 29 72 / 0.22) 0 8px, transparent 8px 16px);
+  }
+  .meter {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: rgb(var(--c-slate-950) / 0.9);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.7);
+  }
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background:
+      repeating-linear-gradient(90deg, transparent 0 5px, rgb(0 0 0 / 0.28) 5px 6px),
+      linear-gradient(90deg, rgb(var(--c-brand-500)), rgb(var(--c-brand-300)));
+    transition: width 200ms var(--ease-out);
+  }
+}
+
+/* --- motion --- */
+@keyframes win-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-drop {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.96); }
+  60% { opacity: 1; transform: translateY(2px) scale(1.01); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes swing {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(14deg); }
+}
+@keyframes title-in {
+  from { opacity: 0; letter-spacing: 0.4em; filter: blur(6px); }
+  to { opacity: 1; filter: none; }
+}
+@keyframes blink-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.win-rise { animation: win-rise 280ms var(--ease-out) both; }
+.scrim-in { animation: scrim-in 200ms ease-out both; }
+.stagger > * { animation: stagger-in 320ms var(--ease-out) both; }
+.stagger > *:nth-child(2) { animation-delay: 30ms; }
+.stagger > *:nth-child(3) { animation-delay: 60ms; }
+.stagger > *:nth-child(4) { animation-delay: 90ms; }
+.stagger > *:nth-child(5) { animation-delay: 120ms; }
+.stagger > *:nth-child(6) { animation-delay: 150ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 180ms; }
+.toast-drop { animation: toast-drop 420ms var(--ease-snap) both; }
+.swing { transform-origin: 50% 0; animation: swing 2.4s ease-in-out infinite; }
+.blink-soft { animation: blink-soft 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .win-rise,
+  .scrim-in,
+  .stagger > *,
+  .toast-drop,
+  .swing,
+  .blink-soft {
+    animation: none !important;
+  }
+}
+@keyframes toast-pop {
+  0% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.toast-pop { animation: toast-pop 180ms var(--ease-out) both; transform-origin: 100% 0; }
+@media (prefers-reduced-motion: reduce) { .toast-pop { animation: none !important; } }
+
+/* Fader: range input styled as a mixing-desk slider (track fill via --fill). */
+.fader {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+}
+.fader::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, rgb(var(--c-brand-400)) 0 var(--fill, 50%), rgb(var(--c-slate-950)) var(--fill, 50%));
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.8), 0 1px 0 rgb(255 255 255 / 0.05);
+}
+.fader::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--c-slate-950));
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.8);
+}
+.fader::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--c-brand-400));
+}
+.fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -8px;
+  width: 14px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  background:
+    linear-gradient(180deg, transparent 45%, rgb(var(--c-brand-300)) 45% 55%, transparent 55%),
+    linear-gradient(180deg, rgb(var(--c-slate-300)), rgb(var(--c-slate-500)));
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.4);
+}
+.fader::-moz-range-thumb {
+  width: 14px;
+  height: 22px;
+  border-radius: 3px;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  background:
+    linear-gradient(180deg, transparent 45%, rgb(var(--c-brand-300)) 45% 55%, transparent 55%),
+    linear-gradient(180deg, rgb(var(--c-slate-300)), rgb(var(--c-slate-500)));
+}
+.fader:focus-visible {
+  outline: 2px solid rgb(var(--c-brand-400));
+  outline-offset: 3px;
+  border-radius: 4px;
+}

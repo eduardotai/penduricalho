@@ -303,6 +303,21 @@ export const en = {
     cancel: "Cancel",
     done: (n: number) => `+${n} Cog${n === 1 ? "" : "s"}! The workshop starts over, faster.`,
   },
+  title: {
+    tagline: "A pendulum test bench. Swing, snap, collect.",
+    kicker: "Test bench · No. 01",
+    enter: "Enter the bench",
+    continueAs: (m: string) => `Momentum on the bench: ${m}`,
+    pressAnyKey: "Press Enter or tap to start",
+    loading: "Loading the bench",
+  },
+  music: {
+    nowPlaying: "Now playing",
+    tracks: "Soundtrack",
+    menuTrack: "Menu",
+    runTrack: "Arena",
+    credit: "Original soundtrack synthesised for Penduricalho, released CC0. See CREDITS.md.",
+  },
   idle: {
     whileAway: "While you were away",
     momentumWord: "momentum",
@@ -779,6 +794,21 @@ export const pt: UIStrings = {
     confirm: "Sim, prestígio",
     cancel: "Cancelar",
     done: (n: number) => `+${n} Engrenage${n === 1 ? "m" : "ns"}! A oficina recomeça, mais rápida.`,
+  },
+  title: {
+    tagline: "Uma bancada de ensaio de pêndulos. Balance, arrebente, colete.",
+    kicker: "Bancada de ensaio · Nº 01",
+    enter: "Entrar na bancada",
+    continueAs: (m: string) => `Momentum na bancada: ${m}`,
+    pressAnyKey: "Aperte Enter ou toque para começar",
+    loading: "Montando a bancada",
+  },
+  music: {
+    nowPlaying: "Tocando agora",
+    tracks: "Trilha sonora",
+    menuTrack: "Menu",
+    runTrack: "Arena",
+    credit: "Trilha original sintetizada para o Penduricalho, liberada em CC0. Veja CREDITS.md.",
   },
   idle: {
     whileAway: "Enquanto você estava fora",

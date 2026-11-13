@@ -1,93 +1,62 @@
-import { useEffect } from "react";
 import { playUiClick } from "../audio/soundMap";
 import { useT } from "../i18n";
+import Window from "./ui/Window";
+import { PendulumGlyph } from "./ui/icons";
+import { Play } from "lucide-react";
 
 interface TutorialProps {
   open: boolean;
   onClose: () => void;
 }
 
+/** How to Play: the bench's operating procedure, one numbered step per card. */
 export default function Tutorial({ open, onClose }: TutorialProps) {
   const t = useT();
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4"
-      data-no-camera-zoom
-      onClick={onClose}
-    >
-      <div
-        className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(640px,88vh)] sm:max-w-lg sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-4 sm:px-5 sm:py-4">
-          <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">
-              🪀 {t.tutorial.title}
-            </h2>
-            <p className="text-xs text-slate-400">{t.tutorial.subtitle}</p>
-          </div>
-          <button
-            onClick={() => {
-              playUiClick();
-              onClose();
-            }}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
-          >
-            {t.settings.close}
-          </button>
-        </header>
-
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-          <ol className="space-y-3">
-            {t.tutorial.steps.map((step, i) => (
-              <li
-                key={step.title}
-                className="flex gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 sm:px-4 sm:py-3"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600 font-display text-sm font-bold text-white">
-                  {i + 1}
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-slate-100">
-                    {step.title}
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
-                    {step.body}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <footer className="border-t border-slate-800 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
+    <Window
+      open={open}
+      onClose={onClose}
+      title={t.tutorial.title}
+      subtitle={t.tutorial.subtitle}
+      icon={PendulumGlyph as never}
+      code="00 / MANUAL"
+      closeLabel={t.settings.close}
+      sizeClass="sm:h-[min(680px,90vh)] sm:max-w-xl"
+      testId="tutorial-window"
+      footer={
+        <>
           <button
             type="button"
             onClick={() => {
               playUiClick();
               onClose();
             }}
-            className="w-full rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-3 font-display text-base font-bold uppercase tracking-wider text-white shadow-lg transition-all hover:shadow-brand-500/30 active:scale-[0.98]"
+            className="key key-primary min-h-[52px] w-full px-6 text-base"
           >
+            <Play size={18} strokeWidth={2.25} fill="currentColor" aria-hidden />
             {t.tutorial.start}
           </button>
-          <p className="mt-2 text-center text-[11px] text-slate-600">
-            {t.tutorial.reopenHint}
-          </p>
-        </footer>
-      </div>
-    </div>
+          <p className="mt-2 text-center font-mono text-[10px] text-slate-500">{t.tutorial.reopenHint}</p>
+        </>
+      }
+    >
+      <ol className="space-y-2">
+        {t.tutorial.steps.map((step, i) => (
+          <li key={step.title} className="card flex gap-3 p-3">
+            <span
+              className="readout flex h-10 w-10 shrink-0 items-center justify-center font-mono text-lg font-bold text-brand-300"
+              aria-hidden
+            >
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <div className="font-display text-sm font-bold uppercase tracking-wide text-slate-50">{step.title}</div>
+              <p className="mt-0.5 text-xs leading-relaxed text-slate-400">{step.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </Window>
   );
 }

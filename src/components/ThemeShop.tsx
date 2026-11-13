@@ -7,6 +7,7 @@ import { RENDER_THEMES } from "../game/themes";
 import { SITE_MAP, STARTER_SITE_ID } from "../data/sites";
 import { withAlpha } from "../game/bobRenderUtils";
 import { useLang, useT } from "../i18n";
+import { Check, Minus } from "lucide-react";
 
 /** Shop tab: buy and equip visual themes with Momentum. */
 export default function ThemeShop() {
@@ -20,7 +21,7 @@ export default function ThemeShop() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="theme-shop">
-      <p className="text-xs text-slate-400">{t.customize.themesIntro}</p>
+      <p className="text-xs leading-relaxed text-slate-400">{t.customize.themesIntro}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {THEMES.map((theme) => {
           const owned = ownedThemes.includes(theme.id);
@@ -30,16 +31,19 @@ export default function ThemeShop() {
             <div
               key={theme.id}
               data-theme-card={theme.id}
-              className={`flex flex-col overflow-hidden rounded-xl border bg-slate-900/50 transition-colors ${
-                equipped ? "border-brand-500/70" : "border-slate-800 hover:border-slate-700"
-              }`}
+              className={`card flex flex-col overflow-hidden ${equipped ? "card-lit" : ""}`}
             >
               <ThemePreview theme={theme} />
               <div className="flex flex-1 flex-col gap-2 p-3">
+                <div className="flex gap-1" aria-hidden>
+                  {theme.swatch.map((c) => (
+                    <span key={c} className="h-2 w-6 rounded-sm ring-1 ring-black/40" style={{ background: c }} />
+                  ))}
+                </div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-slate-100">{theme.name[lang]}</h3>
+                  <h3 className="font-display text-sm font-bold uppercase tracking-wide text-slate-50">{theme.name[lang]}</h3>
                   {equipped && (
-                    <span className="rounded bg-brand-500/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-200">
+                    <span className="tag text-brand-300">
                       {t.customize.equipped}
                     </span>
                   )}
@@ -47,20 +51,16 @@ export default function ThemeShop() {
                 <p className="flex-1 text-xs text-slate-400">{theme.description[lang]}</p>
                 <div className="flex items-center justify-between gap-2">
                   {owned ? (
-                    <span className="text-[11px] text-slate-500">
-                      {theme.cost === 0 ? "—" : "✓"}
+                    <span className="text-slate-500" aria-hidden>
+                      {theme.cost === 0 ? <Minus size={14} /> : <Check size={14} strokeWidth={2.5} className="text-emerald-400" />}
                     </span>
                   ) : (
-                    <div className="font-display text-sm font-semibold text-brand-300">
-                      <FormattedNumber
-                        value={theme.cost}
-                        className="font-display text-sm font-semibold text-brand-300"
-                      />
-                    </div>
+                    <FormattedNumber value={theme.cost} className="font-mono text-sm font-bold text-brand-300" />
                   )}
                   {owned ? (
                     equipped ? (
-                      <span className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400">
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-brand-300">
+                        <span className="led led-on" aria-hidden />
                         {t.customize.inUse}
                       </span>
                     ) : (
@@ -70,7 +70,7 @@ export default function ThemeShop() {
                           equipTheme(theme.id);
                           playGameSound("ui-equip");
                         }}
-                        className="flex min-h-[44px] items-center justify-center rounded-md bg-slate-700 px-4 text-xs font-semibold text-white hover:bg-slate-600"
+                        className="key min-h-[44px] px-4 text-xs"
                       >
                         {t.customize.equip}
                       </button>
@@ -84,11 +84,7 @@ export default function ThemeShop() {
                         if (ok) equipTheme(theme.id);
                       }}
                       disabled={!canAfford}
-                      className={`flex min-h-[44px] items-center justify-center rounded-md px-4 text-xs font-semibold transition-colors ${
-                        canAfford
-                          ? "bg-brand-600 text-white hover:bg-brand-500"
-                          : "cursor-not-allowed bg-slate-800 text-slate-500"
-                      }`}
+                      className={`key ${canAfford ? "key-primary" : ""} min-h-[44px] px-4 text-xs`}
                     >
                       {t.customize.buy}
                     </button>

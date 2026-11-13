@@ -13,10 +13,15 @@ Two parallel systems:
    - Purely synthesized tones, noise bursts, filtered noise, etc.
    - Designed as temporary high-quality placeholders until real audio assets are added.
 
-2. **Background Music** (`backgroundMusic.ts`)
-   - Uses **Howler.js** (looping ogg/mp3).
-   - Simple play/pause + volume control.
-   - One track currently (`benkyou-loop`).
+2. **Soundtrack** (`musicDirector.ts` + `musicTracks.ts`)
+   - Four original CC0 tracks in `public/music/` (built by `scripts/music/compose.py`).
+   - Howler html5 streaming, lazy; menu theme vs rotating arena tracks, 1.8s crossfades.
+   - Pure rules (next track, mood, level) live in `musicTracks.ts`; the sequencing state machine
+     (preload 12s ahead, overlap-crossfade 1.8s before the end, keep the old track until the new
+     one is ready, pause/resume on level 0, watchdog) is `musicController.ts`. Both are unit-tested.
+   - Howler 2.2 html5 gotcha: volume/fade/pause called while a play() promise is pending get
+     queued and never run (its 'play' event only drains play tasks). The backend in
+     `musicDirector.ts` holds those ops until its own 'play' event. Don't call Howler directly.
 
 A thin `soundMap.ts` + `playGameSound()` function gives the rest of the game a stable, named API.
 
@@ -80,13 +85,11 @@ This is the function the game loop and UI should call. It respects global mute/v
 
 ---
 
-## Background Music
+## Soundtrack
 
-- Created once, controlled via `playBackgroundMusic()`, `stopBackgroundMusic()`, `setMusicVolume()`.
-- Currently a single chill electronic loop.
-- Volume is affected by the `ambientEnabled` + `sfxVolume` settings (see AudioManager volume resolution).
-
----
+- `AudioManager.syncMusic(settings)` → `MusicDirector.setLevel(master × music)`; 0 when muted/disabled/hidden tab.
+- `App.tsx` sets the mood from `isRunning` (`resolveMood`, 20s linger after a run).
+- Credits and licences: `CREDITS.md`, `docs/redesign.md`.
 
 ## Integration Points
 

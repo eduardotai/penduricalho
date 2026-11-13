@@ -4,6 +4,21 @@ import { drawBobSkin } from "../game/render";
 import { bobRadius } from "../game/pendulum";
 import { FormattedNumber } from "./FormattedNumber";
 import ThemeShop from "./ThemeShop";
+import Window, { type WindowTab } from "./ui/Window";
+import {
+  Cable,
+  ChartColumn,
+  Check,
+  CircleDot,
+  Lock,
+  Map as MapIcon,
+  Palette,
+  Rocket,
+  Shapes,
+  ShoppingBag,
+  SwatchBook,
+  Link2,
+} from "lucide-react";
 import GlobalUpgradeShop from "./GlobalUpgradeShop";
 import { formatNumber } from "../lib/formatNumber";
 import { useGameStore } from "../state/store";
@@ -56,88 +71,47 @@ export default function Customize({ open, onClose }: CustomizeProps) {
   // across the bob & rope tabs and reset to 1 each time the shop opens.
   const [buyAmount, setBuyAmount] = useState<BuyAmount>(1);
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "pendulum", label: t.customize.tabPendulum },
-    { id: "attachment", label: t.customize.tabAttachment },
-    { id: "combo", label: t.customize.tabCombos },
-    { id: "site", label: t.customize.tabSite },
-    { id: "skin", label: t.customize.tabSkin },
-    { id: "shape", label: t.customize.tabShape },
-    { id: "boost", label: t.customize.tabBoost },
-    { id: "theme", label: t.customize.tabTheme },
-    { id: "stats", label: t.customize.tabStats },
+  const tabs: WindowTab<Tab>[] = [
+    { id: "pendulum", label: t.customize.tabPendulum, icon: CircleDot },
+    { id: "attachment", label: t.customize.tabAttachment, icon: Cable },
+    { id: "combo", label: t.customize.tabCombos, icon: Link2 },
+    { id: "site", label: t.customize.tabSite, icon: MapIcon },
+    { id: "skin", label: t.customize.tabSkin, icon: Palette },
+    { id: "shape", label: t.customize.tabShape, icon: Shapes },
+    { id: "boost", label: t.customize.tabBoost, icon: Rocket },
+    { id: "theme", label: t.customize.tabTheme, icon: SwatchBook },
+    { id: "stats", label: t.customize.tabStats, icon: ChartColumn },
   ];
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4"
-      data-no-camera-zoom
-      onClick={onClose}
+    <Window
+      open={open}
+      onClose={onClose}
+      title={t.customize.shopTitle}
+      subtitle={t.customize.shopSubtitle}
+      icon={ShoppingBag}
+      code="01 / SHOP"
+      closeLabel={t.customize.close}
+      headerExtra={<MomentumBadge />}
+      tabs={tabs}
+      activeTab={tab}
+      onTab={setTab}
+      testId="shop-window"
     >
-      <div
-        className="relative flex h-full max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-700/60 bg-slate-950/95 shadow-2xl sm:h-[min(720px,90vh)] sm:max-w-3xl sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:py-4">
-          <div>
-            <h2 className="font-display text-xl font-bold text-slate-100">{t.customize.shopTitle}</h2>
-            <p className="text-xs text-slate-400">
-              {t.customize.shopSubtitle}
-            </p>
-          </div>
-          <MomentumBadge />
-          <button
-            onClick={onClose}
-            className="ml-auto flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-slate-700 px-4 text-sm text-slate-300 hover:bg-slate-800"
-          >
-            {t.customize.close}
-          </button>
-        </header>
-
-        <nav className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-slate-800 px-2 py-1.5 sm:px-3 sm:py-2">
-          {tabs.map((tabDef) => (
-            <button
-              key={tabDef.id}
-              onClick={() => setTab(tabDef.id)}
-              className={`shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                tab === tabDef.id
-                  ? "bg-brand-600 text-white"
-                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-              }`}
-            >
-              {tabDef.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-3">
-          {tab === "pendulum" && (
-            <ItemList kind="pendulum" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
-          )}
-          {tab === "attachment" && (
-            <ItemList kind="attachment" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
-          )}
-          {tab === "combo" && <ComboTab />}
-          {tab === "site" && <ItemList kind="site" />}
-          {tab === "skin" && <ItemList kind="skin" />}
-          {tab === "shape" && <ItemList kind="shape" />}
-          {tab === "boost" && <GlobalUpgradeShop />}
-          {tab === "theme" && <ThemeShop />}
-          {tab === "stats" && <StatsTab />}
-        </div>
-      </div>
-    </div>
+      {tab === "pendulum" && (
+        <ItemList kind="pendulum" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
+      )}
+      {tab === "attachment" && (
+        <ItemList kind="attachment" buyAmount={buyAmount} setBuyAmount={setBuyAmount} />
+      )}
+      {tab === "combo" && <ComboTab />}
+      {tab === "site" && <ItemList kind="site" />}
+      {tab === "skin" && <ItemList kind="skin" />}
+      {tab === "shape" && <ItemList kind="shape" />}
+      {tab === "boost" && <GlobalUpgradeShop />}
+      {tab === "theme" && <ThemeShop />}
+      {tab === "stats" && <StatsTab />}
+    </Window>
   );
 }
 
@@ -145,16 +119,9 @@ function MomentumBadge() {
   const t = useT();
   const momentum = useGameStore((s) => s.momentum);
   return (
-    <div className="rounded-lg bg-slate-900 px-3 py-1.5 text-right">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500">
-        {t.customize.momentum}
-      </div>
-      <div className="font-display text-sm font-semibold text-brand-300">
-        <FormattedNumber
-          value={momentum}
-          className="font-display text-sm font-semibold text-brand-300"
-        />
-      </div>
+    <div className="readout hidden px-3 py-1 text-right sm:block">
+      <div className="silk text-[9px]">{t.customize.momentum}</div>
+      <FormattedNumber value={momentum} className="readout-digits text-base" />
     </div>
   );
 }
@@ -254,13 +221,13 @@ function ItemList({
       <div className="flex flex-col gap-4">
         {buySelector}
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+          <h3 className="silk silk-tick mb-2">
             {t.customize.ropesShortToLong}
           </h3>
           <div className="flex flex-col gap-2">{renderRows(ropeList)}</div>
         </section>
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+          <h3 className="silk silk-tick mb-2">
             {t.customize.rodsChainsElastic}
           </h3>
           <div className="flex flex-col gap-2">{renderRows(otherAttachments)}</div>
@@ -287,10 +254,8 @@ function BuyAmountSelector({
   const t = useT();
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] uppercase tracking-widest text-slate-500">
-        {t.customize.buyQty}
-      </span>
-      <div className="flex gap-1 rounded-lg bg-slate-900 p-1">
+      <span className="silk">{t.customize.buyQty}</span>
+      <div className="well flex gap-1 p-1">
         {BUY_AMOUNTS.map((n) => (
           <button
             key={n}
@@ -298,9 +263,10 @@ function BuyAmountSelector({
               playUiClick();
               onChange(n);
             }}
-            className={`min-w-[40px] rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+            aria-pressed={value === n}
+            className={`min-w-[40px] rounded-md px-2.5 py-1 font-mono text-xs font-bold transition-colors ${
               value === n
-                ? "bg-emerald-600 text-white"
+                ? "bg-brand-500 text-slate-950 shadow-[0_0_12px_-2px_rgb(var(--c-brand-400)/0.8)]"
                 : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
             }`}
           >
@@ -349,15 +315,9 @@ function Row({
 
   return (
     <div
-      className={`rounded-xl border bg-slate-900/50 p-2.5 transition-colors sm:p-3 ${
-        isEquipped
-          ? "border-brand-500/60 bg-brand-500/10"
-          : locked
-            ? "border-slate-800 opacity-60"
-            : "border-slate-800 hover:border-slate-700"
-      }`}
+      className={`card p-2.5 sm:p-3 ${isEquipped ? "card-lit" : locked ? "opacity-60" : ""}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="flex flex-1 items-start gap-3">
           {kind === "skin" && <BobPreview skin={item as BobSkinDef} />}
           {kind === "shape" && (
@@ -375,24 +335,23 @@ function Row({
             />
           )}
           <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-100">{name}</h3>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h3 className="font-display text-sm font-bold uppercase tracking-wide text-slate-50">{name}</h3>
             {"rarity" in item && (
               <span
-                className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${rarityClass(
-                  item.rarity
-                )}`}
+                className={`tag ${rarityClass(item.rarity)}`}
               >
                 {t.rarity[item.rarity] ?? item.rarity}
               </span>
             )}
             {isEquipped && (
-              <span className="rounded bg-brand-500/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-200">
+              <span className="tag text-brand-300">
+                <Check size={10} strokeWidth={3} aria-hidden />
                 {t.customize.equipped}
               </span>
             )}
             {levelable && isOwned && level > 0 && (
-              <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+              <span className="tag text-emerald-300">
                 {t.customize.level} {level}
               </span>
             )}
@@ -404,43 +363,34 @@ function Row({
           )}
           </div>
         </div>
-        <div className="flex w-32 flex-col items-end gap-1.5">
+        <div className="flex w-full flex-row items-center justify-end gap-2 sm:w-32 sm:flex-col sm:items-end sm:gap-1.5">
           {isOwned ? (
             isEquipped ? (
-              <span className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-400">
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-brand-300">
+                <span className="led led-on" aria-hidden />
                 {t.customize.inUse}
               </span>
             ) : (
               <button
                 onClick={onEquip}
-                className="flex min-h-[44px] w-full items-center justify-center rounded-md bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600"
+                className="key min-h-[44px] w-32 px-3 text-xs sm:w-full"
               >
                 {t.customize.equip}
               </button>
             )
           ) : locked ? (
-            <span className="text-right text-[11px] text-slate-500">
+            <span className="flex items-start gap-1 text-right font-mono text-[10px] leading-snug text-slate-500">
+              <Lock size={12} className="mt-px shrink-0" aria-hidden />
               {unlockText(t, lang, item.unlock!)}
             </span>
           ) : (
             <>
-              <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                {t.customize.cost}
-              </div>
-              <div className="font-display text-sm font-semibold text-brand-300">
-                <FormattedNumber
-                  value={item.cost}
-                  className="font-display text-sm font-semibold text-brand-300"
-                />
-              </div>
+              <div className="silk hidden text-[9px] sm:block">{t.customize.cost}</div>
+              <FormattedNumber value={item.cost} className="font-mono text-sm font-bold text-brand-300" />
               <button
                 onClick={onBuy}
                 disabled={!canAfford}
-                className={`flex min-h-[44px] w-full items-center justify-center rounded-md px-3 text-xs font-semibold transition-colors ${
-                  canAfford
-                    ? "bg-brand-600 text-white hover:bg-brand-500"
-                    : "cursor-not-allowed bg-slate-800 text-slate-500"
-                }`}
+                className={`key ${canAfford ? "key-primary" : ""} min-h-[44px] w-32 px-3 text-xs sm:w-full`}
               >
                 {t.customize.buy}
               </button>
@@ -487,8 +437,8 @@ function LevelControl({
   const milestoneReady = next != null && level + buyAmount >= next;
 
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 border-t border-slate-800 pt-2">
-      <div className="flex flex-col text-[11px] leading-tight">
+    <div className="mt-2 flex items-center justify-between gap-3 border-t border-dashed border-slate-700/70 pt-2">
+      <div className="flex flex-col font-mono text-[10px] leading-tight">
         <span className="font-semibold text-emerald-300">
           {t.customize.level} {level} · {t.customize.levelBonus(bonusPct)}
         </span>
@@ -507,17 +457,13 @@ function LevelControl({
           playGameSound(ok ? "ui-buy" : "ui-error");
         }}
         disabled={!canAfford}
-        className={`flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${
-          canAfford
-            ? "bg-emerald-600 text-white hover:bg-emerald-500"
-            : "cursor-not-allowed bg-slate-800 text-slate-500"
-        }`}
+        className={`key ${canAfford ? "key-go" : ""} min-h-[38px] shrink-0 px-3 text-[11px]`}
       >
         <span>
           {t.customize.levelUp}
           {buyAmount > 1 ? ` ×${buyAmount}` : ""}
         </span>
-        <FormattedNumber value={batchCost} className="font-display" />
+        <FormattedNumber value={batchCost} className="font-mono" />
       </button>
     </div>
   );
@@ -535,7 +481,7 @@ function ItemStats({
   if (kind === "skin") {
     const skin = item as BobSkinDef;
     return (
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+      <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
         <Stat label={c.statFinish} value={t.pattern[skin.pattern] ?? skin.pattern} />
         <Stat label={c.statCosmetic} value={c.bobOnly} />
       </div>
@@ -544,7 +490,7 @@ function ItemStats({
   if (kind === "shape") {
     const shape = item as BobShapeDef;
     return (
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+      <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
         <Stat label={c.statSilhouette} value={t.shape[shape.shape] ?? shape.shape} />
         <Stat label={c.statCosmetic} value={c.bobOnly} />
       </div>
@@ -553,7 +499,7 @@ function ItemStats({
   if (kind === "pendulum") {
     const p = item as PendulumDef;
     return (
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+      <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
         <Stat label={c.statWeight} value={p.weight.toFixed(1)} />
         <Stat label={c.statSize} value={`${p.bobRadius}px`} />
         <Stat label={c.statBobs} value={p.bobCount.toString()} />
@@ -566,7 +512,7 @@ function ItemStats({
     const a = item as AttachmentDef;
     const profile = getMaterialProfile(a);
     return (
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+      <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
         <Stat label={c.statType} value={t.attachType[a.type] ?? a.type} />
         <Stat label={c.statLength} value={a.length.toString()} />
         <Stat label={c.statStretch} value={formatStretchBudget(profile)} />
@@ -594,7 +540,7 @@ function ItemStats({
   const cageLabel =
     cageScale >= 1.75 ? c.cageLarge : cageScale >= 1.3 ? c.cageMedium : c.cageSmall;
   return (
-    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-300">
+    <div className="mt-1.5 flex flex-wrap gap-1 font-mono text-[10px] text-slate-200">
       <Stat label={c.statGravity} value={s.gravity.toFixed(2)} />
       <Stat label={c.statZones} value={s.hitZoneCount.toString()} />
       <Stat label={c.statWalls} value={wallsLabel} />
@@ -639,7 +585,7 @@ function StatsTab() {
   return (
     <div className="flex flex-col gap-5">
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <h3 className="silk silk-tick mb-2">
           {c.statLifetime}
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -662,7 +608,7 @@ function StatsTab() {
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <h3 className="silk silk-tick mb-2">
           {c.statCollection}
         </h3>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -675,14 +621,14 @@ function StatsTab() {
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+        <h3 className="silk silk-tick mb-2">
           {c.statDangerZone}
         </h3>
         <button
           onClick={() => {
             if (confirm(c.resetConfirm)) reset();
           }}
-          className="w-full rounded-lg border border-red-700/40 bg-red-900/30 px-3 py-2 text-sm font-semibold text-red-200 transition-colors hover:bg-red-900/50"
+          className="key key-danger min-h-[44px] w-full text-sm"
         >
           {c.resetSave}
         </button>
@@ -693,8 +639,8 @@ function StatsTab() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <span>
-      <span className="text-slate-500">{label}:</span> {value}
+    <span className="rounded border border-slate-800 bg-slate-950/50 px-1.5 py-0.5">
+      <span className="text-slate-500">{label}</span> {value}
     </span>
   );
 }
@@ -707,13 +653,9 @@ function StatCard({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500">
-        {label}
-      </div>
-      <div className="font-display text-sm font-semibold text-slate-100">
-        {value}
-      </div>
+    <div className="readout px-3 py-2">
+      <div className="silk text-[9px]">{label}</div>
+      <div className="readout-digits text-base">{value}</div>
     </div>
   );
 }
@@ -761,7 +703,7 @@ function BobPreview({
       ref={canvasRef}
       width={48}
       height={48}
-      className="relative mt-0.5 h-12 w-12 shrink-0 rounded-full"
+      className="well relative mt-0.5 h-14 w-14 shrink-0 rounded-full p-1"
       title={title ?? skin.name}
       aria-hidden
     />
@@ -771,12 +713,12 @@ function BobPreview({
 function rarityClass(r: PendulumDef["rarity"] | BobSkinDef["rarity"] | BobShapeDef["rarity"]): string {
   switch (r) {
     case "common":
-      return "bg-slate-700/60 text-slate-300";
+      return "text-slate-400";
     case "rare":
-      return "bg-sky-600/40 text-sky-200";
+      return "text-sky-300";
     case "epic":
-      return "bg-purple-600/40 text-purple-200";
+      return "text-fuchsia-300";
     case "legendary":
-      return "bg-amber-500/40 text-amber-100";
+      return "text-amber-300";
   }
 }

@@ -17,6 +17,11 @@ The only component that matters for the simulation is `GameCanvas.tsx` — it is
 | `Settings.tsx`     | Audio, language, auto-run/token toggles, reset, tutorial. |
 | `IdleToast.tsx`    | Shows offline earnings on return. |
 | `FormattedNumber.tsx` | Tiny helper for nice number display. |
+| `TitleScreen.tsx`  | Title card per page load; the audio-unlock gate. |
+| `ui/Window.tsx`    | Shared window shell (scrim, drawer, lid, tabs, footer, Esc). Use it for any new window. |
+| `ui/icons.tsx`     | The only icon vocabulary (Lucide + pendulum mark); maps content ids to icons. |
+
+Visual system: the `.plate`, `.key`, `.silk`, `.readout`, `.switch`/`.led`, `.tab`, `.card`, `.meter`, `.fader` classes in `src/index.css` (see `docs/redesign.md`). Don't add emoji icons or one-off button styles.
 
 ---
 
