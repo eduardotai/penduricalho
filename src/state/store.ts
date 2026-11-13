@@ -1360,6 +1360,14 @@ export const useGameStore = create<GameState>()(
               : s.bestRunMomentum,
             activeRunBurstMult: 1,
             activeWorkshopSynergyMult: 1,
+            // Rebuild the arena from scratch, exactly like a fresh load: new
+            // hit circles, whole walls, no debris / tokens / shards, rope
+            // re-strung at rest, map mechanics (wind, bumpers) restarted, and
+            // the camera pan back to default (pan isn't saved, so a reload
+            // also starts there; zoom is a saved preference and stays).
+            worldVersion: s.worldVersion + 1,
+            cameraPanX: CAMERA_PAN_X_DEFAULT,
+            cameraPanY: CAMERA_PAN_Y_DEFAULT,
           };
         }),
 
