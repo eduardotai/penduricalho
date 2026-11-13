@@ -13,6 +13,7 @@ import { STARTER_SITE_ID, SITE_MAP } from "../data/sites";
 import { STARTER_SKIN_ID, SKIN_MAP } from "../data/bobSkins";
 import { STARTER_SHAPE_ID, SHAPE_MAP } from "../data/bobShapes";
 import { MODIFIER_MAP } from "../data/modifiers";
+import { DEFAULT_THEME_ID, THEME_MAP } from "../data/themes";
 import {
   cappedAdditiveDuration,
   sumPersistentRemainingMs,
@@ -195,6 +196,9 @@ export interface GameState {
   /** Bumped each cookie bob click; GameCanvas applies physics kick. */
   /** Transient: last workshop pump gain (shown briefly on the Pump button). */
   lastCookieGain: number;
+  /** Shop themes (v24). `themeId` is the equipped one; always owned. */
+  ownedThemes: string[];
+  themeId: string;
 
   addMomentum: (n: number) => void;
   registerClick: (now: number) => number;
@@ -213,6 +217,8 @@ export interface GameState {
   registerSwing: () => void;
   spend: (n: number) => boolean;
   buy: (kind: ItemKind, id: string) => boolean;
+  buyTheme: (id: string) => boolean;
+  equipTheme: (id: string) => void;
   // Spend Momentum to add `count` levels (default 1) to an owned bob or rope.
   // All-or-nothing: returns false if the item isn't owned or the player can't
   // afford the full batch.
@@ -480,10 +486,24 @@ function normalizeCosmeticState(state: Record<string, unknown>): Record<string, 
     typeof equipped.shapeId === "string" && SHAPE_MAP.has(equipped.shapeId)
       ? equipped.shapeId
       : STARTER_SHAPE_ID;
+  // Themes (v24): keep only known ids, the default is always owned, and the
+  // equipped theme must be one the save owns.
+  const ownedThemes = Array.isArray(state.ownedThemes)
+    ? (state.ownedThemes as unknown[]).filter(
+        (id): id is string => typeof id === "string" && THEME_MAP.has(id)
+      )
+    : [];
+  if (!ownedThemes.includes(DEFAULT_THEME_ID)) ownedThemes.unshift(DEFAULT_THEME_ID);
+  const themeId =
+    typeof state.themeId === "string" && ownedThemes.includes(state.themeId)
+      ? state.themeId
+      : DEFAULT_THEME_ID;
   return {
     ...state,
     owned: { ...owned, sites, skins, shapes },
     equipped: { ...equipped, siteId, skinId, shapeId },
+    ownedThemes: [...new Set(ownedThemes)],
+    themeId,
   };
 }
 
@@ -510,6 +530,197 @@ function getCost(kind: ItemKind, id: string): number | null {
   if (kind === "skin") return SKIN_MAP.get(id)?.cost ?? null;
   if (kind === "shape") return SHAPE_MAP.get(id)?.cost ?? null;
   return null;
+}
+
+/** Persisted-save migration (exported for tests). Never delete old steps. */
+export function migrateSave(persisted: unknown, version: number): unknown {
+  const state = persisted as Record<string, unknown>;
+
+  // Shop themes (v24): new top-level ownedThemes/themeId. They also default via
+  // merge + normalizeCosmeticState; set them explicitly so every older save
+  // carries the same shape forward.
+  if (version < 24) {
+    if (!Array.isArray(state.ownedThemes)) state.ownedThemes = [DEFAULT_THEME_ID];
+    if (typeof state.themeId !== "string") state.themeId = DEFAULT_THEME_ID;
+  }
+
+  // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
+  if (version < 23) {
+    delete (state as any).pendingCookiePump;
+  }
+  const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
+  const mergedAudio = {
+    ...DEFAULT_AUDIO_SETTINGS,
+    ...audio,
+  };
+  if (version < 6) {
+    return {
+      ...state,
+      audio: mergedAudio,
+      cameraZoom: CAMERA_ZOOM_DEFAULT,
+    };
+  }
+  if (version < 7 && state.cameraZoom == null) {
+    return { ...state, audio: mergedAudio, cameraZoom: CAMERA_ZOOM_DEFAULT };
+  }
+  if (version < 8) {
+    return {
+      ...state,
+      audio: {
+        ...mergedAudio,
+        musicVolume:
+          typeof audio.musicVolume === "number" ? audio.musicVolume : 0.22,
+        musicEnabled:
+          typeof audio.musicEnabled === "boolean" ? audio.musicEnabled : true,
+      },
+    };
+  }
+  if (version < 9) {
+    const now = Date.now();
+    const legacyRunsPerStack = 5;
+    const rawBonuses = (state.persistentBonuses as
+      | { defId: string; runsRemaining?: number; expiresAt?: number }[]
+      | undefined) ?? [];
+    const persistentBonuses = rawBonuses
+      .map((bonus) => {
+        if (typeof bonus.expiresAt === "number") return bonus;
+        const runsRemaining =
+          typeof bonus.runsRemaining === "number" ? bonus.runsRemaining : 0;
+        if (runsRemaining <= 0) return null;
+        const msPerRun = LEGACY_PERSISTENT_BONUS_MS / legacyRunsPerStack;
+        return {
+          defId: bonus.defId,
+          expiresAt: now + runsRemaining * msPerRun,
+        };
+      })
+      .filter((bonus): bonus is PersistentBonus => bonus != null);
+    return { ...state, audio: mergedAudio, persistentBonuses };
+  }
+  if (version < 10) {
+    const now = Date.now();
+    const rawBonuses = (state.persistentBonuses as PersistentBonus[] | undefined) ?? [];
+    const persistentBonuses = clampPersistentBonuses(rawBonuses, now);
+    return { ...state, audio: mergedAudio, persistentBonuses };
+  }
+  if (version < 11) {
+    return normalizeSkinState({ ...state, audio: mergedAudio });
+  }
+  if (version < 12) {
+    const owned = (state.owned as Owned | undefined) ?? initialOwned;
+    const equipped = (state.equipped as Equipped | undefined) ?? initialEquipped;
+    return normalizeCosmeticState({
+      ...state,
+      audio: mergedAudio,
+      owned: { ...owned, shapes: owned.shapes ?? [STARTER_SHAPE_ID] },
+      equipped: { ...equipped, shapeId: equipped.shapeId ?? STARTER_SHAPE_ID },
+    });
+  }
+  if (version < 13) {
+    return {
+      ...state,
+      audio: mergedAudio,
+      cameraPanX: CAMERA_PAN_X_DEFAULT,
+      cameraPanY: CAMERA_PAN_Y_DEFAULT,
+      worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+    };
+  }
+  if (version < 14) {
+    return {
+      ...state,
+      audio: mergedAudio,
+      cameraPanX: CAMERA_PAN_X_DEFAULT,
+      cameraPanY: CAMERA_PAN_Y_DEFAULT,
+      worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+    };
+  }
+  if (version < 15) {
+    return {
+      ...state,
+      audio: mergedAudio,
+      cameraPanX: CAMERA_PAN_X_DEFAULT,
+      cameraPanY: CAMERA_PAN_Y_DEFAULT,
+      worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
+    };
+  }
+  if (version < 16) {
+    return {
+      ...state,
+      audio: mergedAudio,
+      cameraZoom: CAMERA_ZOOM_DEFAULT,
+      cameraPanX: CAMERA_PAN_X_DEFAULT,
+      cameraPanY: CAMERA_PAN_Y_DEFAULT,
+    };
+  }
+  if (version < 17) {
+    // Site roster culled to Workshop + Bumper Cage. normalizeCosmeticState
+    // drops any retired sites the save still owns and resets the equipped
+    // site if it pointed at one.
+    return normalizeCosmeticState({ ...state, audio: mergedAudio });
+  }
+  if (version < 18) {
+    // Idle/background accrual fields added — they default safely via the
+    // merge with current state, so this is a pass-through.
+    return normalizeCosmeticState({ ...state, audio: mergedAudio });
+  }
+  if (version < 19) {
+    // UI `language` field added — defaults safely via the merge with the
+    // current state, so this is a pass-through.
+    return normalizeCosmeticState({ ...state, audio: mergedAudio });
+  }
+  if (version < 20) {
+    // Achievements system added (unlockedAchievements, two feat counters).
+    // New fields default to {} / 0 in the current state shape; we just
+    // ensure the persisted object carries them forward cleanly.
+    return normalizeCosmeticState({ ...state, audio: mergedAudio });
+  }
+  if (version < 21) {
+    // Per-item leveling added (itemLevels). The new field defaults to {}
+    // via the merge with current state, so this is a pass-through.
+    return normalizeCosmeticState({ ...state, audio: mergedAudio });
+  }
+  if (version < 22) {
+    const stats = (state.stats as Stats | undefined) ?? initialStats;
+    return normalizeCosmeticState({
+      ...state,
+      audio: mergedAudio,
+      stats: {
+        ...initialStats,
+        ...stats,
+        totalClicks: (stats as Stats).totalClicks ?? 0,
+        totalGenerators: (stats as Stats).totalGenerators ?? 0,
+      },
+      generatorCounts:
+        (state.generatorCounts as Record<string, number> | undefined) ?? {},
+      clickUpgradeLevels:
+        (state.clickUpgradeLevels as Record<string, number> | undefined) ?? {},
+      baseClickPower:
+        typeof state.baseClickPower === "number"
+          ? state.baseClickPower
+          : CLICKER_TUNING.baseClickPowerDefault,
+      runCharge: typeof state.runCharge === "number" ? state.runCharge : 0,
+      cachedTotalCps:
+        typeof state.cachedTotalCps === "number" ? state.cachedTotalCps : 0,
+      arenaIdleRatePerSec:
+        typeof state.arenaIdleRatePerSec === "number" ? state.arenaIdleRatePerSec : 0,
+      totalArcSurges:
+        typeof state.totalArcSurges === "number" ? state.totalArcSurges : 0,
+    });
+  }
+  return normalizeCosmeticState({ ...state, audio: mergedAudio });
+}
+
+/** Persisted-save merge onto the fresh state (exported for tests). */
+export function mergeSave(persistedState: unknown, currentState: GameState): GameState {
+  const persisted = persistedState as Partial<GameState>;
+  const current = currentState;
+  const owned = { ...current.owned, ...persisted.owned };
+  const equipped = { ...current.equipped, ...persisted.equipped };
+  return normalizeCosmeticState({
+    ...current,
+    ...persisted,
+    owned,
+    equipped,
+  } as unknown as Record<string, unknown>) as unknown as GameState;
 }
 
 export const useGameStore = create<GameState>()(
@@ -561,6 +772,8 @@ export const useGameStore = create<GameState>()(
       lastArcSurgeSeq: 0,
       totalArcSurges: 0,
       lastCookieGain: 0,
+      ownedThemes: [DEFAULT_THEME_ID],
+      themeId: DEFAULT_THEME_ID,
 
       // Achievements (new in v20)
       unlockedAchievements: {},
@@ -785,6 +998,23 @@ export const useGameStore = create<GameState>()(
         get().checkAchievements();
         return true;
       },
+
+      buyTheme: (id) => {
+        const def = THEME_MAP.get(id);
+        if (!def) return false;
+        const s = get();
+        if (s.ownedThemes.includes(id)) return false;
+        if (s.momentum < def.cost) return false;
+        set((prev) => ({
+          momentum: prev.momentum - def.cost,
+          ownedThemes: [...prev.ownedThemes, id],
+        }));
+        get().checkAchievements();
+        return true;
+      },
+
+      equipTheme: (id) =>
+        set((s) => (s.ownedThemes.includes(id) && THEME_MAP.has(id) ? { themeId: id } : s)),
 
       levelUp: (kind, id, count = 1) => {
         const def =
@@ -1306,190 +1536,15 @@ export const useGameStore = create<GameState>()(
           arcSurgeMult: CLICKER_TUNING.arcSurgeMult,
           lastArcSurgeSeq: 0,
           totalArcSurges: 0,
+          ownedThemes: [DEFAULT_THEME_ID],
+          themeId: DEFAULT_THEME_ID,
         }),
     }),
     {
       name: "pendulum-clicker-save",
-      version: 23,
-      migrate: (persisted, version) => {
-        const state = persisted as Record<string, unknown>;
-
-        // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
-        if (version < 23) {
-          delete (state as any).pendingCookiePump;
-        }
-        const audio = (state.audio as Record<string, unknown> | undefined) ?? {};
-        const mergedAudio = {
-          ...DEFAULT_AUDIO_SETTINGS,
-          ...audio,
-        };
-        if (version < 6) {
-          return {
-            ...state,
-            audio: mergedAudio,
-            cameraZoom: CAMERA_ZOOM_DEFAULT,
-          };
-        }
-        if (version < 7 && state.cameraZoom == null) {
-          return { ...state, audio: mergedAudio, cameraZoom: CAMERA_ZOOM_DEFAULT };
-        }
-        if (version < 8) {
-          return {
-            ...state,
-            audio: {
-              ...mergedAudio,
-              musicVolume:
-                typeof audio.musicVolume === "number" ? audio.musicVolume : 0.22,
-              musicEnabled:
-                typeof audio.musicEnabled === "boolean" ? audio.musicEnabled : true,
-            },
-          };
-        }
-        if (version < 9) {
-          const now = Date.now();
-          const legacyRunsPerStack = 5;
-          const rawBonuses = (state.persistentBonuses as
-            | { defId: string; runsRemaining?: number; expiresAt?: number }[]
-            | undefined) ?? [];
-          const persistentBonuses = rawBonuses
-            .map((bonus) => {
-              if (typeof bonus.expiresAt === "number") return bonus;
-              const runsRemaining =
-                typeof bonus.runsRemaining === "number" ? bonus.runsRemaining : 0;
-              if (runsRemaining <= 0) return null;
-              const msPerRun = LEGACY_PERSISTENT_BONUS_MS / legacyRunsPerStack;
-              return {
-                defId: bonus.defId,
-                expiresAt: now + runsRemaining * msPerRun,
-              };
-            })
-            .filter((bonus): bonus is PersistentBonus => bonus != null);
-          return { ...state, audio: mergedAudio, persistentBonuses };
-        }
-        if (version < 10) {
-          const now = Date.now();
-          const rawBonuses = (state.persistentBonuses as PersistentBonus[] | undefined) ?? [];
-          const persistentBonuses = clampPersistentBonuses(rawBonuses, now);
-          return { ...state, audio: mergedAudio, persistentBonuses };
-        }
-        if (version < 11) {
-          return normalizeSkinState({ ...state, audio: mergedAudio });
-        }
-        if (version < 12) {
-          const owned = (state.owned as Owned | undefined) ?? initialOwned;
-          const equipped = (state.equipped as Equipped | undefined) ?? initialEquipped;
-          return normalizeCosmeticState({
-            ...state,
-            audio: mergedAudio,
-            owned: { ...owned, shapes: owned.shapes ?? [STARTER_SHAPE_ID] },
-            equipped: { ...equipped, shapeId: equipped.shapeId ?? STARTER_SHAPE_ID },
-          });
-        }
-        if (version < 13) {
-          return {
-            ...state,
-            audio: mergedAudio,
-            cameraPanX: CAMERA_PAN_X_DEFAULT,
-            cameraPanY: CAMERA_PAN_Y_DEFAULT,
-            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
-          };
-        }
-        if (version < 14) {
-          return {
-            ...state,
-            audio: mergedAudio,
-            cameraPanX: CAMERA_PAN_X_DEFAULT,
-            cameraPanY: CAMERA_PAN_Y_DEFAULT,
-            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
-          };
-        }
-        if (version < 15) {
-          return {
-            ...state,
-            audio: mergedAudio,
-            cameraPanX: CAMERA_PAN_X_DEFAULT,
-            cameraPanY: CAMERA_PAN_Y_DEFAULT,
-            worldVersion: ((state.worldVersion as number | undefined) ?? 0) + 1,
-          };
-        }
-        if (version < 16) {
-          return {
-            ...state,
-            audio: mergedAudio,
-            cameraZoom: CAMERA_ZOOM_DEFAULT,
-            cameraPanX: CAMERA_PAN_X_DEFAULT,
-            cameraPanY: CAMERA_PAN_Y_DEFAULT,
-          };
-        }
-        if (version < 17) {
-          // Site roster culled to Workshop + Bumper Cage. normalizeCosmeticState
-          // drops any retired sites the save still owns and resets the equipped
-          // site if it pointed at one.
-          return normalizeCosmeticState({ ...state, audio: mergedAudio });
-        }
-        if (version < 18) {
-          // Idle/background accrual fields added — they default safely via the
-          // merge with current state, so this is a pass-through.
-          return normalizeCosmeticState({ ...state, audio: mergedAudio });
-        }
-        if (version < 19) {
-          // UI `language` field added — defaults safely via the merge with the
-          // current state, so this is a pass-through.
-          return normalizeCosmeticState({ ...state, audio: mergedAudio });
-        }
-        if (version < 20) {
-          // Achievements system added (unlockedAchievements, two feat counters).
-          // New fields default to {} / 0 in the current state shape; we just
-          // ensure the persisted object carries them forward cleanly.
-          return normalizeCosmeticState({ ...state, audio: mergedAudio });
-        }
-        if (version < 21) {
-          // Per-item leveling added (itemLevels). The new field defaults to {}
-          // via the merge with current state, so this is a pass-through.
-          return normalizeCosmeticState({ ...state, audio: mergedAudio });
-        }
-        if (version < 22) {
-          const stats = (state.stats as Stats | undefined) ?? initialStats;
-          return normalizeCosmeticState({
-            ...state,
-            audio: mergedAudio,
-            stats: {
-              ...initialStats,
-              ...stats,
-              totalClicks: (stats as Stats).totalClicks ?? 0,
-              totalGenerators: (stats as Stats).totalGenerators ?? 0,
-            },
-            generatorCounts:
-              (state.generatorCounts as Record<string, number> | undefined) ?? {},
-            clickUpgradeLevels:
-              (state.clickUpgradeLevels as Record<string, number> | undefined) ?? {},
-            baseClickPower:
-              typeof state.baseClickPower === "number"
-                ? state.baseClickPower
-                : CLICKER_TUNING.baseClickPowerDefault,
-            runCharge: typeof state.runCharge === "number" ? state.runCharge : 0,
-            cachedTotalCps:
-              typeof state.cachedTotalCps === "number" ? state.cachedTotalCps : 0,
-            arenaIdleRatePerSec:
-              typeof state.arenaIdleRatePerSec === "number" ? state.arenaIdleRatePerSec : 0,
-            totalArcSurges:
-              typeof state.totalArcSurges === "number" ? state.totalArcSurges : 0,
-          });
-        }
-        return normalizeCosmeticState({ ...state, audio: mergedAudio });
-      },
-      merge: (persistedState, currentState) => {
-        const persisted = persistedState as Partial<GameState>;
-        const current = currentState as GameState;
-        const owned = { ...current.owned, ...persisted.owned };
-        const equipped = { ...current.equipped, ...persisted.equipped };
-        return normalizeCosmeticState({
-          ...current,
-          ...persisted,
-          owned,
-          equipped,
-        }) as unknown as GameState;
-      },
+      version: 24,
+      migrate: migrateSave,
+      merge: (persistedState, currentState) => mergeSave(persistedState, currentState as GameState),
       partialize: (state) => ({
         momentum: state.momentum,
         stats: state.stats,
@@ -1526,6 +1581,8 @@ export const useGameStore = create<GameState>()(
         runCharge: state.runCharge,
         cachedTotalCps: state.cachedTotalCps,
         arenaIdleRatePerSec: state.arenaIdleRatePerSec,
+        ownedThemes: state.ownedThemes,
+        themeId: state.themeId,
       }),
     }
   )

@@ -24,6 +24,7 @@
 - `totalGoldenTokens`, `pendingGoldenTokens`
 - `idleRatePerSec` — EMA of earnings rate, used for offline progress
 - `language`, `tutorialSeen`, `audio` settings, `autoRun`, `autoToken`
+- `ownedThemes`, `themeId` — Shop themes (v24); `buyTheme` / `equipTheme`. The default theme is always owned; `normalizeCosmeticState` drops unknown ids.
 
 ### Run State (mostly transient)
 - `isRunning`, `runStartId`, `runMomentum`, `runStalled`
@@ -143,3 +144,10 @@ Direct `.getState()` is the safe way to read/write from imperative loops.
 - `src/CONTEXT.md` (top level mental model)
 - `src/game/CONTEXT.md` (what the game loop actually writes into this store)
 - `src/components/` (the UI that drives most of the actions)
+
+## Save migrations
+
+`migrateSave` and `mergeSave` are exported from `store.ts` so tests can load an
+old save (see `tests/themes.test.ts`, which migrates a v23 save). Bump
+`version` and add an `if (version < N)` step for every shape change; never
+delete old steps. Store tests import `tests/memoryStorage.ts` first.

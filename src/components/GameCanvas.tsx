@@ -3352,7 +3352,12 @@ export default function GameCanvas() {
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
-        drawScreenBackdrop(ctx, view.displayWidth, view.displayHeight, site);
+        drawScreenBackdrop(ctx, view.displayWidth, view.displayHeight, site, {
+          panX: cameraPanX,
+          panY: cameraPanY,
+          scale: view.coverScale * zoom,
+          now,
+        });
 
         ctx.save();
         applyShake(

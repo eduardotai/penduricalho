@@ -10,6 +10,8 @@
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
     "@vercel/analytics": "^2.0.1",
     "howler": "^2.2.4",
     "matter-js": "^0.20.0",
@@ -24,10 +26,10 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.21.5",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vite": "^5.4.10",
-    "esbuild": "^0.21.5"
+    "vite": "^5.4.10"
   }
 }
