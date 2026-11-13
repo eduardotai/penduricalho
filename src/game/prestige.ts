@@ -64,3 +64,33 @@ export interface IncomeMultInput {
 export function globalIncomeMult(s: IncomeMultInput): number {
   return prestigeMult(s.prestigeCogs) * globalUpgradeMult(s.globalUpgrades);
 }
+
+/**
+ * Flat Momentum bonuses (wall breaks, combo milestones, maneuvers) scale by
+ * the same global multiplier as hits, so Cogs and ×2/×3 boosts never leave
+ * them stuck at their early-game values. Combo, achievement and item-level
+ * multipliers stay hit-only.
+ */
+export function scaleFlatBonus(n: number, s: IncomeMultInput): number {
+  return Math.max(0, Math.round(n * globalIncomeMult(s)));
+}
+
+export interface IncomeBreakdown {
+  /** Permanent prestige multiplier from held Cogs. */
+  prestige: number;
+  /** Owned global upgrades (×2 / ×3). */
+  boosts: number;
+  /** Achievement bonus (hits only, see GameCanvas). */
+  achievements: number;
+  /** Product of the three: what a zone hit is multiplied by. */
+  total: number;
+}
+
+export function incomeBreakdown(
+  s: IncomeMultInput & { achievementMult: number }
+): IncomeBreakdown {
+  const prestige = prestigeMult(s.prestigeCogs);
+  const boosts = globalUpgradeMult(s.globalUpgrades);
+  const achievements = s.achievementMult;
+  return { prestige, boosts, achievements, total: prestige * boosts * achievements };
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { useGameStore, CAMERA_ZOOM_MIN, COMBO_DECAY_MS } from "../state/store";
-import { globalIncomeMult } from "../game/prestige";
+import { globalIncomeMult, scaleFlatBonus } from "../game/prestige";
 import {
   resolveEquippedCosmetics,
   useEquippedAttachment,
@@ -1383,7 +1383,7 @@ export default function GameCanvas() {
         }
 
         if (comboStacks > 1 && comboStacks % 5 === 0) {
-          const bonus = 5 * comboStacks;
+          const bonus = scaleFlatBonus(5 * comboStacks, state);
           state.addMomentum(bonus);
           playGameSound("combo-milestone", { pitch: 1 + comboStacks * 0.02 });
           emitManeuver(
@@ -1648,9 +1648,11 @@ export default function GameCanvas() {
       });
       if (shattered) {
         // Flat reward for breaking a wall, on top of the ricochet impulse.
-        useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
+        const st = useGameStore.getState();
+        const wallBonus = scaleFlatBonus(WALL_BREAK_BONUS, st);
+        st.addMomentum(wallBonus);
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
-        emitManeuver(effects, bobBody.position, effectText.wallBreakBonus(WALL_BREAK_BONUS), now);
+        emitManeuver(effects, bobBody.position, effectText.wallBreakBonus(wallBonus), now);
       } else {
         playGameSound("zone-hit", { pitch: isShard ? 0.85 : 0.7, volume: isShard ? 0.25 : 0.4 });
       }
@@ -1686,9 +1688,11 @@ export default function GameCanvas() {
         intensity: shattered ? 1.8 : 0.9,
       });
       if (shattered) {
-        useGameStore.getState().addMomentum(WALL_BREAK_BONUS);
+        const st = useGameStore.getState();
+        const wallBonus = scaleFlatBonus(WALL_BREAK_BONUS, st);
+        st.addMomentum(wallBonus);
         playGameSound("bonus-zones-spawn", { volume: 0.7 });
-        emitManeuver(effects, bobPos, effectText.wallBreakBonus(WALL_BREAK_BONUS), now);
+        emitManeuver(effects, bobPos, effectText.wallBreakBonus(wallBonus), now);
       }
     }
 
@@ -3465,14 +3469,16 @@ export default function GameCanvas() {
         if (!inDeadTail && !snapped) {
           const events = maneuvers.push(now, last, pendulumHandle.pivot.position);
           for (const ev of events) {
-            useGameStore.getState().addMomentum(ev.def.bonus);
+            const st = useGameStore.getState();
+            const manBonus = scaleFlatBonus(ev.def.bonus, st);
+            st.addMomentum(manBonus);
             playGameSound("maneuver", { variant: ev.def.id });
             emitManeuver(
               effects,
               last.position,
               effectText.maneuverBonus(
                 locName(lang, "maneuver", ev.def.id, ev.def.name),
-                ev.def.bonus
+                manBonus
               ),
               now
             );
