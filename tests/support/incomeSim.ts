@@ -33,7 +33,7 @@ import { PENDULUMS } from "../../src/data/pendulums";
 import { ATTACHMENTS } from "../../src/data/attachments";
 import { SITE_MAP } from "../../src/data/sites";
 import type { PendulumDef, SiteDef } from "../../src/types";
-import { applyGust, createGustSchedule, gustAt } from "../../src/game/mapMechanics";
+import { applyGust, createBumperField, createGustSchedule, gustAt } from "../../src/game/mapMechanics";
 
 const STEP = 1000 / 60;
 // Mirrors GameCanvas constants.
@@ -99,6 +99,7 @@ export function simulateRun(
 function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mode: PlayMode): RunResult {
   const attachment = ATTACHMENTS.find((a) => a.id === attachmentId)!;
   const gusts = site.mechanic?.kind === "gusts" ? createGustSchedule(site.mechanic) : null;
+  const bumpers = site.mechanic?.kind === "bumpers" ? createBumperField(site.mechanic) : null;
   const engine = Matter.Engine.create({
     gravity: { x: 0, y: site.gravity, scale: 0.001 },
     enableSleeping: false,
@@ -206,6 +207,10 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
     Matter.Engine.update(engine, STEP);
     now += STEP;
     if (!h.snapped) positionChainBobs(h);
+    if (bumpers) {
+      const r0 = getEffectiveBobRadius(h);
+      bumpers.tick(h.snapped ? getOrderedBobBodies(h) : [tipBody], () => r0, ANCHOR, rigReach(h), now, now);
+    }
 
     // --- zone hits (GameCanvas.tickBobZoneHits + scoreZoneHit) ---
     const r = getEffectiveBobRadius(h);

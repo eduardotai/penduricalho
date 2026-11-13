@@ -190,7 +190,7 @@ const ptContent: ContentDict = {
     "bumper-colosseum": {
       name: "Coliseu de Para-choques",
       description:
-        "Arena enorme com paredes quebráveis. Os bobs ficam ricocheteando por muito mais tempo antes de escapar.",
+        "Arena enorme com paredes quebráveis e três rebatedores girando logo além do alcance da corda. O bob solto (ou um balanço forte o bastante para esticar a corda até a órbita) que bate num rebatedor volta rebatido com um impulso, estilo pinball, e segue pontuando.",
     },
     layers: {
       name: "As Camadas",

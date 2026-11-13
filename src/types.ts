@@ -256,8 +256,12 @@ export type WallMode = "none" | "solid" | "breakable";
  * or retuning a mechanic never needs a save migration.
  *   "gusts" — wind that builds, blows for a few seconds, then dies down, from a
  *             fresh direction each time. Pushes every bob, shard and rope node.
+ *   "bumpers" — round bumpers orbiting the mount just outside the swing
+ *             circle; a freed (or over-stretched) bob that runs into one is
+ *             batted back with a kick, pinball style.
  */
-export type SiteMechanic = {
+export type SiteMechanic =
+  | {
   kind: "gusts";
   /** Quiet time between gusts. */
   calmMs: number;
@@ -269,6 +273,24 @@ export type SiteMechanic = {
   accel: number;
   /** Max tilt from horizontal for the gust direction, in radians. */
   maxTilt: number;
+}
+  | {
+  kind: "bumpers";
+  count: number;
+  /** How far outside the swing circle (rig reach) the orbit runs, in world units. */
+  orbitGap: number;
+  /** Bumper radius in world units. */
+  radius: number;
+  /** Time for one full orbit; negative orbits clockwise. */
+  periodMs: number;
+  /** The bat leaves the body at least this many times faster than it arrived. */
+  boost: number;
+  /** Bounced speed is clamped to this (world units per physics step). */
+  maxSpeed: number;
+  /** A bumper can't bat the same body again within this window. */
+  cooldownMs: number;
+  /** Slower bodies pass through untouched, so a settling swing can still stall and end the run. */
+  minHitSpeed: number;
 };
 
 export interface SiteDef {

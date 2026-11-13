@@ -1,4 +1,4 @@
-import type { GustState } from "./mapMechanics";
+import type { Bumper, GustState } from "./mapMechanics";
 import type { RenderContext } from "./render";
 
 /**
@@ -89,5 +89,76 @@ export function drawWindIndicator(
   ctx.fillRect(bx, y + 11, bw, 4);
   ctx.fillStyle = "rgba(125, 211, 252, 0.95)";
   ctx.fillRect(bx, y + 11, bw * s, 4);
+  ctx.restore();
+}
+
+/**
+ * Orbiting bumpers: a faint orbit track plus glowing studs that flash when
+ * they bat the bob. World space.
+ */
+export function drawBumpers(
+  rc: RenderContext,
+  center: { x: number; y: number },
+  orbitRadius: number,
+  bumpers: Bumper[],
+  radius: number,
+  flashUntil: number[]
+) {
+  const { ctx, now } = rc;
+  ctx.save();
+  ctx.setLineDash([18, 26]);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(251, 191, 36, 0.18)";
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, orbitRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  bumpers.forEach((b, i) => {
+    const flash = Math.max(0, Math.min(1, (flashUntil[i] - now) / 220));
+    const r = radius * (1 + 0.18 * flash);
+    const glow = ctx.createRadialGradient(b.x, b.y, r * 0.2, b.x, b.y, r * 1.6);
+    glow.addColorStop(0, `rgba(253, 224, 71, ${0.35 + 0.5 * flash})`);
+    glow.addColorStop(1, "rgba(253, 224, 71, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = flash > 0 ? "#fef3c7" : "#f59e0b";
+    ctx.strokeStyle = "#78350f";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(120, 53, 15, 0.85)";
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+/** Small screen-space pill at the top centre naming the map's mechanic. */
+export function drawMapHint(ctx: CanvasRenderingContext2D, screenWidth: number, text: string, pulse = 0) {
+  const cx = screenWidth / 2;
+  const y = 18;
+  ctx.save();
+  ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+  const boxW = Math.ceil(ctx.measureText(text).width) + 40;
+  ctx.fillStyle = `rgba(30, 18, 6, ${0.6 + 0.25 * pulse})`;
+  ctx.strokeStyle = `rgba(251, 191, 36, ${0.4 + 0.5 * pulse})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(cx - boxW / 2, y - 12, boxW, 26, 9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f59e0b";
+  ctx.beginPath();
+  ctx.arc(cx - boxW / 2 + 15, y + 1, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(254, 243, 199, 0.95)";
+  ctx.fillText(text, cx - boxW / 2 + 27, y + 1);
   ctx.restore();
 }

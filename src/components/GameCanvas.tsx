@@ -69,8 +69,16 @@ import {
   lerpChaos,
   rollChaosTargets,
 } from "../game/bobBehaviors";
-import { applyGust, createGustSchedule, gustAt, type GustState } from "../game/mapMechanics";
-import { drawWindIndicator, drawWindStreaks } from "../game/renderMechanics";
+import {
+  applyGust,
+  bumperOrbitRadius,
+  bumperPositions,
+  createBumperField,
+  createGustSchedule,
+  gustAt,
+  type GustState,
+} from "../game/mapMechanics";
+import { drawBumpers, drawMapHint, drawWindIndicator, drawWindStreaks } from "../game/renderMechanics";
 import { PENDULUMS } from "../data/pendulums";
 import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
 import {
@@ -999,6 +1007,7 @@ export default function GameCanvas() {
       // Wind: new gust directions, first gust half a calm after launch.
       if (gustMechanic) gustSchedule = createGustSchedule(gustMechanic);
       gustEpoch = performance.now();
+      bumperField?.reset();
     }
 
     // Seed an initial tunnel so the Mechanic Belt route renders before launch.
@@ -1023,6 +1032,11 @@ export default function GameCanvas() {
     let gustSchedule = gustMechanic ? createGustSchedule(gustMechanic) : null;
     let gustEpoch = performance.now();
     let gustNow: GustState | null = null;
+    // Orbiting bumpers (Bumper Colosseum): they orbit on the wall clock, so
+    // they keep circling between runs; only the contact state resets.
+    const bumperMechanic = site.mechanic?.kind === "bumpers" ? site.mechanic : null;
+    const bumperField = bumperMechanic ? createBumperField(bumperMechanic) : null;
+    let lastBumperHitAt = -1e9;
 
     // While `now` is below this timestamp the engine is frozen for hit-stop.
     let hitStopUntil = 0;
@@ -2935,6 +2949,29 @@ export default function GameCanvas() {
             dt
           );
         }
+        if (bumperField) {
+          // Strung, only the tip can reach the orbit (chain bobs are placed
+          // on the rope each frame); after a snap every freed body can.
+          const bobR = getEffectiveBobRadius(pendulumHandle);
+          const hits = bumperField.tick(
+            snapped
+              ? [...getOrderedBobBodies(pendulumHandle), ...shards]
+              : [pendulumHandle.bobs[pendulumHandle.bobs.length - 1]],
+            (b) => (shards.includes(b) ? b.circleRadius ?? bobR : bobR),
+            ANCHOR,
+            rigReach(pendulumHandle),
+            now,
+            now
+          );
+          for (const hit of hits) {
+            emitHit(effects, hit.at, now, { color: "#fbbf24", points: 0, intensity: 1.1 });
+            if (now - lastBumperHitAt > 150) {
+              emitManeuver(effects, hit.at, effectText.bumperHit, now);
+              playGameSound("zone-hit", { pitch: 1.35, volume: 0.45 });
+            }
+            lastBumperHitAt = now;
+          }
+        }
         // Re-energizing effects fire every frame they're due, strung or freed —
         // the rope economy limits them while strung, the per-proc/per-second
         // decay (applied inside each) winds them down once freed.
@@ -3404,6 +3441,17 @@ export default function GameCanvas() {
         }
         drawWalls(rc, wallField);
         drawObstacles(rc, wallField);
+        if (bumperField && bumperMechanic) {
+          const reach = rigReach(pendulumHandle);
+          drawBumpers(
+            rc,
+            ANCHOR,
+            bumperOrbitRadius(bumperMechanic, reach),
+            bumperPositions(bumperMechanic, ANCHOR, reach, now),
+            bumperMechanic.radius,
+            bumperField.flashUntil
+          );
+        }
         drawHitZones(rc, field);
         if (beltTunnel && ropeBehavior?.kind === "belt" && !pendulumHandle.snapped) {
           drawBeltTunnel(rc, beltTunnel, beltPathT, now);
@@ -3447,6 +3495,14 @@ export default function GameCanvas() {
             running ? gustNow! : { dir: { x: 1, y: 0 }, strength: 0, phase: "calm", nextInMs: 0 },
             { gust: effectText.windGust, next: effectText.windNext, idle: effectText.windMap },
             !running
+          );
+        }
+        if (bumperMechanic) {
+          drawMapHint(
+            ctx,
+            view.displayWidth,
+            effectText.bumperMap,
+            Math.max(0, Math.min(1, 1 - (now - lastBumperHitAt) / 400))
           );
         }
         ctx.restore();
