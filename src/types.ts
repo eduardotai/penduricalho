@@ -426,6 +426,27 @@ export interface ModifierEffects {
   orbPullStrength?: number;
 }
 
+/**
+ * A bob + line pairing ("set") that grants a synergy bonus while both are
+ * equipped. Static data: nothing is saved, so adding combos needs no migration.
+ */
+export interface RigComboDef {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  pendulumId: string;
+  attachmentId: string;
+  /** Multiplier on every zone hit while the combo is equipped. */
+  pointMult: number;
+  /** Optional multiplier on rope wear (0.6 = 40% less wear). */
+  drainMult?: number;
+  /** Optional multiplier on the launch / relaunch kick. */
+  kickMult?: number;
+  /** Optional multiplier on the bob's own pull strength (Lodestone/Singularity). */
+  pullMult?: number;
+}
+
 export interface ModifierDef {
   id: string;
   name: string;
@@ -616,7 +637,9 @@ export type AchievementRequirement =
       gte: number;
     }
   | { type: "custom"; id: "hasLegendary" | "hasAnyBehaviorBob" | "hasAnyBehaviorAttachment" }
-  | { type: "owns"; kind: ItemKind; id: string };
+  | { type: "owns"; kind: ItemKind; id: string }
+  /** Own both halves (bob + line) of at least `min` rig combos. */
+  | { type: "ownedCombos"; min: number };
 
 export interface AchievementDef {
   id: string;

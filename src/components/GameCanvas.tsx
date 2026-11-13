@@ -101,6 +101,7 @@ import {
   drawWindStreaks,
 } from "../game/renderMechanics";
 import { PENDULUMS } from "../data/pendulums";
+import { activeRigCombo } from "../data/combos";
 import { resolveRopeMaterial, durabilityDrainPerSec, ropeChargeMult } from "../game/rope";
 import {
   destroyHitZones,
@@ -310,6 +311,9 @@ export default function GameCanvas() {
   const pendulum = useEquippedPendulum();
   const attachment = useEquippedAttachment();
   const site = useEquippedSite();
+  // Rig combo (bob + line set) bonus, or null. Gear changes rebuild the world,
+  // so every closure below sees the current pair.
+  const rigCombo = activeRigCombo(pendulum.id, attachment.id);
   const worldVersion = useGameStore((s) => s.worldVersion);
   const runStartId = useGameStore((s) => s.runStartId);
   const goldenTokenConsumeEpoch = useGameStore((s) => s.goldenTokenConsumeEpoch);
@@ -1278,6 +1282,7 @@ export default function GameCanvas() {
         (attachment.bonuses.momentumMult ?? 1) *
         // Plasma Tether: the live combo charges the line (+4%/stack, capped).
         ropeChargeMult(ropeBehavior, state.combo.count) *
+        (rigCombo?.pointMult ?? 1) *
         effects$.pointMult *
         echoFactor;
       // Permanent achievement bonus (small global multiplier, Cookie Clicker milk style)
@@ -2128,9 +2133,11 @@ export default function GameCanvas() {
     ) {
       if ((!behavior && !override) || dt <= 0) return;
       const radius = behavior?.pullRadius ?? 780;
-      const zoneStrength = (override?.pullStrength ?? behavior?.pullStrength ?? 2.4) * (dt / 1000);
+      const comboPull = override ? 1 : (rigCombo?.pullMult ?? 1);
+      const zoneStrength =
+        (override?.pullStrength ?? behavior?.pullStrength ?? 2.4) * comboPull * (dt / 1000);
       const tokenStrength =
-        (override?.tokenPullStrength ?? behavior?.tokenPullStrength ?? 4) * (dt / 1000);
+        (override?.tokenPullStrength ?? behavior?.tokenPullStrength ?? 4) * comboPull * (dt / 1000);
       const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
       const radiusSq = radius * radius;
 
@@ -3003,6 +3010,7 @@ export default function GameCanvas() {
           const wearWeight = pendulum.weight * effects$.weightMult;
           const drainMult =
             effects$.durabilityDrainMult *
+            (rigCombo?.drainMult ?? 1) *
             (behavior?.durabilityDrainMult ?? 1) *
             (ropeBehavior?.kind === "flux" ? fluxDrainCur : 1);
           // Rocket's rope only wears while the bob is flung out at the very edge
@@ -3240,7 +3248,20 @@ export default function GameCanvas() {
           // Plan C separation: the Workshop Pump is the dedicated earner; the
           // arena is a spectacle you actually launch into, so Start Run imparts
           // the initial impulse directly.
-          launchPendulum(pendulumHandle, attachment, pendulum, effects$);
+          launchPendulum(pendulumHandle, attachment, pendulum, {
+            twistPowerMult: effects$.twistPowerMult * (rigCombo?.kickMult ?? 1),
+          });
+        }
+        if (rigCombo) {
+          emitManeuver(
+            effects,
+            pendulumHandle.bobs[pendulumHandle.bobs.length - 1].position,
+            effectText.rigCombo(
+              `${rigCombo.icon} ${locName(lang, "combo", rigCombo.id, rigCombo.name)}`,
+              rigCombo.pointMult
+            ),
+            now
+          );
         }
         store.registerSwing();
         runIdleMs = 0;
@@ -3352,7 +3373,9 @@ export default function GameCanvas() {
               (ropeBehavior.beltKickSpeed ?? 20) * 1.75
             );
           } else {
-            relaunchPendulum(pendulumHandle, attachment, boostedEffects);
+            relaunchPendulum(pendulumHandle, attachment, {
+              twistPowerMult: boostedEffects.twistPowerMult * (rigCombo?.kickMult ?? 1),
+            });
           }
           useGameStore.getState().registerSwing();
           // The pendulum is alive again — clear stall state so Run Again doesn't

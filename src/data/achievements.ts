@@ -3,6 +3,7 @@ import { PENDULUM_MAP } from "./pendulums";
 import { ATTACHMENT_MAP } from "./attachments";
 import { SKIN_MAP } from "./bobSkins";
 import { SHAPE_MAP } from "./bobShapes";
+import { ownedComboCount } from "./combos";
 import type { Stats, Owned } from "../types"; // reuse existing for the view
 
 export type AchievementProgress = {
@@ -173,6 +174,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     requirement: { type: "owns", kind: "pendulum", id: "singularity-bob" },
   },
   {
+    id: "perfect-match",
+    category: "collection",
+    icon: "🔗",
+    requirement: { type: "ownedCombos", min: 1 },
+  },
+  {
+    id: "set-collector",
+    category: "collection",
+    icon: "🧩",
+    requirement: { type: "ownedCombos", min: 5 },
+  },
+  {
     id: "legendary-finder",
     category: "collection",
     icon: "💎",
@@ -339,6 +352,11 @@ export function evaluateAchievement(
             : anySnap.blackHoleCaptures;
       progress = Math.max(0, Math.min(val, req.gte));
       target = req.gte;
+      break;
+    }
+    case "ownedCombos": {
+      progress = Math.min(ownedComboCount(snapshot.owned), req.min);
+      target = req.min;
       break;
     }
     case "owns": {

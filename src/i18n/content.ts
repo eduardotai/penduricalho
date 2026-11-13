@@ -12,7 +12,8 @@ export type ContentCategory =
   | "shape"
   | "modifier"
   | "token"
-  | "maneuver";
+  | "maneuver"
+  | "combo";
 
 type Entry = { name: string; description: string };
 type CategoryDict = Record<string, Entry>;
@@ -550,6 +551,16 @@ const ptContent: ContentDict = {
       name: "Ficha Dourada",
       description: "Joga o Bob de novo e dá x3 pontos.",
     },
+  },
+  combo: {
+    nunchaku: { name: "Nunchaku", description: "Bob Duplo na Corrente Pesada: +35% de pontos." },
+    javelin: { name: "Dardo", description: "Bob Perfurador na Haste de Ferro: +40% de pontos." },
+    slingshot: { name: "Estilingue", description: "Bob Foguete na Mola Espiral: +30% de pontos e lançamento 25% mais forte." },
+    polarity: { name: "Polaridade", description: "Bob Ímã na Amarra Magnética: +15% de pontos e atração 30% mais forte." },
+    "wrecking-ball": { name: "Bola de Demolição", description: "Tungstênio Pesado na Corrente de Âncora: +25% de pontos e 40% menos desgaste da corda." },
+    "shooting-star": { name: "Estrela Cadente", description: "Bob Cometa no Fio de Seda: +30% de pontos e 50% menos desgaste da corda." },
+    overload: { name: "Sobrecarga", description: "Bob Frenesi na Amarra de Plasma: +25% de pontos." },
+    "golden-scepter": { name: "Cetro de Ouro", description: "Bob Midas na Haste de Carbono: +25% de pontos." },
   },
   maneuver: {
     fullRotation: {
