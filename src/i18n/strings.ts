@@ -26,6 +26,8 @@ export const en = {
     title: "Workshop",
     subtitle: "Pump for active income. Generators run passively. Launch swings to multiply earnings.",
     pumpLabel: "Pump",
+    open: "Open workshop",
+    close: "Collapse workshop",
     clickStreak: "Click streak",
     runCharge: "Run charge",
     tabBuild: "Build",
@@ -139,7 +141,7 @@ export const en = {
       },
       {
         title: "Launch a swing",
-        body: "Pump the workshop to build power and Run Charge. Then tap Start Run to launch the rig into the arena and watch the physics spectacle. Your workshop multipliers boost the earnings.",
+        body: "Pump the workshop to build power and Run Charge. Then tap Start Run to launch the rig into the arena and watch the physics spectacle. Your workshop multipliers boost the earnings. The workshop starts tucked away: open it with the ‹ tab on the right (or the Workshop tab above the controls on mobile).",
       },
       {
         title: "Hit the glowing orbs",
@@ -453,6 +455,8 @@ export const pt: UIStrings = {
     title: "Oficina",
     subtitle: "Bombeie para renda ativa. Geradores rodam passivamente. Lance balanços para multiplicar ganhos.",
     pumpLabel: "Bombear",
+    open: "Abrir oficina",
+    close: "Recolher oficina",
     clickStreak: "Sequência",
     runCharge: "Carga da rodada",
     tabBuild: "Máquinas",
@@ -570,7 +574,7 @@ export const pt: UIStrings = {
       },
       {
         title: "Lance um balanço",
-        body: "Bombeie a oficina para acumular poder e Carga de Rodada. Depois toque Iniciar para lançar o aparelho na arena e assistir ao espetáculo de física. Os multiplicadores da sua oficina aumentam os ganhos.",
+        body: "Bombeie a oficina para acumular poder e Carga de Rodada. Depois toque Iniciar para lançar o aparelho na arena e assistir ao espetáculo de física. Os multiplicadores da sua oficina aumentam os ganhos. A oficina começa recolhida: abra pela aba ‹ na direita (ou pela aba Oficina acima dos controles no celular).",
       },
       {
         title: "Acerte as bolinhas brilhantes",
