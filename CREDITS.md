@@ -12,9 +12,10 @@ All four tracks are original, synthesised from code in `scripts/music/compose.py
 | Amber Orbit | public/music/amber-orbit.ogg / .mp3 | Penduricalho project (scripts/music/compose.py) | CC0 1.0 |
 | Momentum | public/music/momentum.ogg / .mp3 | Penduricalho project (scripts/music/compose.py) | CC0 1.0 |
 
-Still in `public/sounds/` from main but **not played** by the redesign:
-"Benkyou - LoFi - Loop" by MonkeyKidGC, https://opengameart.org/content/benkyou-lofi-loop —
-**CC-BY 4.0** (attribution required; main's code comment says CC0, which is wrong).
+Earlier builds looped "Benkyou - LoFi - Loop" by MonkeyKidGC
+(https://opengameart.org/content/benkyou-lofi-loop), licensed **CC-BY 4.0** (the old code
+comment called it CC0, which was wrong). It was dropped with the redesign and its files were
+removed from `public/sounds/`, so the game no longer ships it.
 
 ## Sound effects
 Procedural Web Audio synthesis in `src/audio/proceduralSounds.ts` (original code).

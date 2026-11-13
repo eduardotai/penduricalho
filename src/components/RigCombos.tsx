@@ -4,6 +4,8 @@ import { RIG_COMBOS, activeRigCombo, combosForItem } from "../data/combos";
 import { PENDULUM_MAP } from "../data/pendulums";
 import { ATTACHMENT_MAP } from "../data/attachments";
 import type { RigComboDef } from "../types";
+import { Check, Link2, X } from "lucide-react";
+import { ICON_STROKE } from "./ui/icons";
 
 function pct(mult: number): number {
   return Math.round(Math.abs(mult - 1) * 100);
@@ -37,11 +39,11 @@ export function ComboBadges({ kind, itemId }: { kind: "pendulum" | "attachment";
           <span
             key={c.id}
             data-testid={`combo-badge-${c.id}`}
-            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-              active ? "bg-amber-500/25 text-amber-200" : "bg-slate-800 text-slate-400"
+            className={`tag inline-flex items-center gap-1 normal-case tracking-normal ${
+              active ? "border-amber-400/60 text-amber-200" : "text-slate-400"
             }`}
           >
-            {c.icon} {t.customize.comboWith(locName(lang, "combo", c.id, c.name), partner)} · ×{c.pointMult}
+            <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> {t.customize.comboWith(locName(lang, "combo", c.id, c.name), partner)} · ×{c.pointMult}
             {active ? ` · ${t.customize.comboActive}` : ""}
           </span>
         );
@@ -70,33 +72,36 @@ export function ComboTab() {
           <div
             key={c.id}
             data-testid={`combo-row-${c.id}`}
-            className={`flex items-center gap-3 rounded-xl border p-3 ${
-              active ? "border-amber-400/60 bg-amber-500/10" : "border-slate-800 bg-slate-900/60"
-            }`}
+            className={`card flex items-center gap-3 p-3 ${active ? "card-lit" : ""}`}
           >
-            <div className="text-2xl" aria-hidden>{c.icon}</div>
+            <div
+              className={`well flex h-11 w-11 shrink-0 items-center justify-center ${active ? "text-amber-300" : "text-slate-400"}`}
+              aria-hidden
+            >
+              <Link2 size={22} strokeWidth={ICON_STROKE} />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-display text-sm font-semibold text-slate-100">
+                <span className="font-display text-sm font-bold uppercase tracking-wide text-slate-100">
                   {locName(lang, "combo", c.id, c.name)}
                 </span>
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  className={`tag ${
                     active
-                      ? "bg-amber-500/25 text-amber-200"
+                      ? "border-amber-400/60 text-amber-200"
                       : hasBob && hasRope
-                        ? "bg-emerald-500/20 text-emerald-200"
-                        : "bg-slate-800 text-slate-400"
+                        ? "border-emerald-400/50 text-emerald-200"
+                        : "text-slate-400"
                   }`}
                 >
                   {active ? t.customize.comboActive : hasBob && hasRope ? t.customize.comboOwned : t.customize.comboMissing}
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-slate-400">{locDesc(lang, "combo", c.id, c.description)}</p>
-              <p className="mt-0.5 text-[11px] text-slate-300">
-                <span className={hasBob ? "text-emerald-300" : "text-slate-500"}>{hasBob ? "✓" : "✗"} {bobName}</span>
+              <p className="mt-1 flex flex-wrap items-center gap-x-1 font-mono text-[10.5px] text-slate-300">
+                <span className={hasBob ? "text-emerald-300" : "text-slate-500"}>{hasBob ? <Check size={11} className="inline" aria-hidden /> : <X size={11} className="inline" aria-hidden />} {bobName}</span>
                 <span className="text-slate-600"> + </span>
-                <span className={hasRope ? "text-emerald-300" : "text-slate-500"}>{hasRope ? "✓" : "✗"} {ropeName}</span>
+                <span className={hasRope ? "text-emerald-300" : "text-slate-500"}>{hasRope ? <Check size={11} className="inline" aria-hidden /> : <X size={11} className="inline" aria-hidden />} {ropeName}</span>
                 <span className="text-slate-600"> · </span>
                 <span className="text-amber-200">{comboBonusParts(c, t).join(" · ")}</span>
               </p>
@@ -107,7 +112,7 @@ export function ComboTab() {
                   equip("pendulum", c.pendulumId);
                   equip("attachment", c.attachmentId);
                 }}
-                className="min-h-[44px] shrink-0 rounded-md bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-500"
+                className="key key-primary min-h-[44px] shrink-0 px-3 text-xs"
               >
                 {t.customize.comboEquip}
               </button>
@@ -125,8 +130,8 @@ export function ActiveComboLine({ pendulumId, attachmentId }: { pendulumId: stri
   const c = activeRigCombo(pendulumId, attachmentId);
   if (!c) return null;
   return (
-    <div data-testid="active-combo" className="mt-0.5 text-[11px] font-semibold text-amber-300">
-      {c.icon} COMBO {locName(lang, "combo", c.id, c.name)} ×{c.pointMult}
+    <div data-testid="active-combo" className="mt-0.5 flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-wider text-amber-300">
+      <Link2 size={11} strokeWidth={ICON_STROKE} aria-hidden /> COMBO {locName(lang, "combo", c.id, c.name)} ×{c.pointMult}
     </div>
   );
 }

@@ -30,7 +30,7 @@ function IncomeMultLine() {
   return (
     <div
       data-testid="hud-income-mult"
-      className="pointer-events-auto mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[9px] font-semibold sm:text-[10px]"
+      className="pointer-events-auto mt-1 flex flex-wrap items-center gap-x-1.5 font-mono text-[9px] font-semibold sm:text-[10px]"
       title={t.hud.incomeMultTitle(
         fmtMult(b.prestige),
         fmtMult(b.boosts),

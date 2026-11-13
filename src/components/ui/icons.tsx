@@ -50,6 +50,11 @@ import {
   Wind,
   Zap,
   type LucideProps,
+  Sparkle,
+  Radio,
+  CircleDashed,
+  Disc3,
+  Link2,
 } from "lucide-react";
 
 export type IconComponent = ComponentType<LucideProps>;
@@ -114,6 +119,12 @@ export const ACHIEVEMENT_ICONS: Record<string, IconComponent> = {
   "surge-rider": Zap,
   "zen-master": Waves,
   "momentum-singularity": Orbit,
+  "neutron-star": Sparkle,
+  "pulsar-bob": Radio,
+  "event-horizon-bob": CircleDashed,
+  "singularity-bob": Disc3,
+  "perfect-match": Link2,
+  "set-collector": Layers,
 };
 
 export const GENERATOR_ICONS: Record<string, IconComponent> = {

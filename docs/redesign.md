@@ -67,7 +67,7 @@ Playback (`src/audio/musicDirector.ts`, rules in `musicTracks.ts`, tested):
 - Menu theme when idle; arena tracks rotate while runs are live and for 20s after (so Auto-run doesn't flip-flop); 1.8s crossfades.
 - Level = master × music volume; 0 when muted (M), when the music toggle is off, or when the tab is hidden. The music volume slider already existed and is kept.
 
-**Licence finding:** main's existing "Benkyou" loop (`public/sounds/benkyou-loop.*`) is credited in code as CC0, but its OpenGameArt page (https://opengameart.org/content/benkyou-lofi-loop) lists **CC-BY 4.0** (attribution required). The redesign no longer plays it. If main keeps it, the credit should say CC-BY 4.0 with attribution to MonkeyKidGC.
+**Licence finding:** main's existing "Benkyou" loop (`public/sounds/benkyou-loop.*`) is credited in code as CC0, but its OpenGameArt page (https://opengameart.org/content/benkyou-lofi-loop) lists **CC-BY 4.0** (attribution required). The redesign no longer plays it and removes the files; CREDITS.md records the history.
 
 ## Dependencies added
 - `lucide-react` 1.72.0 (ISC) — icons, tree-shaken per icon.

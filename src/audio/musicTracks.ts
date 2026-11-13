@@ -4,8 +4,8 @@
  *
  * Every track is composed for this game by scripts/music/compose.py and
  * released CC0 1.0 (pure synthesis, no samples). Sources and licences:
- * CREDITS.md. (main's old "Benkyou" loop is CC-BY 4.0, not CC0, so the
- * redesign does not ship it in the rotation.)
+ * CREDITS.md. (The old "Benkyou" loop was CC-BY 4.0, not CC0; it was
+ * removed with the redesign.)
  */
 
 export type MusicMood = "menu" | "run";
