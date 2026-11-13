@@ -374,7 +374,7 @@ const ptContent: ContentDict = {
     },
     "heavy-air": {
       name: "Ar Pesado",
-      description: "+25% de aceleração por 7s.",
+      description: "+25% de gravidade e +20% de pontos por 7s.",
     },
     featherweight: {
       name: "Peso-Pena",
@@ -441,6 +441,26 @@ const ptContent: ContentDict = {
     "multi-bob": {
       name: "Multi-Bob",
       description: "Cria ecos do bob que também pontuam por 6s.",
+    },
+    "power-twist": {
+      name: "Torção Potente",
+      description: "Dá um tranco ao pegar e +50% de força no giro por 7s.",
+    },
+    "heavy-air": {
+      name: "Ar Pesado",
+      description: "+25% de gravidade e +20% de pontos por 7s.",
+    },
+    featherweight: {
+      name: "Peso-Pena",
+      description: "-30% de massa por 6s. Balança mais longe e gasta menos a corda.",
+    },
+    "golden-hour": {
+      name: "Hora Dourada",
+      description: "x2 pontos por 5s.",
+    },
+    overdrive: {
+      name: "Overdrive",
+      description: "Tranco forte ao pegar e +75% de giro e +50% de pontos por 4s.",
     },
     repair: {
       name: "Remendo",

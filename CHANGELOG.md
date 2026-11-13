@@ -6,6 +6,11 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Orb drops
+
+### Added
+- **Five more orb drops.** Popping a multiplier orb can now also drop **Power Twist** (kick on pickup, +50% twist power 7s), **Heavy Air** (+25% gravity, +20% points 7s), **Featherweight** (-30% bob mass 6s), **Golden Hour** (x2 points 5s) and **Overdrive** (hard kick, +75% twist power, +50% points 4s). These modifiers existed but nothing granted them. Rope Patch and Golden Token weights were raised with the pool so their share of drops stays about the same (Golden 5.5%, Patch 17%).
+
 ## [Unreleased] - Global boosts
 
 ### Fixed

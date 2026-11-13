@@ -7,8 +7,15 @@ export const TOKENS: TokenDef[] = [
   { kind: "velocity-surge", name: "Velocity Surge", description: "Slams the bob with extra speed for 5s.", color: "#22d3ee", weight: 18, grantsModifierId: "velocity-surge" },
   { kind: "speed-ramp", name: "Speed Ramp", description: "Speed builds to +40% over 8s.", color: "#2dd4bf", weight: 16, grantsModifierId: "speed-ramp" },
   { kind: "multi-bob", name: "Multi-Bob", description: "Spawns echo bobs that also score for 6s.", color: "#c084fc", weight: 16, grantsModifierId: "multi-bob" },
-  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 18 },
-  { kind: "golden", name: "Golden Token", description: "Re-launches the Bob and x3 points.", color: "#fde047", weight: 6, grantsModifierId: "token-bonus", isGolden: true },
+  { kind: "power-twist", name: "Power Twist", description: "Twist kick on pickup, then +50% twist power for 7s.", color: "#f97316", weight: 12, grantsModifierId: "power-twist", pickupKickMult: 1.15 },
+  { kind: "heavy-air", name: "Heavy Air", description: "+25% gravity and +20% points for 7s.", color: "#38bdf8", weight: 10, grantsModifierId: "heavy-air" },
+  { kind: "featherweight", name: "Featherweight", description: "-30% bob mass for 6s. Wider swings, less rope wear.", color: "#a78bfa", weight: 10, grantsModifierId: "featherweight" },
+  { kind: "golden-hour", name: "Golden Hour", description: "x2 points for 5s.", color: "#facc15", weight: 8, grantsModifierId: "golden-hour" },
+  { kind: "overdrive", name: "Overdrive", description: "Hard kick on pickup, then +75% twist power and +50% points for 4s.", color: "#ef4444", weight: 5, grantsModifierId: "overdrive", pickupKickMult: 1.22 },
+  // Repair and Golden weights scale with the pool so their share of drops
+  // stays put as modifier tokens are added (guarded in tests/tokens.test.ts).
+  { kind: "repair", name: "Rope Patch", description: "Restores rope durability, delaying the snap.", color: "#5eead4", weight: 28 },
+  { kind: "golden", name: "Golden Token", description: "Re-launches the Bob and x3 points.", color: "#fde047", weight: 9, grantsModifierId: "token-bonus", isGolden: true },
 ];
 
 export const TOKEN_MAP = new Map<TokenKind, TokenDef>(TOKENS.map((t) => [t.kind, t]));
@@ -19,6 +26,12 @@ export const TOKEN_MAP = new Map<TokenKind, TokenDef>(TOKENS.map((t) => [t.kind,
 const NON_DROPPABLE_KINDS: TokenKind[] = ["tiny-bob"];
 const DROP_POOL = TOKENS.filter((t) => !NON_DROPPABLE_KINDS.includes(t.kind));
 const TOTAL_WEIGHT = DROP_POOL.reduce((sum, t) => sum + t.weight, 0);
+
+/** Share of the random drop pool held by one token kind (0 if not droppable). */
+export function dropShare(kind: TokenKind): number {
+  const t = DROP_POOL.find((d) => d.kind === kind);
+  return t ? t.weight / TOTAL_WEIGHT : 0;
+}
 
 export function rollRandomToken(): TokenDef {
   let r = Math.random() * TOTAL_WEIGHT;
@@ -38,6 +51,11 @@ export const BUFF_TOKEN_KINDS: TokenKind[] = [
   "velocity-surge",
   "speed-ramp",
   "multi-bob",
+  "power-twist",
+  "heavy-air",
+  "featherweight",
+  "golden-hour",
+  "overdrive",
 ];
 
 const BUFF_TOKENS = TOKENS.filter((t) => BUFF_TOKEN_KINDS.includes(t.kind));

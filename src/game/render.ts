@@ -962,7 +962,7 @@ export function drawBeltTunnel(
   ctx.restore();
 }
 
-function tokenGlyph(kind: string): string {
+export function tokenGlyph(kind: string): string {
   switch (kind) {
     case "bigger-bob":
       return "B+";
@@ -976,6 +976,16 @@ function tokenGlyph(kind: string): string {
       return "^";
     case "multi-bob":
       return "x3";
+    case "power-twist":
+      return "T+";
+    case "heavy-air":
+      return "G+";
+    case "featherweight":
+      return "F";
+    case "golden-hour":
+      return "x2";
+    case "overdrive":
+      return "OD";
     case "repair":
       return "+";
     case "golden":
