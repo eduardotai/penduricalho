@@ -2964,7 +2964,7 @@ export default function GameCanvas() {
             now
           );
           for (const hit of hits) {
-            emitHit(effects, hit.at, now, { color: "#fbbf24", points: 0, intensity: 1.1 });
+            emitHit(effects, hit.at, now, { color: "#f1f5f9", points: 0, intensity: 1.1 });
             if (now - lastBumperHitAt > 150) {
               emitManeuver(effects, hit.at, effectText.bumperHit, now);
               playGameSound("zone-hit", { pitch: 1.35, volume: 0.45 });

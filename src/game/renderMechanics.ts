@@ -93,8 +93,11 @@ export function drawWindIndicator(
 }
 
 /**
- * Orbiting bumpers: a faint orbit track plus glowing studs that flash when
- * they bat the bob. World space.
+ * Orbiting bumpers: a faint orbit track plus pinball-style studs that flash
+ * when they bat the bob. World space. Deliberately NOT a zone colour: every
+ * theme's scoring circles are green/blue/purple/orange/pink discs, so bumpers
+ * are chrome rings with a dark rim, a red cap and a spinning white stripe —
+ * a different shape and palette on every backdrop.
  */
 export function drawBumpers(
   rc: RenderContext,
@@ -108,7 +111,7 @@ export function drawBumpers(
   ctx.save();
   ctx.setLineDash([18, 26]);
   ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(251, 191, 36, 0.18)";
+  ctx.strokeStyle = "rgba(226, 232, 240, 0.2)";
   ctx.beginPath();
   ctx.arc(center.x, center.y, orbitRadius, 0, Math.PI * 2);
   ctx.stroke();
@@ -116,24 +119,46 @@ export function drawBumpers(
   bumpers.forEach((b, i) => {
     const flash = Math.max(0, Math.min(1, (flashUntil[i] - now) / 220));
     const r = radius * (1 + 0.18 * flash);
-    const glow = ctx.createRadialGradient(b.x, b.y, r * 0.2, b.x, b.y, r * 1.6);
-    glow.addColorStop(0, `rgba(253, 224, 71, ${0.35 + 0.5 * flash})`);
-    glow.addColorStop(1, "rgba(253, 224, 71, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, r * 1.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = flash > 0 ? "#fef3c7" : "#f59e0b";
-    ctx.strokeStyle = "#78350f";
-    ctx.lineWidth = 8;
+    if (flash > 0) {
+      const glow = ctx.createRadialGradient(b.x, b.y, r * 0.6, b.x, b.y, r * 1.8);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${0.7 * flash})`);
+      glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Chrome body.
+    const chrome = ctx.createLinearGradient(b.x - r, b.y - r, b.x + r, b.y + r);
+    chrome.addColorStop(0, "#f8fafc");
+    chrome.addColorStop(0.5, "#94a3b8");
+    chrome.addColorStop(1, "#e2e8f0");
+    ctx.fillStyle = chrome;
+    ctx.strokeStyle = "#0b1220";
+    ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "rgba(120, 53, 15, 0.85)";
+    // Spinning stripe ring.
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(now * 0.004 + i);
+    ctx.setLineDash([r * 0.5, r * 0.32]);
+    ctx.lineWidth = r * 0.16;
+    ctx.strokeStyle = "#ffffff";
     ctx.beginPath();
-    ctx.arc(b.x, b.y, r * 0.38, 0, Math.PI * 2);
+    ctx.arc(0, 0, r * 0.74, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    // Red cap.
+    ctx.fillStyle = flash > 0 ? "#fecaca" : "#dc2626";
+    ctx.strokeStyle = "#450a0a";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r * 0.44, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
   });
   ctx.restore();
 }
@@ -145,20 +170,20 @@ export function drawMapHint(ctx: CanvasRenderingContext2D, screenWidth: number, 
   ctx.save();
   ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
   const boxW = Math.ceil(ctx.measureText(text).width) + 40;
-  ctx.fillStyle = `rgba(30, 18, 6, ${0.6 + 0.25 * pulse})`;
-  ctx.strokeStyle = `rgba(251, 191, 36, ${0.4 + 0.5 * pulse})`;
+  ctx.fillStyle = `rgba(11, 18, 32, ${0.6 + 0.25 * pulse})`;
+  ctx.strokeStyle = `rgba(226, 232, 240, ${0.4 + 0.5 * pulse})`;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.roundRect(cx - boxW / 2, y - 12, boxW, 26, 9);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = "#f59e0b";
+  ctx.fillStyle = "#dc2626";
   ctx.beginPath();
   ctx.arc(cx - boxW / 2 + 15, y + 1, 5, 0, Math.PI * 2);
   ctx.fill();
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "rgba(254, 243, 199, 0.95)";
+  ctx.fillStyle = "rgba(241, 245, 249, 0.95)";
   ctx.fillText(text, cx - boxW / 2 + 27, y + 1);
   ctx.restore();
 }
