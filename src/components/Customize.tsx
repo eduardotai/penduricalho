@@ -463,7 +463,7 @@ function LevelControl({
           {t.customize.levelUp}
           {buyAmount > 1 ? ` ×${buyAmount}` : ""}
         </span>
-        <FormattedNumber value={batchCost} className="font-mono" />
+        <FormattedNumber value={batchCost} className="font-mono" interactive={false} />
       </button>
     </div>
   );
