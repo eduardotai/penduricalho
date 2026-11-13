@@ -45,9 +45,7 @@ export default function TitleScreen({ open, onEnter, onHowTo, onSettings }: Prop
       className="scrim-in fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden px-6 text-center"
       style={{
         background:
-          "radial-gradient(ellipse at 50% 40%, rgb(var(--c-slate-900) / 0.55), rgb(var(--c-slate-950) / 0.92) 70%)",
-        WebkitBackdropFilter: "blur(6px)",
-        backdropFilter: "blur(6px)",
+          "radial-gradient(ellipse at 50% 40%, rgb(var(--c-slate-900) / 0.82), rgb(var(--c-slate-950) / 0.96) 70%)",
       }}
       data-testid="title-screen"
       data-no-camera-zoom

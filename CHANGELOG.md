@@ -6,6 +6,13 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Frame budget
+
+### Changed
+- **The arena canvas no longer paints at full 2× on large displays.** A 1366×820 window at a retina (2×) display was a 4.5-megapixel backing store and dropped to ~19 fps in testing, even though JS draw time stayed around 2 ms. The scale is now capped so the canvas stays around 1.5 megapixels (about 1.16× on that laptop, still 2× on a phone). Physics is unchanged: it still steps at a fixed 60 Hz in world units.
+- **The canvas is opaque** (`getContext("2d", { alpha: false })`), since a backdrop is drawn every frame, so the browser does not have to blend it with whatever is behind it.
+- **HUD, controls and the title card no longer use `backdrop-filter: blur`.** The plates were already ~95% opaque, so the blur was almost invisible and made the browser re-blur the live canvas under every panel. The title scrim is a slightly more opaque gradient instead.
+
 ## [Unreleased] - New maps
 
 ### Added
