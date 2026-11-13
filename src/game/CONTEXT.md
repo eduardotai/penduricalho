@@ -124,6 +124,13 @@ Search for `behavior?.kind ===` or `ropeBehavior?.kind ===` inside `GameCanvas.t
 | rocket     | `rocketTick(now, dt)` + special `rocketRopeAtLimit()` durability rule + no-launch-kick handling. |
 | splitter   | On every zone hit: sheds shards, reduces mass/size, increases speed cap. Reset on golden spend. |
 | chaos      | `chaosTick(now, dt)` — rerolls targets + lerps stats. |
+| pulsar     | `lateBobTick` — every `pulseMs` while moving, pops all orbs in `pulseRadius` as secondary hits (`emitRing`). |
+| comet      | `lateBobTick` — `pushTrail` + `zonesOnTrail`: the tail (minus the head) pops orbs at `popValue`; `drawCometTrail`. |
+| midas      | `scoreZoneHit` (real hits) — `gildZone` on the nearest orb (+`gildStep` multiplier, ≤ `maxGild`); gold bands in `drawHitZones`; `relocateZone` clears gild. |
+| prism      | `scoreZoneHit` (real hits) — `nearestZones` arcs to `chainCount` orbs, scored as secondary hits (never chain again); `emitBeam`. |
+| singularity| `magnetPull` (same as Lodestone) + `singularityScale(hits)` size growth in `behaviorScales`. |
+
+Secondary hits go through `scoreZoneHit(..., isEcho=true, echoValue)`: combo yes, hit-stop / token drops / behavior hooks no. All five are modeled in `tests/support/incomeSim.ts` (as are Lodestone's pull and the Singularity pull, zones only).
 | flux       | `fluxTick(now, dt)` — length + drain rate lerp. |
 | metronome  | Mostly in `pendulum.ts` (rigid rod + oscillation in build + length tick). |
 | belt       | Entirely different path: `beltConveyor`, `applyBeltTunnelContainment`, `beltTunnel` path + virtual payout. See dedicated file. |

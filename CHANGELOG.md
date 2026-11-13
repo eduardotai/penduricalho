@@ -6,6 +6,13 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Late-game bobs
+
+### Added
+- **Five late-game bobs past the 150k Chaos Bob**, each with its own behavior: **Pulsar** (300k, shockwave every 1.5s pops nearby orbs at 50%), **Comet** (750k, wide tail pops orbs at 80%), **Midas** (1.5M, each pop gilds the nearest orb +1x, up to +3x), **Prism** (3M, each pop arcs to the 2 nearest orbs at 50%) and **Singularity** (5M, Lodestone-style pull and +2.5% size per hit up to +80%). Sim (titan cable, Workshop, launches): 117 / 122 / 148 / 185 / 251 pts/s vs Chaos 87.
+- Achievements **Neutron Star** (own Pulsar) and **Event Horizon** (own Singularity), with a new `owns` requirement type.
+- The income sim now models Lodestone's pull (zones only); it puts the 28k Lodestone at ~155 pts/s, about 2x Tungsten.
+
 ## [Unreleased] - Orb drops
 
 ### Added (wave 2)

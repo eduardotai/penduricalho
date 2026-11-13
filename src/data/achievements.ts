@@ -161,6 +161,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     requirement: { type: "ownedCount", kind: "pendulum", min: 8 },
   },
   {
+    id: "neutron-star",
+    category: "collection",
+    icon: "💫",
+    requirement: { type: "owns", kind: "pendulum", id: "pulsar-bob" },
+  },
+  {
+    id: "event-horizon-bob",
+    category: "collection",
+    icon: "🕳️",
+    requirement: { type: "owns", kind: "pendulum", id: "singularity-bob" },
+  },
+  {
     id: "legendary-finder",
     category: "collection",
     icon: "💎",
@@ -327,6 +339,11 @@ export function evaluateAchievement(
             : anySnap.blackHoleCaptures;
       progress = Math.max(0, Math.min(val, req.gte));
       target = req.gte;
+      break;
+    }
+    case "owns": {
+      progress = isOwned(snapshot.owned, req.id, req.kind) ? 1 : 0;
+      target = 1;
       break;
     }
     case "custom": {

@@ -66,6 +66,13 @@ import {
 import {
   chaosBounds,
   frenzyMultipliers as frenzyStatMultipliers,
+  gildZone,
+  nearestZones,
+  pushTrail,
+  singularityScale,
+  zonesInRadius,
+  zonesOnTrail,
+  type TrailPoint,
   lerpChaos,
   rollChaosTargets,
 } from "../game/bobBehaviors";
@@ -129,6 +136,7 @@ import {
   drawObstacles,
   drawBlackHole,
   drawEchoBobs,
+  drawCometTrail,
   drawBeltTunnel,
   type RenderContext,
   type EchoBobRender,
@@ -162,6 +170,8 @@ import {
 import {
   createEffectsState,
   emitHit,
+  emitBeam,
+  emitRing,
   emitManeuver,
   tickEffects,
 } from "../game/effects";
@@ -848,6 +858,10 @@ export default function GameCanvas() {
     let chaosRopeCur = 1;
     let chaosRopeTarget = 1;
     let lastChaosRollAt = 0;
+    // Late-game bobs: Pulsar shockwave cadence, Comet tail, Singularity growth.
+    let lastPulseAt = 0;
+    const cometTrail: TrailPoint[] = [];
+    let singularityHits = 0;
 
     // Roster-wide stat extremes — the Chaos Bob's random churn is bounded by
     // the lightest/heaviest, smallest/largest, slowest/fastest rigs that exist.
@@ -1005,6 +1019,9 @@ export default function GameCanvas() {
       chaosCapCur = chaosCapTarget = 1;
       chaosRopeCur = chaosRopeTarget = 1;
       lastChaosRollAt = 0;
+      lastPulseAt = 0;
+      cometTrail.length = 0;
+      singularityHits = 0;
       // Rope behaviors.
       fluxLenCur = fluxLenTarget = 1;
       fluxDrainCur = fluxDrainTarget = 1;
@@ -1235,14 +1252,16 @@ export default function GameCanvas() {
       handle: HitZoneHandle,
       bobBody: Matter.Body,
       now: number,
-      isEcho: boolean
+      isEcho: boolean,
+      // Value of a secondary (non-primary) pop; echoes and shards are 0.5.
+      echoValue = 0.5
     ) {
       const state = useGameStore.getState();
       const effects$ = aggregateEffects(state.activeModifiers, state.persistentBonuses);
       const z = handle.zone;
       // Echo hits land at 50% value so Multi-Bob feels strong but doesn't
       // dwarf the player's actual swing.
-      const echoFactor = isEcho ? 0.5 : 1;
+      const echoFactor = isEcho ? echoValue : 1;
       const base =
         z.basePoints *
         z.multiplier *
@@ -1326,6 +1345,31 @@ export default function GameCanvas() {
         // per-frame scale factors keyed on shedCount).
         if (behavior?.kind === "splitter") {
           shedShard(now, { x: bobBody.position.x, y: bobBody.position.y });
+        }
+
+        // Late-game bobs that react to each real hit.
+        if (behavior?.kind === "singularity") singularityHits += 1;
+        if (behavior?.kind === "midas") {
+          // Golden touch spreads to the nearest other orb (+1x per stack).
+          for (const t of nearestZones(field.zones, handle, 1, Infinity)) {
+            if (gildZone(t.zone, behavior)) {
+              emitBeam(effects, z.position, t.zone.position, now, "#facc15");
+            }
+          }
+        }
+        if (behavior?.kind === "prism") {
+          // Arc to the nearest orbs. Their pops are secondary (isEcho) so they
+          // never chain again, drop tokens or trigger hit-stop.
+          const targets = nearestZones(
+            field.zones,
+            handle,
+            behavior.chainCount ?? 2,
+            behavior.chainRange ?? 900
+          );
+          for (const t of targets) {
+            emitBeam(effects, z.position, t.zone.position, now, "#a5f3fc");
+            scoreZoneHit(t, bobBody, now, true, behavior.popValue ?? 0.5);
+          }
         }
 
         if (comboStacks > 1 && comboStacks % 5 === 0) {
@@ -2147,11 +2191,39 @@ export default function GameCanvas() {
     // Combined per-frame stat multipliers from every active scaling behavior
     // (frenzy size, splitter shed-down, chaos churn). Applied on top of modifier
     // effects when scaling the rig each frame.
+    // Pulsar (shockwave every pulseMs) and Comet (scoring tail). Both only fire
+    // while the bob is actually moving, so a settling rig can still stall out.
+    // Their pops are secondary hits (isEcho): no hit-stop, chains or drops.
+    function lateBobTick(now: number) {
+      if (behavior?.kind !== "pulsar" && behavior?.kind !== "comet") return;
+      const tip = pendulumHandle.bobs[pendulumHandle.bobs.length - 1];
+      const moving = Math.hypot(tip.velocity.x, tip.velocity.y) > STALL_SPEED_THRESHOLD;
+      if (behavior.kind === "pulsar") {
+        if (!moving || now - lastPulseAt < (behavior.pulseMs ?? 1500)) return;
+        lastPulseAt = now;
+        const radius = behavior.pulseRadius ?? 450;
+        emitRing(effects, tip.position, radius, now, "#c4b5fd");
+        playGameSound("token-spawn", { pitch: 0.6, volume: 0.35 });
+        for (const h of zonesInRadius(field.zones, tip.position, radius)) {
+          scoreZoneHit(h, tip, now, true, behavior.popValue ?? 0.5);
+        }
+        return;
+      }
+      pushTrail(cometTrail, tip.position, now, behavior.trailMs ?? 600);
+      if (!moving) return;
+      // The head scores normally; only the tail behind it pops extra.
+      const tail = cometTrail.slice(0, Math.max(0, cometTrail.length - 3));
+      const r = getEffectiveBobRadius(pendulumHandle) * (behavior.trailRadiusFraction ?? 2.5);
+      for (const h of zonesOnTrail(field.zones, tail, r)) {
+        scoreZoneHit(h, tip, now, true, behavior.popValue ?? 0.8);
+      }
+    }
+
     function behaviorScales(): { size: number; rope: number; weight: number } {
       const f = frenzyMultipliers();
       const s = splitterFactors();
       return {
-        size: f.size * s.size * chaosSizeCur,
+        size: f.size * s.size * chaosSizeCur * singularityScale(behavior, singularityHits),
         rope: s.rope * chaosRopeCur,
         weight: s.weight * chaosWeightCur,
       };
@@ -2972,13 +3044,15 @@ export default function GameCanvas() {
         // down when the chain breaks). No-op (target 1) for non-frenzy bobs.
         applyFrenzyScale(frenzyMultipliers().speed);
         // Lodestone: drag nearby circles + loose tokens toward the bob.
-        if (behavior?.kind === "magnet") magnetPull(dt);
+        if (behavior?.kind === "magnet" || behavior?.kind === "singularity") magnetPull(dt);
         else if (effects$.orbPullStrength > 0) {
           // Orb Magnet modifier: a weaker, timed version of the Lodestone pull.
           magnetPull(dt, { pullStrength: effects$.orbPullStrength, tokenPullStrength: effects$.orbPullStrength * 1.6 });
         }
         // Chaos: stat churn (size/weight/cap), applied via the per-frame scales.
         if (behavior?.kind === "chaos") chaosTick(now, dt);
+        // Pulsar shockwaves + Comet tail pops.
+        lateBobTick(now);
         // Rope behaviors: belt conveyor steering + bulwark wall cycle (both
         // self-guard to the strung phase). Black hole pull runs whole-field on
         // its map (strung and freed alike).
@@ -3544,6 +3618,14 @@ export default function GameCanvas() {
           store.equipped
         );
         drawEchoBobs(rc, pendulumHandle.pivot.position, echoRender, activeSkin, activeShape.shape);
+        if (behavior?.kind === "comet" && store.isRunning) {
+          drawCometTrail(
+            rc,
+            cometTrail,
+            getEffectiveBobRadius(pendulumHandle) * (behavior.trailRadiusFraction ?? 2.5),
+            behavior.trailMs ?? 600
+          );
+        }
         drawPendulum(
           rc,
           pendulumHandle,

@@ -57,7 +57,12 @@ export type BobBehaviorKind =
   | "teleport"
   | "rocket"
   | "splitter"
-  | "chaos";
+  | "chaos"
+  | "pulsar"
+  | "comet"
+  | "midas"
+  | "prism"
+  | "singularity";
 
 export interface BobBehavior {
   kind: BobBehaviorKind;
@@ -133,6 +138,34 @@ export interface BobBehavior {
   chaosRerollMs?: number;
   /** Per-second blend rate toward the current random targets. */
   chaosLerpRate?: number;
+  // --- secondary pops (Pulsar, Comet, Prism) ---
+  /** Value of a behavior pop relative to a normal hit (0.5 = half, like echoes). */
+  popValue?: number;
+  // --- pulsar ---
+  /** Time between shockwaves (ms). */
+  pulseMs?: number;
+  /** Shockwave radius (world units). */
+  pulseRadius?: number;
+  // --- comet ---
+  /** How long the scoring tail lingers behind the bob (ms). */
+  trailMs?: number;
+  /** Tail thickness relative to the bob radius. */
+  trailRadiusFraction?: number;
+  // --- midas ---
+  /** Multiplier added to an orb each time this bob pops it. */
+  gildStep?: number;
+  /** Max gild stacks per orb. */
+  maxGild?: number;
+  // --- prism ---
+  /** Extra orbs each real hit arcs to. */
+  chainCount?: number;
+  /** Max arc distance (world units). */
+  chainRange?: number;
+  // --- singularity (also reads pullRadius / pullStrength / tokenPullStrength) ---
+  /** Size gain per real hit (fraction). */
+  growthPerHit?: number;
+  /** Cap on the size gain for one run (fraction). */
+  growthMax?: number;
 }
 
 export interface PendulumDef {
@@ -354,6 +387,8 @@ export interface HitZone {
   basePoints: number;
   multiplier: number;
   modifierChance: number;
+  /** Midas gild stacks (runtime only; a fresh field starts at 0). */
+  gild?: number;
 }
 
 export interface ActiveModifier {
@@ -575,7 +610,8 @@ export type AchievementRequirement =
       counter: "totalGoldenSpent" | "blackHoleCaptures" | "totalArcSurges";
       gte: number;
     }
-  | { type: "custom"; id: "hasLegendary" | "hasAnyBehaviorBob" | "hasAnyBehaviorAttachment" };
+  | { type: "custom"; id: "hasLegendary" | "hasAnyBehaviorBob" | "hasAnyBehaviorAttachment" }
+  | { type: "owns"; kind: ItemKind; id: string };
 
 export interface AchievementDef {
   id: string;

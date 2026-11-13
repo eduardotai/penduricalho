@@ -25,7 +25,20 @@ import {
   tickAttachmentPhysics,
 } from "../../src/game/pendulum";
 import { generateHitZones, relocateZone } from "../../src/game/hitZones";
-import { chaosBounds, frenzyMultipliers, lerpChaos, rollChaosTargets, type ChaosStats } from "../../src/game/bobBehaviors";
+import {
+  chaosBounds,
+  frenzyMultipliers,
+  gildZone,
+  lerpChaos,
+  nearestZones,
+  pushTrail,
+  rollChaosTargets,
+  singularityScale,
+  zonesInRadius,
+  zonesOnTrail,
+  type ChaosStats,
+  type TrailPoint,
+} from "../../src/game/bobBehaviors";
 import { durabilityDrainPerSec, resolveRopeMaterial } from "../../src/game/rope";
 import { GRAB_DAMPING, GRAB_STIFFNESS } from "../../src/game/ropeGrab";
 import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../../src/game/worldConstants";
@@ -229,6 +242,34 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
   let chaosTarget: ChaosStats = { ...chaosCur };
   let lastChaosRollAt = -1e9;
   let frenzyApplied = 1;
+  let singularityHits = 0;
+  let lastPulseAt = 0;
+  const trail: TrailPoint[] = [];
+  const popValue = behavior?.popValue ?? 0.5;
+  type Handle = (typeof field.zones)[number];
+  /** Score one zone like GameCanvas.scoreZoneHit; `factor` < 1 = echo/behavior pop. */
+  const scoreHit = (handle: Handle, factor: number, primary: boolean) => {
+    const z = handle.zone;
+    const stacks = combo + 1;
+    const base = z.basePoints * z.multiplier * pendulum.basePointMultiplier * (attachment.bonuses.momentumMult ?? 1) * factor;
+    points += Math.max(1, Math.round(base * modPoints * (1 + Math.min(20, stacks) * 0.05)));
+    combo = now - lastHitAt < comboWindow ? combo + 1 : 1;
+    lastHitAt = now;
+    bestCombo = Math.max(bestCombo, combo);
+    hits++;
+    if (primary) {
+      if (combo > 1 && combo % 5 === 0) points += 5 * combo;
+      if (behavior?.kind === "singularity") singularityHits++;
+      if (behavior?.kind === "prism") {
+        for (const t of nearestZones(field.zones, handle, behavior.chainCount ?? 2, behavior.chainRange ?? 900)) scoreHit(t, popValue, false);
+      }
+    }
+    if (primary && behavior?.kind === "midas") {
+      // Golden touch spreads: the nearest other orb gains a gild stack.
+      for (const t of nearestZones(field.zones, handle, 1, Infinity)) gildZone(t.zone, behavior);
+    }
+    relocateZone(field, handle, reach, clearance);
+  };
   const capMult = () => frenzyMultipliers(behavior, combo).speed * chaosCur.cap;
 
   Matter.Events.on(engine, "afterUpdate", () => {
@@ -282,7 +323,7 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
       }
       chaosCur = lerpChaos(chaosCur, chaosTarget, behavior.chaosLerpRate ?? 3, STEP);
     }
-    setBobRadiusScale(h, f.size * chaosCur.size);
+    setBobRadiusScale(h, f.size * chaosCur.size * singularityScale(behavior, singularityHits));
     setPendulumWeightScale(h, chaosCur.weight);
     setRopeLengthScale(h, chaosCur.rope);
     if (!h.snapped) {
@@ -321,16 +362,37 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SimSite, mod
         const key = `${body.id}:${z.id}`;
         next.add(key);
         if (overlaps.has(key)) continue;
-        const stacks = combo + 1;
-        const base = z.basePoints * z.multiplier * pendulum.basePointMultiplier * (attachment.bonuses.momentumMult ?? 1);
-        points += Math.max(1, Math.round(base * modPoints * (1 + Math.min(20, stacks) * 0.05)));
-        combo = now - lastHitAt < comboWindow ? combo + 1 : 1;
-        lastHitAt = now;
-        bestCombo = Math.max(bestCombo, combo);
-        if (combo > 1 && combo % 5 === 0) points += 5 * combo;
-        hits++;
         hitThisStep = true;
-        relocateZone(field, handle, reach, clearance);
+        scoreHit(handle, 1, true);
+      }
+    }
+    // --- Lodestone / Singularity pull (GameCanvas.magnetPull, zones only) ---
+    if (behavior?.kind === "magnet" || behavior?.kind === "singularity") {
+      const tip = h.bobs[h.bobs.length - 1];
+      const radius = behavior.pullRadius ?? 780;
+      const strength = (behavior.pullStrength ?? 2.4) * (STEP / 1000);
+      for (const zh of field.zones) {
+        const dx = tip.position.x - zh.zone.position.x;
+        const dy = tip.position.y - zh.zone.position.y;
+        const d = Math.hypot(dx, dy);
+        if (d > radius || d < 1) continue;
+        const k = Math.min(0.5, strength * (1 - d / radius));
+        zh.zone.position = { x: zh.zone.position.x + dx * k, y: zh.zone.position.y + dy * k };
+      }
+    }
+    // --- behavior pops (GameCanvas.lateBobTick) ---
+    const tipNow = h.bobs[h.bobs.length - 1];
+    const speedNow = Math.hypot(tipNow.velocity.x, tipNow.velocity.y);
+    if (behavior?.kind === "pulsar" && speedNow > STALL_SPEED_THRESHOLD && now - lastPulseAt >= (behavior.pulseMs ?? 1500)) {
+      lastPulseAt = now;
+      for (const zh of zonesInRadius(field.zones, tipNow.position, behavior.pulseRadius ?? 600)) scoreHit(zh, popValue, false);
+    }
+    if (behavior?.kind === "comet") {
+      pushTrail(trail, tipNow.position, now, behavior.trailMs ?? 400);
+      if (speedNow > STALL_SPEED_THRESHOLD) {
+        // The head itself scores normally; only the tail behind it pops extra.
+        const tail = trail.slice(0, Math.max(0, trail.length - 3));
+        for (const zh of zonesOnTrail(field.zones, tail, r * (behavior.trailRadiusFraction ?? 0.6))) scoreHit(zh, popValue, false);
       }
     }
     overlaps.clear();
@@ -376,7 +438,7 @@ export interface IncomeRow {
   modeled: boolean;
 }
 
-const MODELED = new Set([undefined, "frenzy", "chaos", "nitro"]);
+const MODELED = new Set([undefined, "frenzy", "chaos", "nitro", "pulsar", "comet", "midas", "prism", "magnet", "singularity"]);
 
 export function incomeTable(
   attachmentId = "titan-cable",

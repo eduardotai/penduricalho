@@ -100,6 +100,31 @@ const ptContent: ContentDict = {
       description:
         "Nunca se comporta igual. Tamanho, peso, velocidade e alcance mudam o tempo todo. Pura aposta, puro espetáculo.",
     },
+    "pulsar-bob": {
+      name: "Bob Pulsar",
+      description:
+        "Uma estrela de nêutrons na corda. A cada 1,5s solta uma onda de choque que estoura todos os orbs em volta pela metade do valor.",
+    },
+    "comet-bob": {
+      name: "Bob Cometa",
+      description:
+        "Arrasta uma cauda larga em chamas. Os orbs que a cauda varre estouram com 80% do valor, então quase-acertos também pontuam.",
+    },
+    "midas-bob": {
+      name: "Bob Midas",
+      description:
+        "Toque de ouro. Cada orb que ele estoura doura o orb mais próximo: +1x de multiplicador por camada, até +3x. Encadeie o ouro.",
+    },
+    "prism-bob": {
+      name: "Bob Prisma",
+      description:
+        "Divide cada acerto em luz. Cada orb estourado lança um arco para os 2 orbs mais próximos e estoura os dois pela metade do valor.",
+    },
+    "singularity-bob": {
+      name: "Bob Singularidade",
+      description:
+        "Um buraco negro em miniatura. Puxa orbs e fichas para o caminho dele e cresce a cada acerto (até +80% de tamanho por rodada).",
+    },
   },
   attachment: {
     "micro-twine": {

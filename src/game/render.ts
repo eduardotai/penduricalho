@@ -8,6 +8,7 @@ import type { TokenField } from "./tokens";
 import { getTokenLifeFraction } from "./tokens";
 import type { EffectsState } from "./effects";
 import {
+  BEAM_MS,
   FLOAT_TEXT_FONT_SIZE,
   HIT_FLASH_EXPAND,
   HIT_FLASH_LINE_WIDTH,
@@ -257,6 +258,15 @@ export function drawHitZones(rc: RenderContext, field: HitZoneField) {
     rc.ctx.fill();
     rc.ctx.globalCompositeOperation = "source-over";
 
+    // Midas gild: a solid gold band per stack, so gilded orbs read at a glance.
+    for (let g = 0; g < (z.gild ?? 0); g++) {
+      rc.ctx.beginPath();
+      rc.ctx.arc(x, y, z.radius + 6 + g * 7, 0, Math.PI * 2);
+      rc.ctx.strokeStyle = withAlpha("#facc15", 0.85 - g * 0.15);
+      rc.ctx.lineWidth = 4;
+      rc.ctx.stroke();
+    }
+
     for (let i = 0; i < bonusRings; i++) {
       const ringR = z.radius + 5 + i * 4 + pulse * 1.5;
       rc.ctx.beginPath();
@@ -410,6 +420,32 @@ export function drawTokens(rc: RenderContext, field: TokenField) {
 
     rc.ctx.restore();
   }
+}
+
+/** Comet Bob: the scoring tail, oldest point faint and thin, newest bright. */
+export function drawCometTrail(
+  rc: RenderContext,
+  trail: readonly { x: number; y: number; t: number }[],
+  radius: number,
+  trailMs: number
+) {
+  if (trail.length < 2) return;
+  rc.ctx.save();
+  rc.ctx.globalCompositeOperation = "lighter";
+  rc.ctx.lineCap = "round";
+  for (let i = 1; i < trail.length; i++) {
+    const a = trail[i - 1];
+    const b = trail[i];
+    const age = Math.max(0, Math.min(1, (rc.now - b.t) / Math.max(1, trailMs)));
+    const k = 1 - age;
+    rc.ctx.strokeStyle = withAlpha(i % 2 ? "#fb923c" : "#fde047", 0.2 * k * k);
+    rc.ctx.lineWidth = Math.max(2, radius * 2 * k);
+    rc.ctx.beginPath();
+    rc.ctx.moveTo(a.x, a.y);
+    rc.ctx.lineTo(b.x, b.y);
+    rc.ctx.stroke();
+  }
+  rc.ctx.restore();
 }
 
 export function drawEchoBobs(
@@ -699,6 +735,23 @@ export function drawEffects(rc: RenderContext, eff: EffectsState) {
     const a = 1 - f.life / f.maxLife;
     rc.ctx.fillStyle = withAlpha(f.color, a);
     rc.ctx.fillText(f.value, f.x, f.y);
+  }
+  for (const r of eff.rings) {
+    const t = Math.max(0, Math.min(1, (rc.now - r.start) / Math.max(1, r.until - r.start)));
+    rc.ctx.strokeStyle = withAlpha(r.color, (1 - t) * 0.75);
+    rc.ctx.lineWidth = HIT_FLASH_LINE_WIDTH * (2 - t);
+    rc.ctx.beginPath();
+    rc.ctx.arc(r.x, r.y, Math.max(1, r.radius * t), 0, Math.PI * 2);
+    rc.ctx.stroke();
+  }
+  for (const b of eff.beams) {
+    const a = Math.max(0, (b.until - rc.now) / BEAM_MS);
+    rc.ctx.strokeStyle = withAlpha(b.color, a * 0.9);
+    rc.ctx.lineWidth = HIT_FLASH_LINE_WIDTH * 1.5;
+    rc.ctx.beginPath();
+    rc.ctx.moveTo(b.x1, b.y1);
+    rc.ctx.lineTo(b.x2, b.y2);
+    rc.ctx.stroke();
   }
   for (const h of eff.hitFlashes) {
     const remaining = (h.until - rc.now) / 220;

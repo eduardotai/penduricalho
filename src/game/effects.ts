@@ -43,10 +43,25 @@ export interface EffectsState {
   floats: FloatText[];
   shake: { magnitude: number; until: number };
   hitFlashes: { x: number; y: number; radius: number; until: number; color: string }[];
+  /** Expanding shockwave rings (Pulsar), radius grows from 0 to `radius`. */
+  rings: { x: number; y: number; radius: number; start: number; until: number; color: string }[];
+  /** Short-lived straight beams between two points (Prism arcs). */
+  beams: { x1: number; y1: number; x2: number; y2: number; until: number; color: string }[];
 }
 
 export function createEffectsState(): EffectsState {
-  return { particles: [], floats: [], shake: { magnitude: 0, until: 0 }, hitFlashes: [] };
+  return { particles: [], floats: [], shake: { magnitude: 0, until: 0 }, hitFlashes: [], rings: [], beams: [] };
+}
+
+export const RING_MS = 420;
+export const BEAM_MS = 260;
+
+export function emitRing(state: EffectsState, at: Vec2, radius: number, now: number, color: string) {
+  state.rings.push({ x: at.x, y: at.y, radius, start: now, until: now + RING_MS, color });
+}
+
+export function emitBeam(state: EffectsState, from: Vec2, to: Vec2, now: number, color: string) {
+  state.beams.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y, until: now + BEAM_MS, color });
 }
 
 export function emitHit(
@@ -130,6 +145,8 @@ export function tickEffects(state: EffectsState, dtMs: number, now: number) {
     const h = state.hitFlashes[i];
     if (h.until <= now) state.hitFlashes.splice(i, 1);
   }
+  state.rings = state.rings.filter((r) => r.until > now);
+  state.beams = state.beams.filter((b) => b.until > now);
   if (state.shake.until <= now) {
     state.shake.magnitude = 0;
     state.shake.until = 0;
