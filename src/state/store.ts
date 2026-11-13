@@ -226,7 +226,8 @@ export interface GameState {
   startArcSurge: (now: number) => void;
   setArenaIdleRate: (ratePerSec: number) => void;
   syncIdleRateFromWorkshop: () => void;
-  registerHit: (points: number, now: number) => void;
+  /** `comboWindowMs` defaults to COMBO_DECAY_MS (Combo Lock widens it). */
+  registerHit: (points: number, now: number, comboWindowMs?: number) => void;
   registerSwing: () => void;
   spend: (n: number) => boolean;
   buy: (kind: ItemKind, id: string) => boolean;
@@ -324,7 +325,7 @@ export interface GameState {
   reset: () => void;
 }
 
-const COMBO_DECAY_MS = 1800;
+export const COMBO_DECAY_MS = 1800;
 
 // Max stacked duration (active or persistent) for ordinary buffs. Hard ceiling:
 // no ordinary buff can ever hold longer than this, no matter how often it's
@@ -348,6 +349,8 @@ export function modifierDurationCapMs(defId: string): number {
 // Giant Bob are size buffs of the same family, so only the freshest one holds.
 const MUTUALLY_EXCLUSIVE_GROUPS: readonly (readonly string[])[] = [
   ["bigger-bob", "giant-bob"],
+  // Both retune gravity; the freshest pickup wins instead of cancelling out.
+  ["heavy-air", "moon-gravity"],
 ];
 
 /** Modifier ids that must be cleared when `defId` becomes active. */
@@ -984,9 +987,9 @@ export const useGameStore = create<GameState>()(
         return true;
       },
 
-      registerHit: (points, now) =>
+      registerHit: (points, now, comboWindowMs = COMBO_DECAY_MS) =>
         set((s) => {
-          const stillInCombo = now - s.combo.lastHitAt < COMBO_DECAY_MS;
+          const stillInCombo = now - s.combo.lastHitAt < comboWindowMs;
           const newCount = stillInCombo ? s.combo.count + 1 : 1;
           const bestCombo = Math.max(s.stats.bestCombo, newCount);
           return {

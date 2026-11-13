@@ -51,7 +51,8 @@ Token spawning is weighted random, biased by site and some "guaranteed first dro
 {
   pointMult?, twistPowerMult?, accelerationMult?, weightMult?,
   bobSizeMult?, ropeLengthMult?, echoCount?,
-  velocityGrowthPerSec?
+  velocityGrowthPerSec?,
+  comboWindowMult?, dropChanceMult?, durabilityDrainMult?, orbPullStrength?
 }
 ```
 
@@ -60,6 +61,12 @@ Token spawning is weighted random, biased by site and some "guaranteed first dro
 - `PersistentBonus[]` — spawned by spending Golden Tokens. Survive across multiple runs until their `expiresAt`.
 
 `aggregateEffects()` is called every frame in the game loop to produce the final combined multipliers that all systems read.
+
+`comboWindowMult` feeds `registerHit`/`decayCombo`, `dropChanceMult` scales each
+orb's `modifierChance`, `durabilityDrainMult` multiplies rope wear (0 = none),
+`orbPullStrength` reuses the Lodestone `magnetPull` with a weaker strength.
+`risky: true` on a ModifierDef adds a ⚠ to its HUD row.
+Measure balance with `node scripts/sim-modifiers.mjs [rope] [site] [runs] [bobs]`.
 
 **Capped additive duration** helper exists so stacking the same buff doesn't go infinite.
 

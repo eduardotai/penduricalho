@@ -412,6 +412,30 @@ const ptContent: ContentDict = {
       name: "Multi-Bob",
       description: "+2 ecos do bob acertam junto com você por 6s.",
     },
+    "combo-lock": {
+      name: "Trava de Combo",
+      description: "O combo dura 4x mais entre acertos por 8s.",
+    },
+    "lucky-charm": {
+      name: "Amuleto da Sorte",
+      description: "Orbs estourados têm 2,5x mais chance de soltar ficha por 8s.",
+    },
+    "rope-guard": {
+      name: "Corda Blindada",
+      description: "A corda não se desgasta por 6s.",
+    },
+    "glass-cannon": {
+      name: "Canhão de Vidro",
+      description: "x2,5 pontos, mas a corda gasta 4x mais rápido por 5s.",
+    },
+    "moon-gravity": {
+      name: "Gravidade Lunar",
+      description: "A gravidade cai para 55% por 7s. Arcos largos e flutuantes.",
+    },
+    "orb-magnet": {
+      name: "Ímã de Orbs",
+      description: "Orbs e fichas próximos vão até o bob por 6s.",
+    },
     "token-bonus": {
       name: "Bônus de Ficha",
       description: "x3 pontos e Bob jogado de novo.",
@@ -462,6 +486,12 @@ const ptContent: ContentDict = {
       name: "Overdrive",
       description: "Tranco forte ao pegar e +75% de giro e +50% de pontos por 4s.",
     },
+    "combo-lock": { name: "Trava de Combo", description: "Combo dura 4x mais por 8s." },
+    "lucky-charm": { name: "Amuleto da Sorte", description: "2,5x mais fichas por 8s." },
+    "rope-guard": { name: "Corda Blindada", description: "Sem desgaste da corda por 6s." },
+    "glass-cannon": { name: "Canhão de Vidro", description: "x2,5 pontos, corda gasta 4x por 5s." },
+    "moon-gravity": { name: "Gravidade Lunar", description: "55% da gravidade por 7s." },
+    "orb-magnet": { name: "Ímã de Orbs", description: "Puxa orbs e fichas por 6s." },
     repair: {
       name: "Remendo",
       description: "Recupera a corda e adia o rompimento.",

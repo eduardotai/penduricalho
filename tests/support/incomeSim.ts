@@ -32,7 +32,7 @@ import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../../src/ga
 import { PENDULUMS } from "../../src/data/pendulums";
 import { ATTACHMENTS } from "../../src/data/attachments";
 import { SITE_MAP } from "../../src/data/sites";
-import type { PendulumDef, SiteDef } from "../../src/types";
+import type { ModifierEffects, PendulumDef, SiteDef } from "../../src/types";
 import { applyGust, createBumperField, createGustSchedule, gustAt } from "../../src/game/mapMechanics";
 
 const STEP = 1000 / 60;
@@ -85,23 +85,34 @@ export function simulateRun(
   seed: number,
   overrides: Partial<PendulumDef> = {},
   mode: PlayMode = "launch",
-  siteOverride: Partial<SiteDef> = {}
+  siteOverride: Partial<SiteDef> = {},
+  mods: ModifierEffects = {}
 ): RunResult {
   const realRandom = Math.random;
   Math.random = seeded(seed);
   try {
-    return runOnce({ ...pendulum, ...overrides }, attachmentId, { ...SITE_MAP.get(siteId)!, ...siteOverride }, mode);
+    return runOnce({ ...pendulum, ...overrides }, attachmentId, { ...SITE_MAP.get(siteId)!, ...siteOverride }, mode, mods);
   } finally {
     Math.random = realRandom;
   }
 }
 
-function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mode: PlayMode): RunResult {
+/**
+ * `mods` applies modifier effects for the WHOLE run (an upper bound on a timed
+ * pickup): pointMult, accelerationMult (gravity), weightMult (rope wear),
+ * durabilityDrainMult and comboWindowMult are modeled; drop chance, orb pull,
+ * size and echoes are not.
+ */
+function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mode: PlayMode, mods: ModifierEffects = {}): RunResult {
   const attachment = ATTACHMENTS.find((a) => a.id === attachmentId)!;
+  const comboWindow = COMBO_DECAY_MS * (mods.comboWindowMult ?? 1);
+  const modPoints = mods.pointMult ?? 1;
+  const modDrain = (mods.durabilityDrainMult ?? 1);
+  const wearWeight = pendulum.weight * (mods.weightMult ?? 1);
   const gusts = site.mechanic?.kind === "gusts" ? createGustSchedule(site.mechanic) : null;
   const bumpers = site.mechanic?.kind === "bumpers" ? createBumperField(site.mechanic) : null;
   const engine = Matter.Engine.create({
-    gravity: { x: 0, y: site.gravity, scale: 0.001 },
+    gravity: { x: 0, y: site.gravity * (mods.accelerationMult ?? 1), scale: 0.001 },
     enableSleeping: false,
     constraintIterations: 4,
     positionIterations: 10,
@@ -174,7 +185,7 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
       }
     }
     // --- per-frame behavior + scaling (GameCanvas.frame order) ---
-    if (now - lastHitAt >= COMBO_DECAY_MS) combo = 0;
+    if (now - lastHitAt >= comboWindow) combo = 0;
     const f = frenzyMultipliers(behavior, combo);
     if (behavior?.kind === "chaos") {
       if (now - lastChaosRollAt > (behavior.chaosRerollMs ?? 900)) {
@@ -191,7 +202,7 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
     setPendulumWeightScale(h, chaosCur.weight);
     setRopeLengthScale(h, chaosCur.rope);
     if (!h.snapped) {
-      durability -= durabilityDrainPerSec(material, pendulum.weight) * (behavior?.durabilityDrainMult ?? 1) * (STEP / 1000);
+      durability -= durabilityDrainPerSec(material, wearWeight) * modDrain * (behavior?.durabilityDrainMult ?? 1) * (STEP / 1000);
       if (durability <= 0) snapRope(h, { scatter: true });
     }
     if (!h.snapped) tickAttachmentPhysics(h);
@@ -225,8 +236,8 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mod
         if (overlaps.has(key)) continue;
         const stacks = combo + 1;
         const base = z.basePoints * z.multiplier * pendulum.basePointMultiplier * (attachment.bonuses.momentumMult ?? 1);
-        points += Math.max(1, Math.round(base * (1 + Math.min(20, stacks) * 0.05)));
-        combo = now - lastHitAt < COMBO_DECAY_MS ? combo + 1 : 1;
+        points += Math.max(1, Math.round(base * modPoints * (1 + Math.min(20, stacks) * 0.05)));
+        combo = now - lastHitAt < comboWindow ? combo + 1 : 1;
         lastHitAt = now;
         bestCombo = Math.max(bestCombo, combo);
         if (combo > 1 && combo % 5 === 0) points += 5 * combo;
@@ -284,7 +295,8 @@ export function incomeTable(
   overrides: Record<string, Partial<PendulumDef>> = {},
   mode: PlayMode = "launch",
   onlyIds?: string[],
-  siteOverride: Partial<SiteDef> = {}
+  siteOverride: Partial<SiteDef> = {},
+  mods: ModifierEffects = {}
 ): IncomeRow[] {
   return PENDULUMS.filter((p) => !onlyIds || onlyIds.includes(p.id)).map((p) => {
     let pts = 0;
@@ -294,7 +306,7 @@ export function incomeTable(
     let snaps = 0;
     const per: number[] = [];
     for (let i = 0; i < runs; i++) {
-      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode, siteOverride);
+      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode, siteOverride, mods);
       pts += r.points;
       per.push(r.points);
       ms += r.ms + RELAUNCH_OVERHEAD_MS;
