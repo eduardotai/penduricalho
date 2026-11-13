@@ -95,6 +95,11 @@ function localizeDecimal(value: string, lang: Lang): string {
   return decimalSeparator(lang) === "," ? value.replace(".", ",") : value;
 }
 
+/** A plain decimal in the UI language: 5.1 -> "5,1" in pt. `digits` fixes the decimals (toFixed). */
+export function formatDecimal(n: number, lang: Lang, digits?: number): string {
+  return localizeDecimal(digits === undefined ? String(n) : n.toFixed(digits), lang);
+}
+
 function localeFor(lang: Lang): string {
   return lang === "pt" ? "pt-BR" : "en-US";
 }
