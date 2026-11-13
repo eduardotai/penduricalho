@@ -134,7 +134,7 @@ export function ramp(anchors: Partial<Palette> & { "50": string; "950": string }
   return out;
 }
 
-const SANS = '"Inter Variable", ui-sans-serif, system-ui, sans-serif';
+const SANS = '"Archivo Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif';
 const SERIF = '"Fraunces Variable", Georgia, ui-serif, serif';
 const CINZEL = '"Cinzel Variable", Georgia, ui-serif, serif';
 const ORBITRON = '"Orbitron Variable", "Inter Variable", ui-sans-serif, sans-serif';
@@ -146,8 +146,8 @@ export const THEMES: ThemeDef[] = [
     id: DEFAULT_THEME_ID,
     name: { en: "Classic", pt: "Clássico" },
     description: {
-      en: "The original night-blue lab with candy orbs.",
-      pt: "O laboratório azul-noite original com orbes coloridos.",
+      en: "The test bench: ink-blue drafting sheet, edge rulers, a drifting phase trace and candy orbs.",
+      pt: "A bancada de ensaio: papel milimetrado azul-tinta, réguas nas bordas, traço de fase à deriva e orbes coloridos.",
     },
     cost: 0,
     palette: {
