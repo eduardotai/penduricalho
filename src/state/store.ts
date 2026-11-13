@@ -14,6 +14,7 @@ import { STARTER_SKIN_ID, SKIN_MAP } from "../data/bobSkins";
 import { STARTER_SHAPE_ID, SHAPE_MAP } from "../data/bobShapes";
 import { MODIFIER_MAP } from "../data/modifiers";
 import { DEFAULT_THEME_ID, THEME_MAP } from "../data/themes";
+import { GLOBAL_UPGRADE_MAP } from "../data/globalUpgrades";
 import {
   allTimeMomentum,
   canPrestige,
@@ -209,6 +210,8 @@ export interface GameState {
   prestigeCogs: number;
   prestigeCount: number;
   prestigeLifetimeMomentum: number;
+  /** Global income upgrades owned this cycle (v26); reset by prestige. */
+  globalUpgrades: string[];
 
   addMomentum: (n: number) => void;
   registerClick: (now: number) => number;
@@ -235,6 +238,7 @@ export interface GameState {
    * (and changes nothing) if not allowed or a run is live.
    */
   prestige: () => number;
+  buyGlobalUpgrade: (id: string) => boolean;
   // Spend Momentum to add `count` levels (default 1) to an owned bob or rope.
   // All-or-nothing: returns false if the item isn't owned or the player can't
   // afford the full batch.
@@ -521,6 +525,11 @@ function normalizeCosmeticState(state: Record<string, unknown>): Record<string, 
     equipped: { ...equipped, siteId, skinId, shapeId },
     ownedThemes: [...new Set(ownedThemes)],
     themeId,
+    globalUpgrades: Array.isArray(state.globalUpgrades)
+      ? [...new Set(state.globalUpgrades as unknown[])].filter(
+          (id): id is string => typeof id === "string" && GLOBAL_UPGRADE_MAP.has(id)
+        )
+      : [],
   };
 }
 
@@ -550,7 +559,7 @@ function getCost(kind: ItemKind, id: string): number | null {
 }
 
 /** Persisted save schema version. Bump with a `version < N` step in migrateSave. */
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 
 /** Persisted-save migration (exported for tests). Never delete old steps. */
 export function migrateSave(persisted: unknown, version: number): unknown {
@@ -570,6 +579,10 @@ export function migrateSave(persisted: unknown, version: number): unknown {
       const v = state[k];
       if (typeof v !== "number" || !Number.isFinite(v) || v < 0) state[k] = 0;
     }
+  }
+  // Global income upgrades (v26): none owned yet.
+  if (version < 26 && !Array.isArray(state.globalUpgrades)) {
+    state.globalUpgrades = [];
   }
 
   // Plan C separation cleanup (v23): remove legacy hybrid "bob is the cookie" transients.
@@ -805,6 +818,7 @@ export const useGameStore = create<GameState>()(
       prestigeCogs: 0,
       prestigeCount: 0,
       prestigeLifetimeMomentum: 0,
+      globalUpgrades: [],
 
       // Achievements (new in v20)
       unlockedAchievements: {},
@@ -1087,10 +1101,32 @@ export const useGameStore = create<GameState>()(
           runStalled: true,
           guaranteedFirstDrop: false,
           guaranteedFirstBuff: false,
+          globalUpgrades: [],
           worldVersion: prev.worldVersion + 1,
         }));
         get().checkAchievements();
         return gained;
+      },
+
+      buyGlobalUpgrade: (id) => {
+        const def = GLOBAL_UPGRADE_MAP.get(id);
+        if (!def) return false;
+        const s = get();
+        if (s.globalUpgrades.includes(id)) return false;
+        if (def.requires && !s.globalUpgrades.includes(def.requires)) return false;
+        if (s.momentum < def.cost) return false;
+        set((prev) => {
+          const next = { ...prev, globalUpgrades: [...prev.globalUpgrades, id] };
+          const { cachedTotalCps } = workshopSnapshot(next);
+          return {
+            momentum: prev.momentum - def.cost,
+            globalUpgrades: next.globalUpgrades,
+            cachedTotalCps,
+            idleRatePerSec: combinedIdleRate(cachedTotalCps, prev.arenaIdleRatePerSec),
+          };
+        });
+        get().checkAchievements();
+        return true;
       },
 
       levelUp: (kind, id, count = 1) => {
@@ -1618,6 +1654,7 @@ export const useGameStore = create<GameState>()(
           prestigeCogs: 0,
           prestigeCount: 0,
           prestigeLifetimeMomentum: 0,
+          globalUpgrades: [],
         }),
     }),
     {
@@ -1666,6 +1703,7 @@ export const useGameStore = create<GameState>()(
         prestigeCogs: state.prestigeCogs,
         prestigeCount: state.prestigeCount,
         prestigeLifetimeMomentum: state.prestigeLifetimeMomentum,
+        globalUpgrades: state.globalUpgrades,
       }),
     }
   )

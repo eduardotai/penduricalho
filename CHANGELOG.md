@@ -6,6 +6,14 @@ post-1.0.1 entries below are reconstructed from the project's commit history.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] - Global boosts
+
+### Added
+- **Boosts / Multiplicadores tab in the Shop**: one-time global income upgrades. **Mola Mestra / Master Mainspring ×2** (1M) and **Turbilhão / Tourbillon ×3** (25M, needs ×2) — ×6 together. They multiply zone hits, pumps and generator CPS (and so offline idle) together with the prestige Cogs bonus and the achievement bonus; the tab shows the live breakdown. Prestige resets them.
+
+### Migration
+- Save v26: `globalUpgrades` (default `[]`; unknown ids dropped on load).
+
 ## [Unreleased] - Prestige
 
 ### Added
