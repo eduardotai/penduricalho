@@ -36,7 +36,7 @@ export const SITES: SiteDef[] = [
     id: "bumper-arena",
     name: "Bumper Arena",
     description:
-      "A medium walled arena — same shatter-and-ricochet rules as the Bumper Cage, but with a roomier cage that lets freed bobs carom further before they break out.",
+      "A medium walled arena swept by wind. Every few seconds a gust builds from a new direction and shoves the bob, the rope and any freed pieces — ride it to stretch the swing, or fight it. The gauge at the top shows the next gust.",
     gravity: 1,
     hitZoneCount: 150,
     hitZoneRadius: ZONE_RADIUS,
@@ -44,6 +44,9 @@ export const SITES: SiteDef[] = [
     walls: "breakable",
     cageScale: 1.45,
     wallDurabilityMult: 0.5,
+    // Tuned with the income sim (scripts/sim-income.mjs): within about ±10% of
+    // a windless field — launches run a bit longer, hand swings fight it a bit.
+    mechanic: { kind: "gusts", calmMs: 3000, rampMs: 600, holdMs: 2200, accel: 14, maxTilt: 0.35 },
     cost: 12_000,
     unlock: { stat: "totalMomentum", gte: 9000 },
   },

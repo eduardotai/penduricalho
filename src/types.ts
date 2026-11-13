@@ -251,12 +251,34 @@ export interface AttachmentDef {
  */
 export type WallMode = "none" | "solid" | "breakable";
 
+/**
+ * Map-specific mechanics. Static data only (nothing here is saved), so adding
+ * or retuning a mechanic never needs a save migration.
+ *   "gusts" — wind that builds, blows for a few seconds, then dies down, from a
+ *             fresh direction each time. Pushes every bob, shard and rope node.
+ */
+export type SiteMechanic = {
+  kind: "gusts";
+  /** Quiet time between gusts. */
+  calmMs: number;
+  /** Fade in / fade out time on each side of a gust. */
+  rampMs: number;
+  /** Full-strength time of a gust. */
+  holdMs: number;
+  /** Peak push in world units per physics step, per second (velocity-based, so every bob feels it the same). */
+  accel: number;
+  /** Max tilt from horizontal for the gust direction, in radians. */
+  maxTilt: number;
+};
+
 export interface SiteDef {
   id: string;
   name: string;
   description: string;
   gravity: number;
   ambient?: Vec2;
+  /** A map-specific mechanic layered on top of the walls (see game/mapMechanics.ts). */
+  mechanic?: SiteMechanic;
   hitZoneCount: number;
   hitZoneRadius: [number, number];
   background: string;

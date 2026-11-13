@@ -32,7 +32,8 @@ import { ANCHOR, VIRTUAL_HEIGHT, VIRTUAL_WIDTH, WORLD_SCALE } from "../../src/ga
 import { PENDULUMS } from "../../src/data/pendulums";
 import { ATTACHMENTS } from "../../src/data/attachments";
 import { SITE_MAP } from "../../src/data/sites";
-import type { PendulumDef } from "../../src/types";
+import type { PendulumDef, SiteDef } from "../../src/types";
+import { applyGust, createGustSchedule, gustAt } from "../../src/game/mapMechanics";
 
 const STEP = 1000 / 60;
 // Mirrors GameCanvas constants.
@@ -83,20 +84,21 @@ export function simulateRun(
   siteId: string,
   seed: number,
   overrides: Partial<PendulumDef> = {},
-  mode: PlayMode = "launch"
+  mode: PlayMode = "launch",
+  siteOverride: Partial<SiteDef> = {}
 ): RunResult {
   const realRandom = Math.random;
   Math.random = seeded(seed);
   try {
-    return runOnce({ ...pendulum, ...overrides }, attachmentId, siteId, mode);
+    return runOnce({ ...pendulum, ...overrides }, attachmentId, { ...SITE_MAP.get(siteId)!, ...siteOverride }, mode);
   } finally {
     Math.random = realRandom;
   }
 }
 
-function runOnce(pendulum: PendulumDef, attachmentId: string, siteId: string, mode: PlayMode): RunResult {
+function runOnce(pendulum: PendulumDef, attachmentId: string, site: SiteDef, mode: PlayMode): RunResult {
   const attachment = ATTACHMENTS.find((a) => a.id === attachmentId)!;
-  const site = SITE_MAP.get(siteId)!;
+  const gusts = site.mechanic?.kind === "gusts" ? createGustSchedule(site.mechanic) : null;
   const engine = Matter.Engine.create({
     gravity: { x: 0, y: site.gravity, scale: 0.001 },
     enableSleeping: false,
@@ -192,6 +194,10 @@ function runOnce(pendulum: PendulumDef, attachmentId: string, siteId: string, mo
       if (durability <= 0) snapRope(h, { scatter: true });
     }
     if (!h.snapped) tickAttachmentPhysics(h);
+    if (gusts) {
+      const bodies = h.snapped ? getOrderedBobBodies(h) : [...getOrderedBobBodies(h), ...h.ropeSegments];
+      applyGust(bodies, gustAt(gusts, now), gusts.mechanic.accel, STEP);
+    }
     if (Math.abs(f.speed - frenzyApplied) > 0.001) {
       const d = f.speed / frenzyApplied;
       for (const bob of h.bobs) Matter.Body.setVelocity(bob, { x: bob.velocity.x * d, y: bob.velocity.y * d });
@@ -272,7 +278,8 @@ export function incomeTable(
   runs = 16,
   overrides: Record<string, Partial<PendulumDef>> = {},
   mode: PlayMode = "launch",
-  onlyIds?: string[]
+  onlyIds?: string[],
+  siteOverride: Partial<SiteDef> = {}
 ): IncomeRow[] {
   return PENDULUMS.filter((p) => !onlyIds || onlyIds.includes(p.id)).map((p) => {
     let pts = 0;
@@ -282,7 +289,7 @@ export function incomeTable(
     let snaps = 0;
     const per: number[] = [];
     for (let i = 0; i < runs; i++) {
-      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode);
+      const r = simulateRun(p, attachmentId, siteId, 1000 + i * 7919, overrides[p.id], mode, siteOverride);
       pts += r.points;
       per.push(r.points);
       ms += r.ms + RELAUNCH_OVERHEAD_MS;

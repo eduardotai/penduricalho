@@ -185,7 +185,7 @@ const ptContent: ContentDict = {
     "bumper-arena": {
       name: "Arena de Para-choques",
       description:
-        "Arena média com paredes quebráveis. Mais espaço para os bobs ricochetearem antes de escapar.",
+        "Arena média varrida pelo vento. A cada poucos segundos uma rajada vem de uma direção nova e empurra o bob, a corda e os pedaços soltos. Aproveite para esticar o balanço ou lute contra ela. O medidor no topo mostra a próxima rajada.",
     },
     "bumper-colosseum": {
       name: "Coliseu de Para-choques",
