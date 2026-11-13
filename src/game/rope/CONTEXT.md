@@ -139,3 +139,10 @@ Test extreme cases: lightest bob on most fragile rope, heaviest bob on longest e
 - `src/game/CONTEXT.md` (main simulation picture)
 - `src/game/pendulum.ts` (where most rope handles are created and ticked)
 - `src/game/beltTunnel.ts` (the tunnel generator and containment logic)
+
+## charge (Plasma Tether)
+
+Not a physics behavior: `ropeChargeMult(behavior, comboCount)` (in `rope/index.ts`)
+multiplies zone points by `1 + min(maxCharge, combo * chargePerStack)`. Used by
+`GameCanvas.scoreZoneHit` and the income sim. Compare ropes with
+`node scripts/sim-ropes.mjs [bobs] [site] [runs] [launch|hand]`.

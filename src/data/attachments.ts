@@ -188,6 +188,48 @@ export const ROPE_ATTACHMENTS: AttachmentDef[] = [
       wallRepairMs: 700,
     },
   },
+  // --- Late-game ropes (wave 2). Tuned with the headless sim
+  // (scripts/sim-ropes.mjs); each trades along a different axis. ---
+  {
+    id: "silk-thread",
+    name: "Silk Thread",
+    description:
+      "Spider-silk line with enormous reach and almost no strength. Light bobs fly wide; heavy bobs snap it fast.",
+    type: "rope",
+    length: L(340),
+    stiffness: 0.9,
+    damping: 0.012,
+    bonuses: { momentumMult: 1.9, velocityBonus: 0.15 },
+    cost: 35_000,
+    unlock: { stat: "totalMomentum", gte: 40_000 },
+  },
+  {
+    id: "anchor-chain",
+    name: "Anchor Chain",
+    description:
+      "Ship's anchor chain. Huge load rating and long life: built to carry the heaviest late bobs through long runs.",
+    type: "chain",
+    length: L(320),
+    stiffness: 0.84,
+    damping: 0.035,
+    bonuses: { momentumMult: 3, twistPowerBonus: 0.3, velocityBonus: 0.35 },
+    cost: 150_000,
+    unlock: { stat: "totalMomentum", gte: 200_000 },
+  },
+  {
+    id: "plasma-tether",
+    name: "Plasma Tether",
+    description:
+      "A line of charged plasma. Every combo stack charges it: +4% points per stack, up to +60%. Break the combo and the charge is gone.",
+    type: "rope",
+    length: L(310),
+    stiffness: 0.92,
+    damping: 0.01,
+    bonuses: { momentumMult: 2.4, twistPowerBonus: 0.3, velocityBonus: 0.2 },
+    cost: 400_000,
+    unlock: { stat: "totalMomentum", gte: 500_000 },
+    behavior: { kind: "charge", chargePerStack: 0.04, maxCharge: 0.6 },
+  },
 ];
 
 const OTHER_ATTACHMENTS: AttachmentDef[] = [
@@ -226,6 +268,32 @@ const OTHER_ATTACHMENTS: AttachmentDef[] = [
     bonuses: { momentumMult: 1.35, velocityBonus: 0.4, twistPowerBonus: 0.2 },
     cost: 15_000,
     unlock: { stat: "totalHits", gte: 250 },
+  },
+  {
+    id: "spring-coil",
+    name: "Spring Coil",
+    description:
+      "A long steel spring. Stretches far under load and fires the bob back out: the bounciest line in the shop.",
+    type: "elastic",
+    length: L(240),
+    stiffness: 0.55,
+    damping: 0.035,
+    bonuses: { momentumMult: 1.7, velocityBonus: 0.55, twistPowerBonus: 0.25 },
+    cost: 60_000,
+    unlock: { stat: "totalHits", gte: 600 },
+  },
+  {
+    id: "carbon-rod",
+    name: "Carbon Rod",
+    description:
+      "Carbon-fibre rod: long, rigid and light. Perfectly precise arcs with the strongest twist of any line.",
+    type: "rod",
+    length: L(290),
+    stiffness: 1,
+    damping: 0.004,
+    bonuses: { momentumMult: 2.3, twistPowerBonus: 0.45 },
+    cost: 900_000,
+    unlock: { stat: "totalMomentum", gte: 1_200_000 },
   },
 ];
 

@@ -195,6 +195,31 @@ const ptContent: ContentDict = {
       name: "Cordão Elástico",
       description: "Cordão esticável. Acumula energia antes de soltar.",
     },
+    "silk-thread": {
+      name: "Fio de Seda",
+      description:
+        "Seda de aranha com alcance enorme e quase nenhuma força. Bobs leves voam longe; bobs pesados arrebentam rápido.",
+    },
+    "spring-coil": {
+      name: "Mola Espiral",
+      description:
+        "Uma mola de aço comprida. Estica muito com carga e atira o bob de volta: a linha mais elástica da loja.",
+    },
+    "anchor-chain": {
+      name: "Corrente de Âncora",
+      description:
+        "Corrente de âncora de navio. Aguenta muito peso e dura bastante: feita para os bobs pesados do fim do jogo.",
+    },
+    "plasma-tether": {
+      name: "Amarra de Plasma",
+      description:
+        "Uma linha de plasma carregado. Cada acerto do combo carrega a linha: +4% de pontos por acerto, até +60%. Se o combo quebrar, perde a carga.",
+    },
+    "carbon-rod": {
+      name: "Haste de Carbono",
+      description:
+        "Haste de fibra de carbono: longa, rígida e leve. Arcos precisos e o giro mais forte de todas as linhas.",
+    },
   },
   site: {
     workshop: {

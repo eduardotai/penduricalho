@@ -94,7 +94,7 @@ import {
   drawWindStreaks,
 } from "../game/renderMechanics";
 import { PENDULUMS } from "../data/pendulums";
-import { resolveRopeMaterial, durabilityDrainPerSec } from "../game/rope";
+import { resolveRopeMaterial, durabilityDrainPerSec, ropeChargeMult } from "../game/rope";
 import {
   destroyHitZones,
   clearZonesAround,
@@ -1267,6 +1267,8 @@ export default function GameCanvas() {
         z.multiplier *
         pendulum.basePointMultiplier *
         (attachment.bonuses.momentumMult ?? 1) *
+        // Plasma Tether: the live combo charges the line (+4%/stack, capped).
+        ropeChargeMult(ropeBehavior, state.combo.count) *
         effects$.pointMult *
         echoFactor;
       // Permanent achievement bonus (small global multiplier, Cookie Clicker milk style)
@@ -1289,6 +1291,14 @@ export default function GameCanvas() {
       );
 
       state.registerHit(total, now, COMBO_DECAY_MS * effects$.comboWindowMult);
+      // Plasma Tether: announce the moment the line reaches full charge.
+      if (ropeBehavior?.kind === "charge" && !isEcho) {
+        const per = ropeBehavior.chargePerStack ?? 0.04;
+        const max = ropeBehavior.maxCharge ?? 0.6;
+        if (state.combo.count + 1 === Math.ceil(max / per)) {
+          emitManeuver(effects, z.position, effectText.plasmaCharged(Math.round(max * 100)), now);
+        }
+      }
       handle.hitFlashUntil = now + 240;
 
       emitHit(effects, z.position, now, {

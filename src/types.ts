@@ -215,10 +215,15 @@ export interface AttachmentBonuses {
  *                 wall, that hardened stretch is repaired (re-softened) and the
  *                 cycle begins again.
  */
-export type RopeBehaviorKind = "flux" | "metronome" | "belt" | "bulwark";
+export type RopeBehaviorKind = "flux" | "metronome" | "belt" | "bulwark" | "charge";
 
 export interface RopeBehavior {
   kind: RopeBehaviorKind;
+  // --- charge (Plasma Tether) ---
+  /** Points bonus per live combo stack (0.04 = +4%). */
+  chargePerStack?: number;
+  /** Cap on the combo charge bonus (0.6 = +60%). */
+  maxCharge?: number;
   // --- flux (Random Rope) ---
   /** How often fresh random length / drain targets are rolled (ms). */
   fluxRerollMs?: number;
