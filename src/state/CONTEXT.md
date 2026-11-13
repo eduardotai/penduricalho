@@ -24,6 +24,7 @@
 - `totalGoldenTokens`, `pendingGoldenTokens`
 - `idleRatePerSec` — EMA of earnings rate, used for offline progress
 - `language`, `tutorialSeen`, `audio` settings, `autoRun`, `autoToken`
+- `prestigeCogs`, `prestigeCount`, `prestigeLifetimeMomentum` — prestige (v25), `prestige()` action; formulas in `game/prestige.ts`. `globalIncomeMult(state)` there is the one place every scaling income source multiplies by (zone hits in GameCanvas, `computeClickGain`, CPS in `workshopSnapshot`).
 - `ownedThemes`, `themeId` — Shop themes (v24); `buyTheme` / `equipTheme`. The default theme is always owned; `normalizeCosmeticState` drops unknown ids.
 
 ### Run State (mostly transient)

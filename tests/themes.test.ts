@@ -9,7 +9,7 @@ import {
   themeCssVars,
 } from "../src/data/themes";
 import { RENDER_THEMES } from "../src/game/themes";
-import { migrateSave, mergeSave, useGameStore } from "../src/state/store";
+import { SAVE_VERSION, migrateSave, mergeSave, useGameStore } from "../src/state/store";
 
 const SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
 
@@ -114,13 +114,14 @@ test("merge drops unknown themes and never equips an unowned one", () => {
   assert.equal(merged2.themeId, "watchmaker");
 });
 
-test("the persisted save is v24 and carries the theme fields", () => {
+test("the persisted save is the current version (>= v24) and carries the theme fields", () => {
   useGameStore.getState().reset();
   useGameStore.setState({ momentum: 1_000_000 });
   useGameStore.getState().buyTheme("watchmaker");
   useGameStore.getState().equipTheme("watchmaker");
   const raw = JSON.parse(localStorage.getItem("pendulum-clicker-save")!);
-  assert.equal(raw.version, 24);
+  assert.equal(raw.version, SAVE_VERSION);
+  assert.ok(SAVE_VERSION >= 24);
   assert.deepEqual(raw.state.ownedThemes, [DEFAULT_THEME_ID, "watchmaker"]);
   assert.equal(raw.state.themeId, "watchmaker");
 });

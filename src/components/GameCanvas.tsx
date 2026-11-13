@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { useGameStore, CAMERA_ZOOM_MIN } from "../state/store";
+import { globalIncomeMult } from "../game/prestige";
 import {
   resolveEquippedCosmetics,
   useEquippedAttachment,
@@ -1203,7 +1204,9 @@ export default function GameCanvas() {
         state.arcSurgeUntil > now ? Math.min(2, state.arcSurgeMult / 7) : 1;
       const total = Math.max(
         1,
-        Math.round(base * (1 + comboBonus) * achMult * lvlMult * burst * surge)
+        Math.round(
+          base * (1 + comboBonus) * achMult * lvlMult * burst * surge * globalIncomeMult(state)
+        )
       );
 
       state.registerHit(total, now);

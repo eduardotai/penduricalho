@@ -8,6 +8,7 @@ import Tutorial from "./components/Tutorial";
 import ControlPanel from "./components/ControlPanel";
 import IdleToast from "./components/IdleToast";
 import Achievements from "./components/Achievements";
+import Prestige from "./components/Prestige";
 import AchievementToast from "./components/AchievementToast";
 import { AudioManager } from "./audio/AudioManager";
 import { playGameSound } from "./audio/soundMap";
@@ -21,6 +22,7 @@ export default function App() {
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [prestigeOpen, setPrestigeOpen] = useState(false);
   // Auto-open the How-to-Play tutorial once for first-time players, then leave
   // it reopenable from the controls. tutorialSeen is read once on mount so a
   // mid-session dismiss doesn't fight the initial state.
@@ -171,6 +173,17 @@ export default function App() {
     setAchievementsOpen(true);
   }
 
+  function openPrestige() {
+    AudioManager.unlock();
+    playGameSound("ui-modal-open");
+    setPrestigeOpen(true);
+  }
+
+  function closePrestige() {
+    playGameSound("ui-modal-close");
+    setPrestigeOpen(false);
+  }
+
   function closeAchievements() {
     playGameSound("ui-modal-close");
     setAchievementsOpen(false);
@@ -207,6 +220,7 @@ export default function App() {
                 onOpenCustomize={openCustomize}
                 onOpenSettings={openSettings}
                 onOpenAchievements={openAchievements}
+                onOpenPrestige={openPrestige}
               />
             </div>
           </div>
@@ -224,6 +238,7 @@ export default function App() {
       <Settings open={settingsOpen} onClose={closeSettings} onOpenTutorial={openTutorial} />
       <Tutorial open={tutorialOpen} onClose={closeTutorial} />
       <Achievements open={achievementsOpen} onClose={closeAchievements} />
+      <Prestige open={prestigeOpen} onClose={closePrestige} />
       <AchievementToast />
       <IdleToast />
       <Analytics />
