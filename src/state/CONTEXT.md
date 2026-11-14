@@ -152,3 +152,7 @@ Direct `.getState()` is the safe way to read/write from imperative loops.
 old save (see `tests/themes.test.ts`, which migrates a v23 save). Bump
 `version` and add an `if (version < N)` step for every shape change; never
 delete old steps. Store tests import `tests/memoryStorage.ts` first.
+
+## Cloud saves
+
+`cloudSave.ts` backs the persisted record up to the Worker API (`worker/api.ts`, Workers KV). `cloudBoot.ts` must stay the first import in `main.tsx`: it applies a cloud restore staged by the previous load and snapshots the on-disk save before the store hydrates. Manual imports call `markLocalChanged()` so the cloud can't roll them back. See `docs/CLOUD_SAVES.md`.

@@ -106,7 +106,7 @@ export const en = {
     languageNote: "Changes apply instantly across the whole game.",
     dataHeading: "Move your progress",
     dataIntro:
-      "Your progress is stored only in this browser, on this device. Make a backup file or copy a save code to move it to another browser or device.",
+      "Your progress is saved in this browser and backed up automatically to the game's cloud. You can also download a backup file or copy a save code.",
     exportSection: "Back up",
     exportDesc: "Create a backup you can keep or move to another device.",
     downloadSave: "Download backup",
@@ -126,7 +126,24 @@ export const en = {
     importErrorInvalid: "That doesn't look like a valid backup or save code.",
     importErrorUnrecognized: "That backup isn't a Penduricalho save.",
     safetyNote:
-      "Saves never leave your device on their own — exporting and importing is entirely up to you.",
+      "The cloud backup stores only your game progress and a random code. No account, name or e-mail.",
+    cloudSection: "Cloud save",
+    cloudDesc:
+      "Progress is backed up to the game's server about once a minute while you play. Enter this code on another device to continue there.",
+    cloudCodeLabel: "Your cloud code",
+    cloudCodePrivate: "Keep it private: anyone with this code can load or overwrite this save.",
+    copyCloudCode: "Copy code",
+    cloudStatusSynced: (time: string) => `Last cloud backup: ${time}`,
+    cloudStatusIdle: "The first cloud backup happens shortly after you start playing.",
+    cloudStatusOffline: "Cloud backup unavailable right now. Progress is still saved on this device.",
+    cloudLinkPlaceholder: "Paste a cloud code from another device",
+    cloudLinkButton: "Load cloud save",
+    cloudLinkConfirm:
+      "Load the cloud save for this code? It replaces the progress on this device, and both devices will share this save from now on.",
+    cloudLinkLoading: "Loading cloud save...",
+    cloudErrorInvalid: "That isn't a valid cloud code (32 letters and numbers).",
+    cloudErrorNotFound: "No cloud save was found for this code.",
+    cloudErrorOffline: "Couldn't reach the server. Check your connection and try again.",
     shortcuts: [
       { keys: "Start Run / Run Again", action: "Launch the Bob" },
       { keys: "G", action: "Spend a ready golden token (mid-run)" },
@@ -595,7 +612,7 @@ export const pt: UIStrings = {
     languageNote: "As mudanças se aplicam na hora em todo o jogo.",
     dataHeading: "Mover seu progresso",
     dataIntro:
-      "Seu progresso fica salvo só neste navegador, neste aparelho. Crie um backup ou copie um código de save para levar o jogo a outro navegador ou aparelho.",
+      "Seu progresso fica salvo neste navegador e também tem backup automático na nuvem do jogo. Você ainda pode baixar um arquivo de backup ou copiar um código de save.",
     exportSection: "Backup",
     exportDesc: "Crie uma cópia para guardar ou levar a outro aparelho.",
     downloadSave: "Baixar backup",
@@ -615,7 +632,24 @@ export const pt: UIStrings = {
     importErrorInvalid: "Isso não parece um backup ou código de save válido.",
     importErrorUnrecognized: "Esse backup não é um save do Penduricalho.",
     safetyNote:
-      "Os saves nunca saem do seu aparelho sozinhos — exportar e importar depende só de você.",
+      "O backup na nuvem guarda só o progresso do jogo e um código aleatório. Sem conta, nome ou e-mail.",
+    cloudSection: "Save na nuvem",
+    cloudDesc:
+      "Enquanto você joga, o progresso vai para o servidor do jogo mais ou menos uma vez por minuto. Digite este código em outro aparelho para continuar de lá.",
+    cloudCodeLabel: "Seu código da nuvem",
+    cloudCodePrivate: "Não compartilhe: quem tiver este código pode carregar ou sobrescrever este save.",
+    copyCloudCode: "Copiar código",
+    cloudStatusSynced: (time: string) => `Último backup na nuvem: ${time}`,
+    cloudStatusIdle: "O primeiro backup na nuvem acontece logo depois que você começar a jogar.",
+    cloudStatusOffline: "Backup na nuvem indisponível agora. O progresso continua salvo neste aparelho.",
+    cloudLinkPlaceholder: "Cole o código da nuvem de outro aparelho",
+    cloudLinkButton: "Carregar save da nuvem",
+    cloudLinkConfirm:
+      "Carregar o save da nuvem deste código? Ele substitui o progresso deste aparelho, e os dois aparelhos passam a usar o mesmo save.",
+    cloudLinkLoading: "Carregando save da nuvem...",
+    cloudErrorInvalid: "Esse não é um código da nuvem válido (32 letras e números).",
+    cloudErrorNotFound: "Nenhum save na nuvem foi encontrado para este código.",
+    cloudErrorOffline: "Não foi possível falar com o servidor. Confira sua conexão e tente de novo.",
     shortcuts: [
       { keys: "Iniciar / Rodar de novo", action: "Jogar o Bob" },
       { keys: "G", action: "Usar uma ficha dourada pronta (durante a rodada)" },

@@ -1,11 +1,13 @@
 import { useGameStore } from "./store";
 
 // Key the Zustand `persist` middleware writes the save under (see store.ts).
-// The save lives ONLY here, in the player's own browser localStorage — it is
-// never sent anywhere. Export/import below is the only way to move it between
-// browsers or devices, and it stays fully under the player's control (a file
-// they download, or text they copy).
-export const SAVE_STORAGE_KEY = "pendulum-clicker-save";
+// The live save is the player's browser localStorage. A copy is also backed up
+// automatically to the game's own server (Cloudflare Workers KV, keyed by a
+// random player id, no personal data): see cloudSave.ts. Export/import below
+// is the manual way to move it between browsers or devices (a file they
+// download, or text they copy).
+import { SAVE_STORAGE_KEY, cloudSave } from "./cloudSave";
+export { SAVE_STORAGE_KEY };
 
 // Envelope wrapper around the raw persisted record. The magic + format let us
 // recognise our own files and reject unrelated JSON a player might paste in.
@@ -176,6 +178,8 @@ export function importSaveString(text: string): ImportResult {
   }
   try {
     localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(record));
+    // The imported save is now the newest copy: don't let the cloud roll it back.
+    cloudSave()?.markLocalChanged();
   } catch {
     return { ok: false, reason: "invalid" };
   }
