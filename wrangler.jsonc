@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4.162.0/config-schema.json",
+  "name": "penduricalho",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
