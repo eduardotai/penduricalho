@@ -1,3 +1,5 @@
+// Must stay the first import: it runs before the store hydrates (cloud saves).
+import { STARTUP_SAVE_RAW } from "./state/cloudBoot";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -15,6 +17,7 @@ import "./index.css";
 import { useGameStore } from "./state/store";
 import { applyTheme } from "./lib/applyTheme";
 import { setRenderTheme } from "./game/themes";
+import { startCloudSave } from "./state/cloudSave";
 
 function syncTheme(id: string) {
   applyTheme(id);
@@ -33,3 +36,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
+
+startCloudSave(STARTUP_SAVE_RAW);

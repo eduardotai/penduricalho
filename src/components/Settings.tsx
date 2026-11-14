@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
   type CSSProperties,
   type ReactNode,
@@ -29,6 +30,7 @@ import {
   exportSaveString,
   importSaveString,
 } from "../state/saveTransfer";
+import { cloudSave, parseCloudCode, type CloudStatus } from "../state/cloudSave";
 import { playGameSound, playUiClick } from "../audio/soundMap";
 import { AudioManager } from "../audio/AudioManager";
 import { MusicDirector, trackTitle } from "../audio/musicDirector";
@@ -341,6 +343,8 @@ function DataTab() {
     <div className="space-y-5">
       <p className="text-xs leading-relaxed text-slate-400">{t.settings.dataIntro}</p>
 
+      <CloudSaveSection />
+
       <SettingsSection title={t.settings.exportSection}>
         <p className="text-xs leading-relaxed text-slate-500">{t.settings.exportDesc}</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -425,6 +429,112 @@ function DataTab() {
 
       <p className="text-[11px] leading-relaxed text-slate-600">{t.settings.safetyNote}</p>
     </div>
+  );
+}
+
+const IDLE_STATUS: CloudStatus = { kind: "idle" };
+const noopSubscribe = () => () => {};
+
+function CloudSaveSection() {
+  const t = useT();
+  const client = cloudSave();
+  const status = useSyncExternalStore(
+    client ? client.subscribe : noopSubscribe,
+    client ? client.getStatus : () => IDLE_STATUS
+  );
+  const [code] = useState(() => client?.cloudCode() ?? "");
+  const [copied, setCopied] = useState(false);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!client) return null;
+
+  async function onCopy() {
+    playUiClick();
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked: the code is selectable text, the player can copy it.
+    }
+  }
+
+  async function onLink() {
+    playUiClick();
+    setError(null);
+    if (!parseCloudCode(input)) {
+      setError(t.settings.cloudErrorInvalid);
+      return;
+    }
+    if (!window.confirm(t.settings.cloudLinkConfirm)) return;
+    setBusy(true);
+    const result = await client!.linkCode(input);
+    if (result.ok) {
+      window.location.reload();
+      return;
+    }
+    setBusy(false);
+    setError(
+      result.reason === "not_found"
+        ? t.settings.cloudErrorNotFound
+        : result.reason === "offline"
+          ? t.settings.cloudErrorOffline
+          : t.settings.cloudErrorInvalid
+    );
+  }
+
+  const statusText =
+    status.kind === "synced"
+      ? t.settings.cloudStatusSynced(new Date(status.at).toLocaleTimeString())
+      : status.kind === "offline"
+        ? t.settings.cloudStatusOffline
+        : t.settings.cloudStatusIdle;
+
+  return (
+    <SettingsSection title={t.settings.cloudSection}>
+      <p className="text-xs leading-relaxed text-slate-500">{t.settings.cloudDesc}</p>
+      <div className="card space-y-2 px-3 py-2.5" data-testid="cloud-save-code">
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+          {t.settings.cloudCodeLabel}
+        </div>
+        <div className="flex items-center gap-2">
+          <code className="readout min-w-0 flex-1 select-all break-all px-2 py-1 font-mono text-xs text-brand-200">
+            {code}
+          </code>
+          <button type="button" onClick={onCopy} className="key shrink-0 min-h-[36px] px-3 text-xs">
+            {copied ? t.settings.copied : t.settings.copyCloudCode}
+          </button>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-600">{t.settings.cloudCodePrivate}</p>
+      </div>
+      <p className="text-[11px] leading-relaxed text-slate-500" aria-live="polite">
+        {statusText}
+      </p>
+      <input
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        placeholder={t.settings.cloudLinkPlaceholder}
+        autoComplete="off"
+        spellCheck={false}
+        className="readout w-full px-3 py-2 font-mono text-xs text-slate-200 placeholder:text-slate-600 focus:border-brand-500/60 focus:outline-none"
+      />
+      <button
+        type="button"
+        onClick={onLink}
+        disabled={!input.trim() || busy}
+        className="key key-ghost min-h-[42px] w-full text-xs"
+      >
+        {busy ? t.settings.cloudLinkLoading : t.settings.cloudLinkButton}
+      </button>
+      {error && (
+        <p className="card border-rose-700/60 px-3 py-2 text-xs leading-relaxed text-rose-200">
+          {error}
+        </p>
+      )}
+    </SettingsSection>
   );
 }
 

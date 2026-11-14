@@ -25,3 +25,6 @@ Thumbs.db
 *.tsbuildinfo
 .vercel
 .claude/
+
+# Cloudflare Wrangler local state
+.wrangler

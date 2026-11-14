@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p worker && vite build",
+    "typecheck": "tsc -b && tsc -p worker",
     "preview": "vite preview",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "export-saves": "node scripts/export-saves.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
