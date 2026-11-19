@@ -123,3 +123,9 @@ and a `RenderTheme` in `game/themes/<id>.ts`, register it in
 `game/themes/index.ts` (tests/themes.test.ts fails if one is missing). Shared
 helpers (seeded RNG, cached offscreen layers, vignette) are in `game/themes/artUtils.ts`;
 cache anything static (grain, stars, frames) so the backdrop stays cheap per frame.
+Every backdrop flattens its static parts with `drawStaticLayer`: one layer
+under the animated art (gradients, lamp/sun pools, textures) and one over it
+(vignette, scanlines, frame), each painted once at device pixels and copied
+1:1 per frame. Parallax offsets go into the layer key snapped with
+`snapToDevice`, so a layer only repaints when the camera moves. Keep animated
+or additive (`lighter`) art out of these layers.

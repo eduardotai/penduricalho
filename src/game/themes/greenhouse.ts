@@ -1,6 +1,6 @@
 import type { SiteDef, Vec2 } from "../../types";
 import { withAlpha } from "../bobRenderUtils";
-import { cachedLayer, seededRandom, vignette } from "./artUtils";
+import { cachedLayer, drawStaticLayer, seededRandom, vignette } from "./artUtils";
 import type { BackdropCamera, RenderTheme, ZoneDrawArgs } from "./types";
 
 /**
@@ -20,6 +20,8 @@ const GLASS: Record<string, { top: string; bottom: string; light: string; leaf: 
 };
 
 const frameSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const baseSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const vignetteSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 
 /** Iron glasshouse frame: arched bays + vertical/horizontal mullions. */
 function paintFrame(g: CanvasRenderingContext2D, w: number, h: number) {
@@ -128,18 +130,21 @@ function drawGreenhouseBackdrop(
   const px = cam ? cam.panX * cam.scale : 0;
   const py = cam ? cam.panY * cam.scale : 0;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, pal.top);
-  grad.addColorStop(1, pal.bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+  // Static base (glass gradient, dusk light) flattened into one layer.
+  drawStaticLayer(ctx, baseSlot, `base:${site.background}`, width, height, (g, w, h) => {
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, pal.top);
+    grad.addColorStop(1, pal.bottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
 
-  // Warm dusk light coming through the glass, upper left.
-  const sun = ctx.createRadialGradient(width * 0.25, -height * 0.1, 0, width * 0.25, -height * 0.1, Math.max(width, height) * 0.9);
-  sun.addColorStop(0, withAlpha(pal.light, 0.16));
-  sun.addColorStop(1, withAlpha(pal.light, 0));
-  ctx.fillStyle = sun;
-  ctx.fillRect(0, 0, width, height);
+    // Warm dusk light coming through the glass, upper left.
+    const sun = g.createRadialGradient(w * 0.25, -h * 0.1, 0, w * 0.25, -h * 0.1, Math.max(w, h) * 0.9);
+    sun.addColorStop(0, withAlpha(pal.light, 0.16));
+    sun.addColorStop(1, withAlpha(pal.light, 0));
+    g.fillStyle = sun;
+    g.fillRect(0, 0, w, h);
+  });
 
   // Light shafts.
   ctx.save();
@@ -189,7 +194,7 @@ function drawGreenhouseBackdrop(
   }
   ctx.restore();
 
-  vignette(ctx, width, height, 0.55);
+  drawStaticLayer(ctx, vignetteSlot, "vignette", width, height, (g, w, h) => vignette(g, w, h, 0.55));
 }
 
 function copper(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {

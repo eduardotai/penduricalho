@@ -1,6 +1,6 @@
 import { withAlpha } from "../bobRenderUtils";
 import type { SiteDef } from "../../types";
-import { cachedLayer, vignette } from "./artUtils";
+import { cachedLayer, deviceScale, drawStaticLayer, snapToDevice, vignette } from "./artUtils";
 import type { BackdropCamera, RenderTheme } from "./types";
 
 /**
@@ -28,6 +28,7 @@ const MINOR = 12;
 const MAJOR = 96;
 const gridSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 const frameSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const baseSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 
 /** One tile (MAJOR×MAJOR) of the millimetre grid, repeated with parallax. */
 function gridTile(): HTMLCanvasElement {
@@ -63,45 +64,43 @@ function gridTile(): HTMLCanvasElement {
 }
 
 /** Screen-fixed frame: vignette, edge rulers, registration marks. */
-function frameLayer(width: number, height: number): HTMLCanvasElement {
-  return cachedLayer(frameSlot, "frame", width, height, (g, w, h) => {
-    vignette(g, w, h, 0.62);
-    g.fillStyle = "rgba(148,163,184,0.22)";
-    for (let x = 0; x < w; x += MINOR) {
-      const long = x % MAJOR === 0;
-      g.fillRect(x, 0, 1, long ? 9 : 4);
-      g.fillRect(x, h - (long ? 9 : 4), 1, long ? 9 : 4);
-    }
-    for (let y = 0; y < h; y += MINOR) {
-      const long = y % MAJOR === 0;
-      g.fillRect(0, y, long ? 9 : 4, 1);
-      g.fillRect(w - (long ? 9 : 4), y, long ? 9 : 4, 1);
-    }
-    g.font = '600 8px "JetBrains Mono Variable", ui-monospace, monospace';
-    g.fillStyle = "rgba(148,163,184,0.32)";
-    g.textBaseline = "top";
-    for (let x = MAJOR; x < w - 30; x += MAJOR) g.fillText(String(x / MINOR), x + 3, 11);
-    g.textBaseline = "alphabetic";
-    for (let y = MAJOR; y < h - 20; y += MAJOR) g.fillText(String(y / MINOR), 12, y - 3);
-    // Registration marks.
-    g.strokeStyle = "rgba(251,146,60,0.35)";
-    g.lineWidth = 1;
-    const m = 26;
-    for (const [cx, cy] of [
-      [m, m],
-      [w - m, m],
-      [m, h - m],
-      [w - m, h - m],
-    ]) {
-      g.beginPath();
-      g.arc(cx, cy, 6, 0, Math.PI * 2);
-      g.moveTo(cx - 11, cy);
-      g.lineTo(cx + 11, cy);
-      g.moveTo(cx, cy - 11);
-      g.lineTo(cx, cy + 11);
-      g.stroke();
-    }
-  });
+function paintFrame(g: CanvasRenderingContext2D, w: number, h: number) {
+  vignette(g, w, h, 0.62);
+  g.fillStyle = "rgba(148,163,184,0.22)";
+  for (let x = 0; x < w; x += MINOR) {
+    const long = x % MAJOR === 0;
+    g.fillRect(x, 0, 1, long ? 9 : 4);
+    g.fillRect(x, h - (long ? 9 : 4), 1, long ? 9 : 4);
+  }
+  for (let y = 0; y < h; y += MINOR) {
+    const long = y % MAJOR === 0;
+    g.fillRect(0, y, long ? 9 : 4, 1);
+    g.fillRect(w - (long ? 9 : 4), y, long ? 9 : 4, 1);
+  }
+  g.font = '600 8px "JetBrains Mono Variable", ui-monospace, monospace';
+  g.fillStyle = "rgba(148,163,184,0.32)";
+  g.textBaseline = "top";
+  for (let x = MAJOR; x < w - 30; x += MAJOR) g.fillText(String(x / MINOR), x + 3, 11);
+  g.textBaseline = "alphabetic";
+  for (let y = MAJOR; y < h - 20; y += MAJOR) g.fillText(String(y / MINOR), 12, y - 3);
+  // Registration marks.
+  g.strokeStyle = "rgba(251,146,60,0.35)";
+  g.lineWidth = 1;
+  const m = 26;
+  for (const [cx, cy] of [
+    [m, m],
+    [w - m, m],
+    [m, h - m],
+    [w - m, h - m],
+  ]) {
+    g.beginPath();
+    g.arc(cx, cy, 6, 0, Math.PI * 2);
+    g.moveTo(cx - 11, cy);
+    g.lineTo(cx + 11, cy);
+    g.moveTo(cx, cy - 11);
+    g.lineTo(cx, cy + 11);
+    g.stroke();
+  }
 }
 
 /** Faint, slowly drifting phase portrait (θ vs ω of a damped pendulum). */
@@ -151,29 +150,35 @@ function drawBenchBackdrop(
   cam?: BackdropCamera
 ) {
   const [top, bottom] = SITE_BACKGROUNDS[site.background] ?? SITE_BACKGROUNDS.workshop;
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+  // Parallax grid offset (35% of the camera pan), snapped to a device pixel
+  // so the cached base below only rebuilds when the camera actually moves.
+  const ds = deviceScale(ctx);
+  const ox = cam ? snapToDevice(-((cam.panX * cam.scale * 0.35) % MAJOR), ds) : 0;
+  const oy = cam ? snapToDevice(-((cam.panY * cam.scale * 0.35) % MAJOR), ds) : 0;
 
-  // Warm lamp pool from the top, like a bench lamp over the arena.
-  const lamp = ctx.createRadialGradient(width * 0.5, -height * 0.1, 0, width * 0.5, -height * 0.1, height * 0.95);
-  lamp.addColorStop(0, "rgba(251,146,60,0.10)");
-  lamp.addColorStop(1, "rgba(251,146,60,0)");
-  ctx.fillStyle = lamp;
-  ctx.fillRect(0, 0, width, height);
+  // Static base (sheet gradient, lamp pool, grid) flattened into one layer.
+  drawStaticLayer(ctx, baseSlot, `base:${site.background}:${ox}:${oy}`, width, height, (g, w, h) => {
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
 
-  // Parallax grid (moves at 35% of the camera pan).
-  const tile = gridTile();
-  const ox = cam ? -((cam.panX * cam.scale * 0.35) % MAJOR) : 0;
-  const oy = cam ? -((cam.panY * cam.scale * 0.35) % MAJOR) : 0;
-  for (let x = ox - MAJOR; x < width; x += MAJOR) {
-    for (let y = oy - MAJOR; y < height; y += MAJOR) ctx.drawImage(tile, x, y);
-  }
+    // Warm lamp pool from the top, like a bench lamp over the arena.
+    const lamp = g.createRadialGradient(w * 0.5, -h * 0.1, 0, w * 0.5, -h * 0.1, h * 0.95);
+    lamp.addColorStop(0, "rgba(251,146,60,0.10)");
+    lamp.addColorStop(1, "rgba(251,146,60,0)");
+    g.fillStyle = lamp;
+    g.fillRect(0, 0, w, h);
+
+    const tile = gridTile();
+    for (let x = ox - MAJOR; x < w; x += MAJOR) {
+      for (let y = oy - MAJOR; y < h; y += MAJOR) g.drawImage(tile, x, y);
+    }
+  });
 
   drawPhaseTrace(ctx, width, height, cam?.now ?? 0);
-  ctx.drawImage(frameLayer(width, height), 0, 0, width, height);
+  drawStaticLayer(ctx, frameSlot, "frame", width, height, paintFrame);
 }
 
 export const classicTheme: RenderTheme = {

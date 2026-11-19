@@ -1,6 +1,6 @@
 import type { SiteDef, Vec2 } from "../../types";
 import { withAlpha } from "../bobRenderUtils";
-import { cachedLayer, seededRandom, vignette } from "./artUtils";
+import { cachedLayer, deviceScale, drawStaticLayer, seededRandom, snapToDevice, vignette } from "./artUtils";
 import type { BackdropCamera, RenderTheme, ZoneDrawArgs, ZoneTierColors } from "./types";
 
 /**
@@ -21,6 +21,8 @@ const SKIES: Record<string, { top: string; bottom: string; nebula: [string, stri
 
 const starSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 const nebulaSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const baseSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const vignetteSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 
 interface TwinkleStar {
   fx: number;
@@ -54,47 +56,57 @@ function drawObservatoryBackdrop(
   cam?: BackdropCamera
 ) {
   const pal = SKIES[site.background] ?? SKIES.workshop;
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, pal.top);
-  grad.addColorStop(1, pal.bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-
   const px = cam ? cam.panX * cam.scale : 0;
   const py = cam ? cam.panY * cam.scale : 0;
   const t = (cam?.now ?? 0) / 1000;
 
-  // Nebula haze (cached), drifts very slightly with the camera.
-  const neb = cachedLayer(nebulaSlot, `neb:${site.background}`, width, height, (g, w, h) => {
-    const rnd = seededRandom(77);
-    for (let i = 0; i < 7; i++) {
-      const cx = w * (0.1 + rnd() * 0.8);
-      const cy = h * (0.1 + rnd() * 0.8);
-      const r = Math.max(w, h) * (0.18 + rnd() * 0.25);
-      const col = i % 2 === 0 ? pal.nebula[0] : pal.nebula[1];
-      const ng = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-      ng.addColorStop(0, withAlpha(col, 0.1));
-      ng.addColorStop(1, withAlpha(col, 0));
-      g.fillStyle = ng;
-      g.fillRect(0, 0, w, h);
-    }
-  });
-  ctx.drawImage(neb, px * 0.03, py * 0.03, width, height);
+  // Static base (sky gradient, nebula haze, dim star field) flattened into one
+  // layer. Haze and stars drift slightly with the camera; their offsets are
+  // snapped to a device pixel so the base only rebuilds when the camera moves.
+  const ds = deviceScale(ctx);
+  const nx = snapToDevice(px * 0.03, ds);
+  const ny = snapToDevice(py * 0.03, ds);
+  const sx = snapToDevice(px * 0.05, ds);
+  const sy = snapToDevice(py * 0.05, ds);
+  drawStaticLayer(ctx, baseSlot, `base:${site.background}:${nx}:${ny}:${sx}:${sy}`, width, height, (g, w, h) => {
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, pal.top);
+    grad.addColorStop(1, pal.bottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
 
-  // Dim star field (cached), slight parallax.
-  const stars = cachedLayer(starSlot, "stars", width, height, (g, w, h) => {
-    const rnd = seededRandom(1999);
-    const n = Math.round((w * h) / 2600);
-    for (let i = 0; i < n; i++) {
-      const a = 0.15 + rnd() * 0.5;
-      const r = rnd() < 0.9 ? 0.6 : 1.1;
-      g.fillStyle = rnd() < 0.15 ? `rgba(255,226,190,${a})` : `rgba(210,225,255,${a})`;
-      g.beginPath();
-      g.arc(rnd() * w, rnd() * h, r, 0, Math.PI * 2);
-      g.fill();
-    }
+    // Nebula haze (cached).
+    const neb = cachedLayer(nebulaSlot, `neb:${site.background}`, w, h, (n, nw, nh) => {
+      const rnd = seededRandom(77);
+      for (let i = 0; i < 7; i++) {
+        const cx = nw * (0.1 + rnd() * 0.8);
+        const cy = nh * (0.1 + rnd() * 0.8);
+        const r = Math.max(nw, nh) * (0.18 + rnd() * 0.25);
+        const col = i % 2 === 0 ? pal.nebula[0] : pal.nebula[1];
+        const ng = n.createRadialGradient(cx, cy, 0, cx, cy, r);
+        ng.addColorStop(0, withAlpha(col, 0.1));
+        ng.addColorStop(1, withAlpha(col, 0));
+        n.fillStyle = ng;
+        n.fillRect(0, 0, nw, nh);
+      }
+    });
+    g.drawImage(neb, nx, ny, w, h);
+
+    // Dim star field (cached).
+    const stars = cachedLayer(starSlot, "stars", w, h, (st, sw, sh) => {
+      const rnd = seededRandom(1999);
+      const n = Math.round((sw * sh) / 2600);
+      for (let i = 0; i < n; i++) {
+        const a = 0.15 + rnd() * 0.5;
+        const r = rnd() < 0.9 ? 0.6 : 1.1;
+        st.fillStyle = rnd() < 0.15 ? `rgba(255,226,190,${a})` : `rgba(210,225,255,${a})`;
+        st.beginPath();
+        st.arc(rnd() * sw, rnd() * sh, r, 0, Math.PI * 2);
+        st.fill();
+      }
+    });
+    g.drawImage(stars, sx, sy, w, h);
   });
-  ctx.drawImage(stars, px * 0.05, py * 0.05, width, height);
 
   // Bright twinkling stars with a soft cross glint.
   ctx.save();
@@ -159,7 +171,7 @@ function drawObservatoryBackdrop(
   ctx.stroke();
   ctx.restore();
 
-  vignette(ctx, width, height, 0.55);
+  drawStaticLayer(ctx, vignetteSlot, "vignette", width, height, (g, w, h) => vignette(g, w, h, 0.55));
 }
 
 function silver(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
