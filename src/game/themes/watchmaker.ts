@@ -1,5 +1,6 @@
 import type { SiteDef, Vec2 } from "../../types";
 import { withAlpha } from "../bobRenderUtils";
+import { drawStaticLayer, vignette } from "./artUtils";
 import type { BackdropCamera, RenderTheme } from "./types";
 
 /**
@@ -17,6 +18,9 @@ const BACKDROPS: Record<string, { top: string; bottom: string; grain: string; ge
   layers: { top: "#1a2b29", bottom: "#081110", grain: "#b9e0d4", gear: "#cdb46e" },
   "black-hole": { top: "#141019", bottom: "#030204", grain: "#b8a6d9", gear: "#9d86c9" },
 };
+
+const baseSlot = { key: "", canvas: null as HTMLCanvasElement | null };
+const vignetteSlot = { key: "", canvas: null as HTMLCanvasElement | null };
 
 let grainCache: { key: string; canvas: HTMLCanvasElement } | null = null;
 
@@ -91,20 +95,23 @@ function drawWatchmakerBackdrop(
   cam?: BackdropCamera
 ) {
   const pal = BACKDROPS[site.background] ?? BACKDROPS.workshop;
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, pal.top);
-  grad.addColorStop(1, pal.bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
+  // Static base (wood gradient, grain, lamp pool) flattened into one layer.
+  drawStaticLayer(ctx, baseSlot, `base:${site.background}`, width, height, (g, w, h) => {
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, pal.top);
+    grad.addColorStop(1, pal.bottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
 
-  ctx.drawImage(grainLayer(width, height, pal.grain), 0, 0, width, height);
+    g.drawImage(grainLayer(w, h, pal.grain), 0, 0, w, h);
 
-  // Warm work-lamp pool above the mount.
-  const lamp = ctx.createRadialGradient(width * 0.5, height * 0.38, 0, width * 0.5, height * 0.38, Math.max(width, height) * 0.6);
-  lamp.addColorStop(0, "rgba(255, 214, 140, 0.10)");
-  lamp.addColorStop(1, "rgba(255, 214, 140, 0)");
-  ctx.fillStyle = lamp;
-  ctx.fillRect(0, 0, width, height);
+    // Warm work-lamp pool above the mount.
+    const lamp = g.createRadialGradient(w * 0.5, h * 0.38, 0, w * 0.5, h * 0.38, Math.max(w, h) * 0.6);
+    lamp.addColorStop(0, "rgba(255, 214, 140, 0.10)");
+    lamp.addColorStop(1, "rgba(255, 214, 140, 0)");
+    g.fillStyle = lamp;
+    g.fillRect(0, 0, w, h);
+  });
 
   const minSide = Math.min(width, height);
   const t = (cam?.now ?? 0) / 1000;
@@ -142,11 +149,7 @@ function drawWatchmakerBackdrop(
   }
   ctx.restore();
 
-  const vig = ctx.createRadialGradient(width / 2, height / 2, minSide * 0.35, width / 2, height / 2, Math.hypot(width, height) * 0.62);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,0.6)");
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, width, height);
+  drawStaticLayer(ctx, vignetteSlot, "vignette", width, height, (g, w, h) => vignette(g, w, h, 0.6));
 }
 
 function brassGradient(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
